@@ -22,18 +22,17 @@ qc.cloud.fail <- c("imm_19_10324118","rs1016431","rs1160544","rs12743005","rs129
 ok <- c("rs3024493","rs61839660","rs56994090","rs12927355","rs151234","rs229533")
 qc.cloud.fail <- qc.cloud.fail[!qc.cloud.fail %in% ok]
 
-table1passtopsnps <- c("rs2476601","rs3024505","rs7511678","rs2111485","rs3087243",
-"rs4850921","imm_3_46488935","rs34046593","rs75793288","rs2611215",
-"rs11950831","rs72928038","rs2326451","rs7867224","rs12722496",  
-"rs12416116","rs722988","rs6357","rs917911","rs877636",
-"rs3184504","rs9517719","rs1350276","rs1054000","rs61573680",
-"rs34593439","rs741172","rs151233","rs8056814",
-"rs36038753","rs1893217","rs71178827","rs34536443","rs485186",
-"rs2250261","rs9981624","rs1548389","rs229536")
 
 ## these sent to chris ollie 10DEC13
 table1snpsfinal <- c("rs6679677","rs113010081","rs75793288","rs11954020","rs12212193","rs1538171","rs1574285","rs61839660","rs12416116","rs3842727","rs1701704","rs151234","rs12927355","rs8067378","rs16939895","rs74956615","rs6043409","rs917911","rs7511678","rs3024493","rs10865035","rs35667974","rs3087243","rs17630466","rs2611215","rs722988","rs653178","rs11069349","rs1350275","rs56994090","rs72727394","rs34593439","rs8056814","rs1615504","rs516246","rs80054410","rs4820830","rs229533")
 
+## setup for testing of table 2 conditionals
+chrz <- c(2,10,10,11,11,11,16,17,18,19)
+groupz <- c(2,1,1,1,1,1,2,1,1,1)
+condlist <- list("rs35667974","rs61839660",c("rs61839660", "rs10795791"),
+                 "rs3842727",c("rs3842727", "rs11043003"),c("rs3842727", "rs11043003", "rs6357"),
+                  "rs12927355","rs8067378","rs16939895","rs74956615")
+cond.count <- 0
 
 ### get list of snps to test
 sl <- "table1snplist.txt"
@@ -87,7 +86,7 @@ if(load.ichip.regions) {
 
   ## do sample QC on each chrosome and recombine ##
   if(!exists("ms")) { ms <- list.rowsummary(chr.dat) } # if re-running the script, save repeating the QC
-  chrz <- 1:22
+  #chrz <- 1:22
   ## create filters for call rate and Heterozygosity ##
   cr.filt <- ms$Call.rate>=0.953
   hz.filt <- ms$Heterozygosity>=0.19 & ms$Heterozygosity<=0.235
@@ -101,11 +100,11 @@ if(load.ichip.regions) {
   excl.ids <- unique(c(excl.ids,sample.excl1,sample.excl2))
   ###
 
-  all.results <- vector("list",22)
+  all.results <- vector("list",length(groupz))
   file.out <- cat.path(work.dir,"all.results",suf=gsub(":",".",gsub(" ","_",date())),ext="RData")
 
   # run separately for each chromosome #
-  for(next.chr in chrz) {
+  for(next.chr in unique(chrz)) {
     Header(paste("Chromosome",next.chr))
     chr <- next.chr
     print(load(cat.path(fn=ofn,suf=next.chr,ext="RData")))
@@ -187,15 +186,17 @@ if(load.ichip.regions) {
         grp.snps[[cc]][duplicated(grp.snps[[cc]])] <- grp.labs[[cc]][duplicated(grp.snps[[cc]])]
       }
       if(length(unique(bands))!=length(bands)) { warning("these bands are not unique ==> ",paste(bands[duplicated(bands)],collapse=",")) }
-      grpz <- 1:length(bands)
-      names(grp.snps) <- names(grp.labs) <- paste(grpz,bands,sep=":")
+      grpz2 <- 1:length(bands)
+      names(grp.snps) <- names(grp.labs) <- paste(grpz2,bands,sep=":")
     } 
     
     n.grps <- length(grp.labs) ; chr.results <- vector("list",n.grps)
     if(length(snpic.list)!=n.grps) { 
       stop("why is length(snpic.list)=",length(snpic.list),"but length(grp.labs)=",n.grps) }
     #### MAIN LOOP OF TOP-SNP GROUPINGS ####
-    for (grp in 1:n.grps) {
+    grpz <- groupz[chrz==next.chr]
+    for (grp in grpz) {
+      cond.count <- cond.count+1
       snp.filt <- (match(grp.labs[[grp]],colnames(myData)))
       if(any(is.na(snp.filt))) { 
         warning("These were missing:",paste(grp.labs[[grp]][is.na(snp.filt)],collapse=","),"\n") ; 
@@ -248,11 +249,13 @@ if(load.ichip.regions) {
       bic <- numeric(n.in.grp)
       ## decide between model with and without covariates ##
       cat("running GWAS on",n.in.grp,"SNPs in surrounding 1 centimorgan + 50Kb region of marker:",snpid.list[grp],"\n")
+      cat("conditioning on: ",paste(condlist[[cond.count]],collapse=","),"\n")
+      condn <- all.support$SNP[match(condlist[[cond.count]],all.support$dbSNP)] 
       for(ss in 1:n.in.grp) {
         if(!covs) {
-          fm <- paste("Pheno ~ ",grp.labs[[grp]][ss])
+          fm <- paste("Pheno ~ ",paste(condn,collapse=" + "),"+",grp.labs[[grp]][ss])
         } else {
-          fm <- paste("Pheno ~ sex + region +",grp.labs[[grp]][ss])
+          fm <- paste("Pheno ~ sex + region +",paste(condn,collapse=" + "),"+",grp.labs[[grp]][ss])
         }
         nxt <- glm(as.formula(fm), family = binomial(logit),data=myDat)
         result[[ss]] <- mysumfun(nxt,p.digits=250,ci=T)[[1]]
@@ -262,9 +265,9 @@ if(load.ichip.regions) {
       #names(result) <- paste(grp.labs[[grp]],grp.snps[[grp]],sep="/")
       #print(result) # print results with dbSNP and SNP id
       names(result) <- names(bic) <- grp.snps[[grp]]
-      chr.results[[grp]] <- list(GLM=result,BIC=bic)  # add result, just with dbSNP name
+      all.results[[cond.count]] <- list(GLM=result,BIC=bic)  # add result, just with dbSNP name
     }
-    all.results[[next.chr]] <- chr.results
+    #all.results[[next.chr]] <- chr.results
     save(all.results,file=file.out)
     cat("updated object in: ",file.out,"\n")
   }

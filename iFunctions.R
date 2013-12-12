@@ -290,6 +290,7 @@ suck.bic <- function(X,dif=3) {
 }
 
 do.bic.marg <- function(X,dif=3) {
+  if(!"BIC" %in% names(X)) { return(NA) }
   bic <- X$BIC;
   #which.min <- (which(bic==min(bic)))
   denom <- logsum(-bic/2)
@@ -308,6 +309,7 @@ do.bic.marg <- function(X,dif=3) {
 }
 
 do.bic.max <- function(X,dif=3) {
+  if(!"BIC" %in% names(X)) { return(NA) }
   bic <- X$BIC;
   max.bic <- -min(bic/2)
   dif.bic <- (-bic/2)-max.bic
@@ -315,6 +317,7 @@ do.bic.max <- function(X,dif=3) {
 }
 
 clearly.suck <- function(X,thresh=100) {
+  if(!"BIC" %in% names(X)) { return(NA) }
   bic <- X$BIC;
   max.bic <- -min(bic/2)
   dif.bic <- (-bic/2)-max.bic

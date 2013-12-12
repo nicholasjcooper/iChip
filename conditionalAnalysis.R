@@ -78,7 +78,7 @@ if(load.ichip.regions) {
   hz.filt <- ms$Heterozygosity>=0.19 & ms$Heterozygosity<=0.235
   sample.filt <- cr.filt & hz.filt  # logical filter
   excl.ids <- rownames(get.SnpMatrix.in.file(chr.dat[[22]]))[!sample.filt]  # ID exclusion list
-  excl.snps <- rownames(excl) # from UVA, above
+  excl.snps <- clean.snp.ids(rownames(excl)) # from UVA, above
   #not.top.snps = non significant ids from #clear.not.tops <- lapply(all.results,function(Y) { lapply(Y,clearly.suck,thresh=20) } )
   excl.snps <- unique(c(excl.snps,qc.cloud.fail)) #  ,not.top.snps))
   sample.excl1 <- reader("sample-exclusions-2011-08-09.tab")[,2]

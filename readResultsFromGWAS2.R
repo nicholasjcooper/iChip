@@ -9,6 +9,8 @@ setwd("/chiswick/data/ncooper/iChipData/")
 #print(load("all.resultsSat_Nov_30_13.23.02_2013.RData"))
 #print(load("all.resultsFri_Dec__6_19.47.18_2013.RData"))
 #print(load("all.resultsTue_Dec__3_20.16.49_2013.RData"))
+print(load("/chiswick/data/ncooper/iChipData/all.resultsThu_Dec_12_16.11.37_2013.RData"))
+
 print(load("all.resultsTue_Dec_10_22.43.19_2013.RData"))
 all.results[[1]] <- all.results[[1]][-2]
 all.results[[14]] <- all.results[[14]][-1]
@@ -48,6 +50,16 @@ goodz <- c("rs74956615","rs7790800","rs2309837","rs9746695","rs151233","rs172070
 ok <- c("rs3024493","rs61839660","rs56994090","rs12927355","rs151234","rs229533")
 goodz <- goodz[!badz %in% ok]
 badz <- badz[!badz %in% ok]
+
+
+weird <- c("ccc_2_100113638_G_A","ccc_2_100118573_G_C","ccc_2_100126398_C_A",
+"ccc_2_100127085_C_T","ccc_2_100174734_C_T","ccc_2_100175954_C_T",
+"ccc_2_100176881_A_G","ccc_2_100177022_A_G","ccc_22_35871557_C_A",
+"imm_12_54649933","rs1690500","rs181581",
+"rs2304237","rs35397078_rs8078409","rs62212954_rs66733675",
+"rs72687017","rs72687027","rs73966411",
+"seq_NOVEL_11243","seq_NOVEL_11254","seq_NOVEL_11256",
+"seq_NOVEL_3186","seq_NOVEL_7020","seq_NOVEL_99")
 
 to.remove.and.recalc.t1 <- bonf.snps[bonf.snps %in% badz]
 
