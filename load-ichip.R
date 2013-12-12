@@ -3,7 +3,7 @@ library(methods)
 library(reader)
 #args <- getArgs(defaults=list(chr="19",snp=NULL, start=NULL, end=NULL, file="ichip-data.RData"))
 args <- parse.args(com=c("chr","snp","start","end","file"),def=c("19","","","","ichip-data.RData"),list.out=TRUE)
-prv(args)
+#prv(args)
 #args <- getArgs(defaults=list(chr="19",snp="rs34536443", start=NULL, end=NULL))
 ##print(args)
 #args <- as.list(as.data.frame(t(argz)))
@@ -11,7 +11,7 @@ cat("Loading ichip data for chromosome",args$chr, "with optional limits:\n")
 for (cc in 1:length(args)) { if(args[[cc]]=="") { args[[cc]] <- as.numeric(NULL) }  }
 num.args <- c("start","end")
 args[num.args] <- lapply(args[num.args], as.numeric)
-print(args[c("snp","start","end","file")])
+#print(args[c("snp","start","end","file")])
 
 
 
@@ -45,16 +45,16 @@ if(length(args$snp)>0)
   annotated.snp.support <- annotated.snp.support[annotated.snp.support$dbSNP %in% args$snp |
                                                  rownames(annotated.snp.support) %in% args$snp ,]
 
-prv(annotated.snp.support)
+#prv(annotated.snp.support)
 
 annotated.snp.support <- annotated.snp.support[order(annotated.snp.support$Pos),]
 
-prv(annotated.snp.support)
+#prv(annotated.snp.support)
 
 target.snps <- rownames(annotated.snp.support)
 
-head(annotated.snp.support[,c("dbSNP","Pos","gene.annotation"),])
-tail(annotated.snp.support[,c("dbSNP","Pos","gene.annotation"),])
+#head(annotated.snp.support[,c("dbSNP","Pos","gene.annotation"),])
+#tail(annotated.snp.support[,c("dbSNP","Pos","gene.annotation"),])
 
 
 #
@@ -69,7 +69,7 @@ add.excl <- function(x) {
 
 load(file = paste(Rscr1,"/Robjects/SANGER-control-support.RData", sep = "")) # sample.support
 sanger.support <- add.excl(sample.support)
-prv(sanger.support)
+#prv(sanger.support)
 
 load(file = paste(Rscr2,"/Robjects/UVA-control-support.RData", sep = "")) # sample.support
 uva.support <- add.excl(sample.support)
@@ -87,9 +87,9 @@ rm(sample.support)
 
 # load genotype data
 fn <- paste(Rscr1,"/Robjects/SANGER-",args$chr,"-snp.RData", sep = "")
-prv(fn)
+#prv(fn)
 load(file = fn) # snp.data
-prv(target.snps)
+#prv(target.snps)
 
 if(!all(target.snps %in% colnames(snp.data))) {
   sd <- setdiff(target.snps, colnames(snp.data))
@@ -148,7 +148,7 @@ t1d.data <- switch.alleles(t1d.data, sw.snps)
 ## length(keep <- colnames(sanger.data[,(m == 0)]))
 ## sanger.data <- sanger.data[,keep]
 
-prv(sanger.data); prv(uva.data); prv(br.data)
+#prv(sanger.data); prv(uva.data); prv(br.data)
 
 control.data <- rbind(sanger.data, uva.data, br.data)
 
