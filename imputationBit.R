@@ -1,16 +1,19 @@
 ## imputation subscript ## 
-# used by conditional analysis and indistinguishable analysis
+# used by conditional analysis and indistinguishable analyses scripts, does the imputation,
+# saving imputed results as we go so don't need to keep recalculating the same SNPs
 
 imp.file <- cat.path(work.dir,pref="Imputed_chr",fn=next.chr,suf=paste("grp",grp,sep=""),ext="RData")
 if(!file.exists(imp.file)) {
   myDataFilt <- myData[smp.filt,snp.filt]
   myDat <- impute.missing(myDataFilt,numeric=T)
+  myDat <- randomize.missing(myDat)
   myDatSnp <- data.frame.to.SnpMatrix(myDat)
   save(myDat,myDatSnp,cov.dat,file=imp.file)
   cat("wrote imputed to:",imp.file,"\n")
 } else { 
   cat("loaded imputed data from:",imp.file,"\n")
   print(load(imp.file))
+  ### note this row/col check is not 100% foolproof!
   if(nrow(myDat)!=length(smp.filt)) { stop("mismatching number of samples in loaded file") }
   if(ncol(myDat)!=length(snp.filt)) { 
     ## if this has changed a bit, try to ressurrect without recalculating the whole thing
@@ -45,10 +48,14 @@ if(!file.exists(imp.file)) {
     }
     myDatSnp <- data.frame.to.SnpMatrix(myDat)
     myDat <- impute.missing(myDatSnp,numeric=T)
+    myDat <- randomize.missing(myDat)
     myDatSnp <- data.frame.to.SnpMatrix(myDat)
     save(myDat,myDatSnp,cov.dat,file=imp.file)
     cat("wrote imputed to:",imp.file,"\n")
   } else { 
+    myDat <- randomize.missing(myDat)
+    myDatSnp <- data.frame.to.SnpMatrix(myDat)
+    save(myDat,myDatSnp,cov.dat,file=imp.file)
     cat("loaded file is a good match to requested SNP-set\n")
   }
 }

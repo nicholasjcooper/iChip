@@ -81,10 +81,10 @@ if(load.ichip.regions) {
   ## do sample QC on each chrosome and recombine ##
   if(!exists("ms")) { ms <- list.rowsummary(chr.dat) } # if re-running the script, save repeating the QC
   chrz <- 1:22
-  ## create filters for call rate and Heterozygosity ##
-  cr.filt <- ms$Call.rate>=0.953
-  hz.filt <- ms$Heterozygosity>=0.19 & ms$Heterozygosity<=0.235
-  sample.filt <- cr.filt & hz.filt  # logical filter
+  ## create filter for call rate and Heterozygosity ##
+  sample.filt <- samp.summ(ms,CR=0.953,HZlo=0.19,HZhi=0.235) # + print summary 
+  # prints SNPQC overall summary, but actually for analysis this is done chr by chr
+  ignore.for.now <- snp.summ(MAF=0.005,CR=.99,HWE=3.8905,qc.file="snpqc.RData") 
   excl.ids <- 
     suppressWarnings(rownames(get.SnpMatrix.in.file(chr.dat[[22]]))[!sample.filt])  # ID exclusion list
   excl.snps <- clean.snp.ids(rownames(excl)) # from UVA, above
@@ -216,18 +216,19 @@ if(load.ichip.regions) {
       smp.filt <- which(!rownames(myData) %in% excl.ids)
       
       ## select desired SNPs and samples, imputed and make a dataframe and SnpMatrix version
+      # DON'T IMPUTE FOR GWAS as we don't need to compare BICs #
       if(use.imputation) {
         imp.file <- cat.path(work.dir,pref="Imputed_chr",fn=next.chr,suf=paste("grp",grp,sep=""),ext="RData")
         print(load(ichip.imputation(myData, imp.file, smp.filt, snp.filt)))
       } else {
         myDatSnp <- myData[smp.filt,snp.filt]
-        myDat <- SnpMatrix.to.data.frame(myDatSnp)
+        #myDat <- SnpMatrix.to.data.frame(myDatSnp) # only need snp matrix for plain gwas
       }
       # NB: old way was to source("~/github/iChip/imputationBit.R")
 
       ## summarise dimension of working dataset ##
       cat("Analysis dataset:\n")
-      print(Dim(myDat))
+      print(Dim(myDatSnp))
       
       ## store top snps in new data object ##
       if(store.top.snps) {
@@ -295,14 +296,12 @@ if(load.ichip.regions) {
       #result <- list() 
       #bic <- numeric()
       ## decide between model with and without covariates ##
-      cat("running conditional analysis on",n.in.grp,"SNPs in surrounding 1 centimorgan region of marker:",snpid.list[grp],"\n")
-      hero <- which(grp.labs[[grp]] %in% snpic.list[grp]) #topsnplistic)
-      if(length(hero)==0) { cat("The following top snps were not found: ",
-                                paste(snpic.list[grp],collapse=",","\n check QC lists\n",sep="")); next }
+      cat("running chromosome wide analysis on",n.in.grp,"SNPs in chromomse:",next.chr,"\n")
+
       if(!covs) {
-        fm <- paste("Pheno ~ ",grp.labs[[grp]][hero])
+        fm <- paste("Pheno ~ 1")
       } else {
-        fm <- paste("Pheno ~ sex + region +",grp.labs[[grp]][hero])
+        fm <- paste("Pheno ~ sex + region")
       }
       snps.in.cond <- grp.labs[[grp]][hero]
       keepgoing <- T; ccc <- 0
@@ -312,34 +311,13 @@ if(load.ichip.regions) {
       while(keepgoing) {
         ccc <- ccc+1
         cat("Testing",ncol(myDat)-length(snps.in.cond),"Snps against base model:",fm,"\n")
-        RES[[ccc]] <- result <- snp.rhs.tests(as.formula(fm),snp.data=myDatSnp,data=myDat)
+        RES[[ccc]] <- result <- snp.rhs.tests(as.formula(fm),snp.data=myDataFilt)
         legal.ps <- p.value(result)[!names(result) %in% c(snps.in.cond)]
         minp <- min(legal.ps,na.rm=T)
         bst <- which(p.value(result)==minp)
         #if(minp<=bonf) { bst <- which(p.value(result)==minp) } else { bst <- NA }
         if(length(bst)>1) { warning("multiple best conditional snps:",paste(names(result)[bst],collapse=",")) }
         best.snp <- names(result)[bst[1]] 
-        fm <- paste(fm,best.snp,sep=" + ")      
-        nxt.mod <- glm(as.formula(fm), family = binomial(logit),data=myDat)
-        nxt.anova <- anova(basemod,nxt.mod,test="Chisq")
-        ano[[ccc]] <- nxt.anova
-        panova <- tail(nxt.anova[["Pr(>Chi)"]],1)
-        if(panova<=bonf) {
-          cw <- caseway(myDat[,best.snp],Pheno)
-          mm <- majmin(myDat[,best.snp])
-          if((cw=="CasesRef+" & mm=="major") | (cw=="CasesRef-" & mm=="minor") ) { cat("T1d more Major\n") }
-	        if((cw=="CasesRef-" & mm=="major") | (cw=="CasesRef+" & mm=="minor") ) { cat("T1d more Minor\n") }
-          print(ic.to.rs(best.snp))
-          print(cw);print(mm)
-          snps.in.cond <- c(snps.in.cond,best.snp)
-          result.glm[[ccc]] <- mysumfun(nxt.mod,p.digits=250,ci=T)[[1]]
-          bic[ccc+1] <- BIC(nxt.mod)
-          basemod <- nxt.mod
-        } else {
-          cw <- mm <- NA
-          best.snp <- paste(NA)
-          keepgoing <- FALSE
-        }
       }
       #nxt <- glm(as.formula(fm), family = binomial(logit),data=myDat)
       #result.glm <- mysumfun(nxt,p.digits=250,ci=T)[[1]]

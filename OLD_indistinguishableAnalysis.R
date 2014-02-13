@@ -6,6 +6,7 @@ setwd(work.dir)
 library(reader)
 library(annotSnpStats)
 require(genoset); source("~/github/plumbCNV/FunctionsCNVAnalysis.R")
+print(load("finalMetaTopHits.RData"))
 
 ### output: 'all.results'; a list containing the OR,OR_L,OR_H,P-value for each snp in 'topsnplist', by chromosome
 
@@ -17,34 +18,25 @@ if(!exists("covs")) { covs <- c(TRUE,FALSE)[2] }
 load.uva.table <- TRUE  # results of UVA analyses for each SNP
 load.ichip.regions <- TRUE # ichip regions as RangedData
 
-### naughty SNPs ###
-qc.cloud.fail <- c("imm_19_10324118","rs1016431","rs1160544","rs12743005","rs12927355","rs151234","rs1788097","rs202535","rs229533","rs2793108","rs3024493","rs34934650","rs3826110","rs4656327","rs4759229","rs4935063","rs56994090","rs5763751","rs5763779","rs61955086","rs666619","rs6691977","rs6710297","rs6907898","rs72729320","rs8074179","rs9585056","rs34536443","rs36038753") #,"rs61839660" last 2 new
-ok <- c("rs3024493","rs61839660","rs56994090","rs12927355","rs151234","rs229533")
-qc.cloud.fail <- qc.cloud.fail[!qc.cloud.fail %in% ok]
-
-table1passtopsnps <- c("rs2476601","rs3024505","rs7511678","rs2111485","rs3087243",
-"rs4850921","imm_3_46488935","rs34046593","rs75793288","rs2611215",
-"rs11950831","rs72928038","rs2326451","rs7867224","rs12722496",  
-"rs12416116","rs722988","rs6357","rs917911","rs877636",
-"rs3184504","rs9517719","rs1350276","rs1054000","rs61573680",
-"rs34593439","rs741172","rs151233","rs8056814",
-"rs36038753","rs1893217","rs71178827","rs34536443","rs485186",
-"rs2250261","rs9981624","rs1548389","rs229536")
-
-## these sent to chris ollie 10DEC13
-table1snpsfinal <- c("rs6679677","rs113010081","rs75793288","rs11954020","rs12212193","rs1538171","rs1574285","rs61839660","rs12416116","rs3842727","rs1701704","rs151234","rs12927355","rs8067378","rs16939895","rs74956615","rs6043409","rs917911","rs7511678","rs3024493","rs10865035","rs35667974","rs3087243","rs17630466","rs2611215","rs722988","rs653178","rs11069349","rs1350275","rs56994090","rs72727394","rs34593439","rs8056814","rs1615504","rs516246","rs80054410","rs4820830","rs229533")
-
-
 ### get list of snps to test
 sl <- "table1snplist.txt"
-sl <- "nonbonf.txt"
+#sl <- "nonbonf.txt"
 #sl <- "topsnplist.txt"
 #sl <- "allthesnps.txt"
-#topsnplist <- reader(sl,work.dir)
-##topsnplist <- table1passtopsnps
-topsnplist <- table1snpsfinal ##NEW!
+topsnplist <- reader(sl,work.dir)
+#topsnplist <- bonf.snps
 gg <- grep("rs689",topsnplist)
 if(length(gg)>0) { topsnplist <- topsnplist[-gg] } # need to remove this SNP as not actually on iChip, just Taqman
+
+#drops1 <- reader("DROPSAMPLELIST.txt",work.dir)
+#drops2 <- reader("SWITCHLIST.txt",work.dir)[,1]
+
+#id.switcher <- reader("~/Documents/necessaryfilesICHIPFam/alt.id.lookup.txt")
+#id.switcher <- reader("chipSampleLookup.txt")
+#fsi <- match(drops2,id.switcher$subjectid)
+#new.id <- id.switcher$sampleid[fsi]
+#if(any(is.na(new.id))) { cat(length(which(is.na(new.id))),"/",length(new.id)," IDs were not found\n")}
+#drops <- new.id
 
 print(load(cat.path(work.dir,"all.support.RData")))   ## load object: all.support [snp support for whole chip]
 topsnplistic <- all.support$SNP[match(topsnplist,all.support$dbSNP)]
@@ -93,12 +85,9 @@ if(load.ichip.regions) {
   hz.filt <- ms$Heterozygosity>=0.19 & ms$Heterozygosity<=0.235
   sample.filt <- cr.filt & hz.filt  # logical filter
   excl.ids <- rownames(get.SnpMatrix.in.file(chr.dat[[22]]))[!sample.filt]  # ID exclusion list
-  excl.snps <- clean.snp.ids(rownames(excl)) # from UVA, above
-  #not.top.snps = non significant ids from #clear.not.tops <- lapply(all.results,function(Y) { lapply(Y,clearly.suck,thresh=20) } )
-  excl.snps <- unique(c(excl.snps,qc.cloud.fail)) #,not.top.snps))
-  sample.excl1 <- reader("sample-exclusions-2011-08-09.tab")[,2]
-  sample.excl2 <- reader("unacknowledged-dups-2011-08-11.tab")[,5]
-  excl.ids <- unique(c(excl.ids,sample.excl1,sample.excl2))
+  excl.snps <- rownames(excl) # from UVA, above
+#  more.excl.samps <- drops
+ # excl.ids <- unique(c(excl.ids,more.excl.samps))
   ###
 
   all.results <- vector("list",22)
@@ -126,8 +115,7 @@ if(load.ichip.regions) {
     clr <- snp.qc$Call.rate>.99
     hwe <- abs(snp.qc$z.HWE)<3.75
     qc.excl.snps <- rownames(snp.qc)[which(!maf | !clr | !hwe)]
-    qc.excl.snps <- qc.excl.snps[!qc.excl.snps %in% c("rs3842727","imm_11_2141424","rs12212193","imm_6_91053490")]
-    excl.snps <- unique(c(excl.snps,qc.excl.snps))
+    excl.snps <- c(excl.snps,qc.excl.snps)
     ## extract covariates as 'cov.dat' ##
     if(covs) {
       nms <- c(rownames(control.support),rownames(t1d.support))
@@ -167,16 +155,21 @@ if(load.ichip.regions) {
                            space=rep(next.chr,length(snps.locs)))
       snp.rd <- annot.cnv(snp.rd,gs=cyto); colnames(snp.rd) <- "band"
       bands <- snp.rd$band
-      nxt.window <- lapply(snps.locs, function(X,...) { recwindow(st=X,...) },chr=next.chr,window=1,bp=50000)
+      nxt.window <- lapply(snps.locs, function(X,...) { recwindow(st=X,...) },chr=next.chr,window=1)
+      if(next.chr==16) {
+        cat("changing window[[2]] from",paste(nxt.window[[2]],collapse=","),
+          "to",paste(c(10663100,11601037),collapse=","),"\n")
+        nxt.window[[2]] <- c(10663100,11601037) 
+      }
+      print(nxt.window)
       st.window <- lapply(nxt.window, "[",1)
       en.window <- lapply(nxt.window, "[",2)
       n.snps <- vector("list",length(st.window))
       for(cc in 1:length(st.window)) {
         n.snps[[cc]] <- which(snp.support$Chr==next.chr &
-                              snp.support$Pos>=st.window[cc] & 
-                              snp.support$Pos<=en.window[cc] &
-                            (!snp.support$SNP %in% excl.snps) &
-                            (!snp.support$dbSNP %in% excl.snps) 
+                                snp.support$Pos>=st.window[cc] & 
+                                snp.support$Pos<=en.window[cc] &
+                                (!snp.support$SNP %in% excl.snps) 
         )
       }
       grp.labs <- lapply(n.snps,function(X) { snp.support$SNP[X] })
@@ -207,13 +200,9 @@ if(load.ichip.regions) {
       smp.filt <- which(!rownames(myData) %in% excl.ids)
       
       ## select desired SNPs and samples
-      #OLD####myDataFilt <- myData[smp.filt,snp.filt]
+      myDataFilt <- myData[smp.filt,snp.filt]
       #AmyDataFilt <- AmyData[smp.filt,snp.filt]
-      
-      ## select desired SNPs and samples, imputed and make a dataframe and SnpMatrix version
-      source("~/github/iChip/imputationBit.R")
-      
-      #OLD####myDat <- impute.missing(myDataFilt,numeric=T)
+      myDat <- impute.missing(myDataFilt,numeric=T)
       #myDat <- SnpMatrix.to.data.frame(AmyDataFilt)
       
       ## summarise dimension of working dataset ##
@@ -222,7 +211,7 @@ if(load.ichip.regions) {
       
       
       ## Collect phenotype information  ##
-      Pheno <- make.pheno(myDat,rownames(t1d.support),rownames(control.support))
+      Pheno <- make.pheno(myDataFilt,rownames(t1d.support),rownames(control.support))
 
       if(any(is.na(Pheno))) { 
         stop("some samples were neither in the T1D nor Control dataset") 
@@ -232,7 +221,7 @@ if(load.ichip.regions) {
       
       ## check covariates, and if ok/present, put into sex and region variables ##
       if(covs) { 
-        which.covs <- match(rownames(myDat),rownames(cov.dat))
+        which.covs <- match(rownames(myDataFilt),rownames(cov.dat))
         if(any(is.na(which.covs))) { 
           warning("missing covariates, ignoring covariates") ; covs <- F 
         } else {

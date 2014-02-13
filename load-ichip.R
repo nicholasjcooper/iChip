@@ -1,3 +1,5 @@
+## Chris W's load ichip script, slightly modified to use reader::parge.args() instead of chris' args function
+
 #!/usr/bin/Rscript
 library(methods)
 library(reader)

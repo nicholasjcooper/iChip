@@ -1,3 +1,5 @@
+#import family ichip data
+
 dir1 <- "/chiswick/data/ncooper/iChipData/t1dgc/"
 setwd(dir1)
 
@@ -40,10 +42,9 @@ for (chr in 1:nchr) {
 
 
 
-
 ## myMat <- read.plink(bed, bim, fam)  ## tooo big!
 
-head(myMat$genotypes)
+head(snpMat$genotypes)
 tail(myMat$genotypes)
 
 sMat <- myMat$genotypes

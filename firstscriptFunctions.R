@@ -1,4 +1,31 @@
 
+get.indel.from.text.file <- function(fn="cc-rs333.tab",label="rs333",dir="/chiswick/data/ncooper/iChipData/",as.code=TRUE) {
+  cur.dir <- getwd()
+  lookup.tab <- read.delim("/ipswich/data/Immunochip/support/casecontrol/sample-lookup-2011-08-09.tab")
+  setwd(dir)
+  geno.dat <- read.delim(fn)
+  new.ids <- paste(lookup.tab[,2][match(geno.dat[,1],lookup.tab[,4])])
+  bad.uns <- (new.ids=="NA" | is.na(new.ids))
+  geno.dat[!bad.uns,1] <- new.ids[!bad.uns]
+  geno.dat[["SNP"]] <- label
+  geno.dat[["A1"]] <- gsub("INS","+1",gsub("DEL","-1",geno.dat[,4])) 
+  geno.dat[["A2"]] <- gsub("INS","+1",gsub("DEL","-1",geno.dat[,5]))
+  setwd(cur.dir)
+  if(as.code) { 
+   a1 <- as.numeric(geno.dat$A1)
+   a2 <- as.numeric(geno.dat$A2)
+   code <- rep(NA,times=length(a1))
+   code[(a1==-1 & a2==-1)] <- 0
+   code[(a1==-1 & a2==1)] <- 1
+   code[(a1==1 & a2==-1)] <- 1
+   code[(a1==1 & a2==1)] <- 2
+   names(code) <- geno.dat[,1]
+   return(code)
+  } else {
+   return(geno.dat)
+  }
+}
+
 get.taqman.snp.from.text.file <- function(fn="rs689.tab",label="rs689",dir="/chiswick/data/ncooper/INS/")
 {
   # get a taqman snp from a text file into snpMatrix format
@@ -7,7 +34,7 @@ get.taqman.snp.from.text.file <- function(fn="rs689.tab",label="rs689",dir="/chi
   #head * | cut -f 1-7 
   #grep DIL969 *support*
   #cat cc-genotype.tab  | cut -f 1-3,68-69 > /chiswick/data/ncooper/INS/rs689.tab
-  
+  cur.dir <- getwd()
   ## alternative ID lookup data for all samples
   lookup.tab <- read.delim("/ipswich/data/Immunochip/support/casecontrol/sample-lookup-2011-08-09.tab")
   #X.sampleid X.dil_subjectid
@@ -29,6 +56,7 @@ get.taqman.snp.from.text.file <- function(fn="rs689.tab",label="rs689",dir="/chi
   paste(mysnp$genotypes[1:5,1])
   
   Y <- mysnp$genotypes
+  setwd(cur.dir)
   return(Y)
 }
 
