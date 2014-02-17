@@ -9,6 +9,52 @@ require(reader)
 require(genoset)
 
 
+# stats function convenience wrappers
+p.to.Z <- function(p) { O <- qnorm(1-(p/2),F); O[!is.finite(O)] <- NA; return(O) }
+Z.to.p <- function(Z) { O <- 2*pnorm(-abs(Z)); O[!is.finite(O)] <- NA; return(O) }
+l10 <- function(x) { O <- log10(x); O[!is.finite(O)] <- NA; return(O) }
+Cor <- function(...) { cor(...,use="pairwise.complete") }
+pt2 <- function(q, df, log.p=FALSE) {  2*pt(-abs(q), df, log.p=log.p) }
+
+
+
+# function specific to getMetatable.R script
+#  gets a list of equivalent SNPs to the current snp
+
+get.equivs <- function(id,iden.list,na.fail=T) {
+  id <- ic.to.rs(id) 
+  do.one <- function(id,iden.list,na.fail) {
+    if(id %in% ic.to.rs(unlist(iden.list))) {
+      lnum <- which(sapply(iden.list,function(X) { id %in% ic.to.rs(X) }))
+      idens <- ic.to.rs(iden.list[[lnum]])
+      return(idens[-which(idens %in% id)])
+    } else {
+      if(na.fail) { return(NA) } else { return(id) }
+    }
+  }
+  return(sapply(id,do.one,iden.list=iden.list,na.fail=na.fail))
+}
+
+
+# retrieve a simple representation of date_time or just date, for time-stamping file names, etc
+simple.date <- function(sep="_",long=FALSE,time=TRUE) {
+  myt <- format(Sys.time(), "%a %b %d %X %Y")
+  if(long) {return(gsub(":",".",gsub(" ",sep,myt))) }
+  dt <- strsplit(myt,":",fixed=TRUE)[[1]][1]
+  splt <- strsplit(dt," ")[[1]]
+  tm <- as.numeric(tail(splt,1))
+  pr.tm <- head(splt,length(splt)-1)
+  pr.tm[2] <- toupper(pr.tm[2])
+  ampm <- {if(as.numeric(tm)>11) {"PM"} else {"AM"}}
+  tm <- {if(tm>12) { tm-12 } else { if(tm<1) { tm+12 } else { tm } }}
+  if(nchar(paste(pr.tm[3]))==1) { pr.tm[3] <- paste("0",pr.tm[3],sep="" ) }
+  if(!time) { out <- paste(pr.tm[-1],collapse="") } else {
+    out <- paste(paste(pr.tm[-1],collapse=""),sep,
+               tm, ampm ,sep="") }
+  return(out)
+}
+
+# for a subset 'n' and total 'N' nicely prints text n/N and/or percentage%
 out.of <- function(n,N=100,digits=2,pc=TRUE,oo=TRUE) {
   pct <- 100*(n/N)
   outof <- paste(n,"/",N,sep="")
@@ -33,9 +79,9 @@ samp.summ <- function(ms,CR=0.953,HZlo=0.19,HZhi=0.235) {
   return(sample.filt)
 }
 
-snp.summ <- function(MAF=0.005,CR=.99,HWE=3.75,qc.file="snpqc.RData") {
-  if(file.exists(qc.file)) { print(load(qc.file)) } else { stop("couldn't find",qc.file) }
-  mini.snp.qc <- function(SNPQC,MAF=0.005,CR=.99,HWE=3.75) {
+snp.summ <- function(MAF=0.005,CR=.99,HWE=3.8905,qc.file="snpqc.RData") {
+  if(file.exists(qc.file)) { SNPQC <- reader(qc.file) } else { stop("couldn't find",qc.file) }
+  mini.snp.qc <- function(SNPQC,MAF=0.005,CR=.99,HWE=3.8905) {
     maf <- SNPQC$MAF>MAF
     clr <- SNPQC$Call.rate>CR
     hwe <- abs(SNPQC$z.HWE)<HWE
@@ -50,9 +96,11 @@ snp.summ <- function(MAF=0.005,CR=.99,HWE=3.75,qc.file="snpqc.RData") {
     cat(out.of(length(excl.rules),nsnp)," snps fail on MAF, Callrate or HWE \n",sep="")
     return(excl.rules)
   }
+  nsnp <- nrow(SNPQC)
   Header("DIL")
   mono <- SNPQC$MAF==0 | SNPQC$MAF<0.0005
-  excl.rules <- mini.snp.qc(SNPQC[!mono,],MAF=MAF,CR=CR,HWE=HWE)
+  #excl.rules <- mini.snp.qc(SNPQC[!mono,],MAF=MAF,CR=CR,HWE=HWE)
+  excl.rules <- mini.snp.qc(SNPQC,MAF=MAF,CR=CR,HWE=HWE)
   num.excl.rules <- length(excl.rules)
   if(!file.exists("snpsExcluded.txt")) { warning("couldn't find exclusions file") } else {
     which.cut <- readLines(cat.path(getwd(),"snpsExcluded.txt"))
@@ -73,6 +121,7 @@ snp.summ <- function(MAF=0.005,CR=.99,HWE=3.75,qc.file="snpqc.RData") {
       cat(out.of(length(excl.uva)-num.excl.rules.uva,length(excl.uva)),"UVA failing snps fail for other reasons\n")
     }
   }
+  return(excl.rules)
 }
 ####################
 
@@ -103,11 +152,24 @@ mysumfun <- function(glmr,o.digits=3,p.digits=6,lab=TRUE,ci=FALSE)
   return(out.fr)
 }
 
-# flip odds ratios (e.g, to change whether with respect to minor/major alleles)
-or.conv <- function(X) { 
+# flip odds ratios to always be positive (e.g, to change whether with respect to minor/major alleles)
+or.pos <- function(X) { 
+  x <- X; sel <- !is.na(X)
+  X <- X[sel]
   X[X<1] <- 1/(X[X<1])
-  return(X)
+  x[sel] <- X
+  return(x)
 }
+
+# flip odds ratios - pretty pointless really as it's just 1/x
+or.flip <- function(X){
+  x <- X; sel <- !is.na(X)
+  X <- X[sel]
+  X <- 1/(X)
+  x[sel] <- X
+  return(x)
+}
+
 
 
 # retrieve t1d previous SNP hits from t1dbase in either build hg18/hg19 coords (b36/37)
@@ -817,7 +879,17 @@ highlights <- function(X) {
   return(next.row) 
 }
 
+multihit.check <- function(X) {
+  top <- min(X,na.rm=T)
+  wh <- which(X==top)
+  if(length(wh)>1) { return(T) } else { return(F) }
+}
 
+multihit.return <- function(X) {
+  top <- min(X,na.rm=T)
+  wh <- which(X==top)
+  return(wh)
+}
 
 
 ## this function gets marginal likelihoods from the BIC, similar to how do.bic.max works on all.results

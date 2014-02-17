@@ -2,7 +2,7 @@
 # and finding the top meta results in each region, then tabulating
 
 
-bonf <- 3.23*(10^-7)
+bonf <- .05/135836   #3.23*(10^-7)
 source("~/github/iChip/iFunctions.R")
 setwd("/chiswick/data/ncooper/iChipData")
 library(reader)
@@ -11,13 +11,23 @@ require(genoset); source("~/github/plumbCNV/FunctionsCNVAnalysis.R")
 # get hard coded lists of SNPs passing, failing QC, appearing in table 1, etc #tab1snps
 source('~/github/iChip/hardCodedSnpLists.R', echo=FALSE)
 
-
+print(load("all.support.RData"))
+new.table <- TRUE
+table.only <- F  #F #TRUE
+new.table.fn <- "nick.meta.table3.RData"
+qc.excluded.snps <- reader("snpsExcluded3.txt")
+qc.excluded.snps <- qc.excluded.snps[!rs.to.ic(qc.excluded.snps) %in% rs.to.ic(table1snpsfinaljan30)]
 
 # once this has been run once, can speed up by setting this to FALSE
-if(!exists("TR")) {
+if(!exists("TR") | (table.only) ) {
   doc.path <- "ImChip_T1D_20130913"
   docs <- cat.path(doc.path,list.files(doc.path))
-  table1 <- reader(docs[1])
+  if(new.table) {
+    table1 <- reader(new.table.fn)
+  } else {
+    table1 <- reader(docs[1])
+  }
+  rownames(table1) <- clean.snp.ids(rownames(table1))
   excl <- reader(docs[2])
   prv(table1)
   prv(excl)
@@ -25,12 +35,16 @@ if(!exists("TR")) {
   t1d.prior.snps <- get.t1d.snps(ucsc="hg19")
   t1d.prior.snps <- ic.to.rs(narm(rs.to.ic(t1d.prior.snps)))
   
-  table1a <- table1[-which(rownames(table1) %in% rownames(excl)),]
-  table1a <- table1a[order(table1a[,3]),]
-  table1a <- table1a[order(table1a[,2]),]
+  excl.index <- which((rownames(table1) %in% clean.snp.ids(rownames(excl))) | is.na(table1[,"Position"]))
+  if(length(excl.index)>0) { table1a <- table1[-excl.index,] } else { table1a <- table1 }
+  table1a <- table1a[order(table1a[,"Position"]),]
+  table1a <- table1a[order(table1a[,"CHR"]),]
   #table1a <- table1a[order(table1a[,11]),]
-  prv.large(table1a[,c(3,10,12,15,18)-1],rows=100,cols=7)
-  poz37 <- as.numeric(table1a[,3])
+
+  if(table.only) { stop() }
+  p.cols <- c(2,9,11,16,18,20)  #c(3,10,12,15,18)-1
+  prv.large(table1a[,p.cols],rows=20,cols=7)
+  poz37 <- as.numeric(table1a[,"Position"])
   ## poz36 <- lookup in all.support# iChip regions
   if(F) {
     print(load("/chiswick/data/ncooper/iChipData/dense.ic.regions.b36.RData"))
@@ -61,8 +75,8 @@ if(!exists("TR")) {
   #lookup.ind <- match(clean.snp.ids(all.support$SNP),clean.snp.ids(rownames(snp.info)))
   poz <- poz37
   table.ranges <- RangedData(ranges=IRanges(start=poz,end=poz,names=table1a[,1]),
-                             space=table1a[,2],OR=table1a[,9],p.value=table1a[,11],fam.OR=table1a[,12],
-                             fam.p.value=table1a[,14],meta.OR=table1a[,15],meta.p.value=table1a[,17])
+                             space=table1a[,"CHR"],OR=table1a[,"OR_CC"],p.value=table1a[,"P_CC"],fam.OR=table1a[,"OR_Fam"],
+                             fam.p.value=table1a[,"P_Fam"],meta.OR=table1a[,"OR_Meta"],meta.p.value=table1a[,"P_Meta"])
   
   cyto <- get.cyto(ucsc="hg19"); cyto[["gene"]] <- rownames(cyto)
 
@@ -108,11 +122,11 @@ if(T) {
   tt <- as.data.frame(TR)[jj,]
 
 #  kk2 <- all.support$SNP[match(topsnplist,all.support$dbSNP)]
-  kk2 <- which(!(rs.to.ic(tt[,5]) %in% rs.to.ic(qc.cloud.fail)))
+  kk2 <- which(!(rs.to.ic(tt[,5]) %in% unique(rs.to.ic(c(qc.excluded.snps,qc.cloud.fail)))))
   tt <- tt[kk2,]
   kk <- which(as.numeric(tt[["meta.p.value"]])<(10^-5))
   tt <- tt[kk,]
-  prv.large(tt,rows=100,cols=6)
+  prv.large(tt[,-2:-4],rows=20,cols=6)
 }
 
 
@@ -124,6 +138,22 @@ if(T) {
   #table.ranges <- annot.cnv(table.ranges,gs=gs)
   #do for each 'row' (regional summary)
   out.list <- tapply(tt$meta.p.value,tt$gene,highlights) # main stats
+  check.list <- tapply(tt$meta.p.value,tt$gene,multihit.check)
+  identicals <- NULL
+  if(any(check.list)) {
+    wh.list <- tapply(tt$meta.p.value,tt$gene,multihit.return)[which(check.list)]
+    #prv(wh.list)
+    iden.list <- list()
+    cat("\nREPORT: SNPs with identical top p-values in regions\n")
+    dubs <- tapply(tt$names,tt$gene,c)[which(check.list)]
+    for(cc in 1:length(dubs)) { 
+      idzz <- dubs[[cc]][wh.list[[cc]]]
+      cat(names(wh.list)[cc],": ",idzz,"\n")
+      iden.list[[cc]] <- idzz
+      identicals <- c(identicals,idzz)
+    } 
+    cat("\n")
+  }
   out.list$`1p13.2`[1] <- 2 ### cheap hack!
   out.snps <- tapply(tt$names,tt$gene,"[",1) #  top snp (1st because sorted)
   out.snps[["1p13.2"]] <- tapply(tt$names,tt$gene,"[",2)[["1p13.2"]]   ### cheap hack!
@@ -153,8 +183,8 @@ if(T) {
  ## top.snps <- gsub("imm_16_11258712","rs193778",top.snps)
  ## top.snps.dat[,"whichSNP"] <- gsub("imm_16_11258712","rs193778",top.snps.dat[,"whichSNP"])
   top.snps.dat[,"whichSNP"] <- ic.to.rs(top.snps.dat[,"whichSNP"])  
-  p10.5 <- as.numeric(top.snps.dat[,2])>=(3.23*(10^-7))
-  pbonf <- as.numeric(top.snps.dat[,2])<(3.23*(10^-7))
+  p10.5 <- as.numeric(top.snps.dat[,2])>=bonf
+  pbonf <- as.numeric(top.snps.dat[,2])<bonf
   non.bonfs <- top.snps.dat[p10.5,]
   bonfs <- top.snps.dat[pbonf,]
   
@@ -167,9 +197,10 @@ if(T) {
   to.chuck <- c(bands1[duplicated(b1)])  # after inspection, these are those in the bonf table to remove
   duplicates <- bands1[duplicated(b1) | rev(duplicated(rev(b1)))] # show table of both members of dup pairs
   superceeded <- bands2[b2 %in% b1]  # these have a passing hit passing bonferroni on same arm
-  non.bonfs.filt <- non.bonfs[-(match(superceeded,rownames(non.bonfs))),]
-  bonfs.filt <- bonfs[-(match(to.chuck,rownames(bonfs))),]
-  bonfs.filt <- bonfs.filt[-(match(not.top.snps,bonfs.filt[,1])),] # not.top.snps from 'hardcoded' file
+  if(length(superceeded)>0) {  non.bonfs.filt <- non.bonfs[-(match(superceeded,rownames(non.bonfs))),] }
+  if(length(to.chuck)>0) { bonfs.filt <- bonfs[-(match(to.chuck,rownames(bonfs))),] }
+  if(length(which(not.top.snps %in% bonfs.filt[,1]))>0) {
+     bonfs.filt <- bonfs.filt[-(narm(match(not.top.snps,bonfs.filt[,1]))),] } # not.top.snps from 'hardcoded' file
   bonf.snps <- bonfs.filt[,1]
   non.bonf.snps <- non.bonfs.filt[,1]
   
@@ -183,7 +214,8 @@ if(T) {
   # these failed cloud qc and need next best for replacement
   list.to.get.new <- paste(bonf.snps[bonf.snps %in% qc.cloud.fail])
   
-  save(bonfs.filt,non.bonfs.filt,bonf.snps,non.bonf.snps,file="/chiswick/data/ncooper/iChipData/finalMetaTopHits7FEB.RData")
+  save(bonfs.filt,non.bonfs.filt,bonf.snps,non.bonf.snps,
+     file=cat.path(work.dir,fn="finalMetaTopHits",suf=simple.date(time=F),ext="RData"))
   
   if(length(list.to.check)>0) {
    cat("please check:",paste(list.to.check,collapse=","),"\n as these haven't had cloud QC\n")

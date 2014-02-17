@@ -17,7 +17,7 @@ require(genoset); source("~/github/plumbCNV/FunctionsCNVAnalysis.R")
 
 ### output: 'all.results'; a list containing the OR,OR_L,OR_H,P-value for each snp in 'topsnplist', by chromosome
 
-bonf <- 3.23*(10^-7) # bonferroni threshold #
+bonf <- .05/135836  #3.64  #3.23*(10^-7) # bonferroni threshold #
 covs <- TRUE
 
 if(!exists("covs")) { covs <- c(TRUE,FALSE)[2] }
@@ -30,7 +30,7 @@ use.imputation <- TRUE
 source('~/github/iChip/hardCodedSnpLists.R', echo=FALSE)
 
 # get resulting Snps from 'getMetaTable1.R'
-print(load("/chiswick/data/ncooper/iChipData/finalMetaTopHits6FEB.RData"))
+print(load("/chiswick/data/ncooper/iChipData/finalMetaTopHitsFEB16.RData"))
 
 ### get list of snps to test:
 #### should i be reading bonf.snps from /chiswick/data/ncooper/iChipData/finalMetaTopHits15JAN.RData ??
@@ -65,7 +65,7 @@ if(load.uva.table) {
   table1a$SNP_ID[match("imm_19_10324118",table1a$SNP_ID)] <- "rs34536443"
 }
 
-
+#stop()
 
 ## load the ichip dense mapping regions  
 if(load.ichip.regions) {
@@ -97,9 +97,9 @@ if(load.ichip.regions) {
   excl.snps <- unique(c(excl.snps,qc.cloud.fail)) #,not.top.snps))
   sample.excl1 <- reader("sample-exclusions-2011-08-09.tab")[,2]
   sample.excl2 <- reader("unacknowledged-dups-2011-08-11.tab")[,5]
-  excl.ids <- unique(c(excl.ids,sample.excl1,sample.excl2))
+  excl.ids <- unique(c(excl.ids,sample.excl1,sample.excl2,nonconsent))
   if(T) {
-    cat(out.of(length(excl.ids)),nrow(ms))," samples fail on Hz, Callrate)\n",sep="")
+    cat(out.of(length(excl.ids),nrow(ms))," samples fail on Hz, Callrate)\n",sep="")
     cat(out.of(length(sample.excl1),nrow(ms))," samples fail on DIL exclusions (MI?)\n",sep="")
     cat(out.of(length(sample.excl2),nrow(ms))," samples fail on duplications (DIL))\n",sep="")
     cat(out.of(length(excl.ids),nrow(ms))," samples fail for all reasons)\n",sep="")
@@ -110,7 +110,7 @@ if(load.ichip.regions) {
   file.out <- cat.path(work.dir,"all.results",suf=gsub(":",".",gsub(" ","_",date())),ext="RData")
 
   # run separately for each chromosome #
-  for(next.chr in chrz[chrz>0]) {
+  for(next.chr in chrz[chrz>14]) {
     Header(paste("Chromosome",next.chr))
     chr <- next.chr
     print(load(cat.path(fn=ofn,suf=next.chr,ext="RData")))
@@ -127,7 +127,7 @@ if(load.ichip.regions) {
     snp.qc <- col.summary(myData[sample.filt,])
     maf <- snp.qc$MAF>0.005
     clr <- snp.qc$Call.rate>.99
-    hwe <- abs(snp.qc$z.HWE)<3.75
+    hwe <- abs(snp.qc$z.HWE)<3.8905
     qc.excl.snps <- rownames(snp.qc)[which(!maf | !clr | !hwe)]
       
     #qc.excl.snps <- qc.excl.snps[!qc.excl.snps %in% unexclude]
@@ -308,7 +308,7 @@ if(F) {
   summ <- summ[order(as.numeric(summ[,4])),]
   rs689.swap <- which(summ[,1]=="rs3842727")
   summ[rs689.swap,] <- c("rs689",2.43E-201,161,11,2182224,"A","T")
-  write.csv(summ,"table1summary.csv")
+  write.csv(summ,"table1summary2.csv")
   
   summ <- cbind(summ,table1a[match(summ[,1],table1a$SNP_ID),]) # everything but rs689
   write.csv(summ,"table1summaryanno.csv")

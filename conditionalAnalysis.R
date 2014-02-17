@@ -81,10 +81,10 @@ if(load.ichip.regions) {
   ## do sample QC on each chrosome and recombine ##
   if(!exists("ms")) { ms <- list.rowsummary(chr.dat) } # if re-running the script, save repeating the QC
   chrz <- 1:22
-  ## create filters for call rate and Heterozygosity ##
-  cr.filt <- ms$Call.rate>=0.953
-  hz.filt <- ms$Heterozygosity>=0.19 & ms$Heterozygosity<=0.235
-  sample.filt <- cr.filt & hz.filt  # logical filter
+  ## create filter for call rate and Heterozygosity ##
+  sample.filt <- samp.summ(ms,CR=0.953,HZlo=0.19,HZhi=0.235) # + print summary 
+  # prints SNPQC overall summary, but actually for analysis this is done chr by chr
+  ignore.for.now <- snp.summ(MAF=0.005,CR=.99,HWE=3.8905,qc.file="snpqc.RData") 
   excl.ids <- 
     suppressWarnings(rownames(get.SnpMatrix.in.file(chr.dat[[22]]))[!sample.filt])  # ID exclusion list
   excl.snps <- clean.snp.ids(rownames(excl)) # from UVA, above
@@ -92,7 +92,7 @@ if(load.ichip.regions) {
   excl.snps <- unique(c(excl.snps,qc.cloud.fail)) #  ,not.top.snps))
   sample.excl1 <- reader("sample-exclusions-2011-08-09.tab")[,2]
   sample.excl2 <- reader("unacknowledged-dups-2011-08-11.tab")[,5]
-  excl.ids <- unique(c(excl.ids,sample.excl1,sample.excl2))
+  excl.ids <- unique(c(excl.ids,sample.excl1,sample.excl2,nonconsent))
   ###
 
   all.results <- vector("list",22)
@@ -128,7 +128,7 @@ if(load.ichip.regions) {
     snp.qc <- col.summary(myData[sample.filt,])
     maf <- snp.qc$MAF>0.005
     clr <- snp.qc$Call.rate>.99
-    hwe <- abs(snp.qc$z.HWE)<3.75
+    hwe <- abs(snp.qc$z.HWE)<3.8905
     qc.excl.snps <- rownames(snp.qc)[which(!maf | !clr | !hwe)]
     excl.snps <- unique(c(excl.snps,qc.excl.snps))
     excl.snps <- excl.snps[!excl.snps %in% unique(c(unexclude,topsnplist))]
