@@ -1,5 +1,25 @@
 source("~/github/iChip/iFunctions.R")
 
+
+
+
+
+# get hard coded lists of SNPs passing, failing QC, appearing in table 1, etc #tab1snps
+source('~/github/iChip/hardCodedSnpLists.R', echo=FALSE)
+
+grpzo <- names(bonf.snps)
+
+print(load("/chiswick/data/ncooper/iChipData/finalMetaTopHitsFEB17.RData"))
+
+topsnplist <- paste(bonf.snps)
+topsnplist[topsnplist %in% "rs3842727"] <- "rs689" # do now with rs689 instead
+topsnplist <- topsnplist[!topsnplist %in% c(qc.cloud.fail,not.top.snps)]
+topsnplist <- ids.by.pos(topsnplist) # order by genome order
+
+calibrate.cond.bonf(topsnplist,cm.window=0.1,bp.ext=0,build=37,qclist="snpsExcluded3.txt")
+  
+
+
 bonf <- 3.23*(10^-7)
 first.deg <- "no" # "yes" "no" "none"
 covs <- FALSE # whether to use covariates

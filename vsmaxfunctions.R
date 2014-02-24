@@ -1,29 +1,35 @@
 
-if(F) {  
-  nms.for.prime <- ic.to.rs(rownames(spec)[spec$MULTI==0])
-  nms.for.cond <- ic.to.rs(rownames(spec)[spec$MULTI==1])
-
-
-vs.max.liks[[2]][[4]] <- to.move.to.prime[[1]]
-vs.max.liks[[2]] <- vs.max.liks[[2]][c(1,4,2,3)]
-vs.max.liks$chr10$rs61839660 <- to.move.to.prime[[2]]
-vs.max.liks$chr11$rs689 <- to.move.to.prime[[3]]
-vs.max.liks[[16]] <- vs.max.liks[[16]][c(1,2,4)]
-vs.max.liks$chr16[[2]] <- to.move.to.prime[[4]]-to.move.to.prime[[4]][3]
-vs.max.liks$chr17[[1]] <- to.move.to.prime[[5]]
-vs.max.liks$chr18[[1]] <- to.move.to.prime[[6]]
-vs.max.liks$chr19[[1]] <- to.move.to.prime[[7]]
-}
 
 
 ## just for me
 
 
+# get the list of table1 snps
+get.tsl <- function(...,chr=NULL,keep.b=TRUE,ind=TRUE,cond=TRUE) {
+  spec <- read.spec.file(...)
+  ct <- read.spec.file(...)
+  indxs <- ct$TABLE1[which(ct$PRIME==1)]
+  conds <- ct$TABLE1[which(ct$COND!=0)]
+  tsl <- ic.to.rs(rownames(spec))
+  if(!is.null(chr)) { 
+    chrz <- Chr(tsl)
+    ret <- chrz %in% chr
+    tsl <- tsl[ret]
+  }
+  if(!keep.b) { tsl <- gsub("b","",tsl) }
+  if(!ind) { tsl <- tsl[!tsl %in% indxs] }
+  if(!cond) { tsl <- tsl[!tsl %in% conds] }
+  return(tsl)
+}
 
-add.names.to.big.vml <- function(vml,tsl=NULL,ret.nms=FALSE,...) {
+# add snp names for the lists in a vs.max.liks object [2 level]
+add.names.to.big.vml <- function(vml,tsl=NULL,ret.nms=FALSE,keep.b=TRUE,...) {
   if(!detect.vml.big(vml)) { warning("function only for big vml object"); return(vml) }
   if(is.null(tsl)) {
-    spec <- read.spec.file(...); tsl <- gsub("b","",ic.to.rs(rownames(spec)))
+    spec <- read.spec.file(...); 
+    if(keep.b) { 
+      tsl <- ic.to.rs(rownames(spec))
+    } else { tsl <- gsub("b","",ic.to.rs(rownames(spec))) }
   } 
   grp <- list()
   for (cc in 1:length(vml)) {
@@ -33,7 +39,8 @@ add.names.to.big.vml <- function(vml,tsl=NULL,ret.nms=FALSE,...) {
     if(ll>0) {
       nn <- character(ll)
       for(dd in 1:ll) {
-        nlist <- gsub("b","",names(vml[[cc]][[dd]]))
+        nlist <- names(vml[[cc]][[dd]])
+        if(!keep.b) { nlist <- gsub("b","",nlist) }
         ww <- which(nlist %in% tsl)[1]
         if(is.na(ww)) { 
           warn.txt <- "could not find any of the tsl (top snp list) SNPs in current row"
@@ -45,6 +52,24 @@ add.names.to.big.vml <- function(vml,tsl=NULL,ret.nms=FALSE,...) {
         nn[dd] <- nlist[ww]  
         #prv(nn,nlist,ww)
       }
+      if(any(duplicated(nn))) {
+        warning("default algorithm returned duplicates for Chr ",cc," names, using alternative")
+        indx.snps.in.chr <- ids.by.pos(get.tsl(chr=cc)) # assume these were in genome order
+        dupz <- which(pduplicated(nn))
+        not.dupz <- which(!pduplicated(nn))
+        isic <- indx.snps.in.chr[!indx.snps.in.chr %in% nn[not.dupz]]
+        NN <- nn[dupz]
+        if(length(NN)==length(isic)) {
+          flag <- TRUE
+          for(zz in dupz) {
+            #cat("looking for",comma(rs.to.ic(isic[zz])),"in",rs.to.ic(names(vml[[cc]][[zz]])),"\n")
+            if(!rs.to.ic(isic[zz]) %in% rs.to.ic(names(vml[[cc]][[zz]]))) { flag <- FALSE }
+          }
+          if(flag) { 
+            nn[dupz] <- isic ; cat("replaced",comma(NN),"with",comma(isic),"\n")
+          } else { warning("didn't find expected snps in lists, reverting")}
+        } else { print(NN); print(isic); warning("didn't find expected number of index snps in chromosome, reverting") }
+      }
       grp[[cc]] <- nn
       names(vml[[cc]]) <- grp[[cc]] 
     }
@@ -53,16 +78,18 @@ add.names.to.big.vml <- function(vml,tsl=NULL,ret.nms=FALSE,...) {
 }
 
 
+# convert an 'all.results' object from indistinguishable...Analysis.R files into a vs.max.liks BF summary object
 results.to.bf <- function(X,add.names=TRUE,...) {
   # ... can be name of spec file and/or topsnplist (tsl)
-  vml <- apply.vs(X,do.bic.max,dif=3) 
   ## add names
-  if(detect.vml.big(X)) { 
+  if(detect.ar.big(X)) { 
+    vml <- lapply(X,function(Y) { lapply(Y,do.bic.max,dif=3) } )
     if(add.names) { 
       names(vml) <- paste("chr",1:22,sep="") 
       vml <- add.names.to.big.vml(vml,ret.nms=FALSE,...) 
     } 
   } else {
+    vml <- lapply(X,do.bic.max,dif=3)
     condlist <- get.condlist(...)
     condon <- sapply(condlist,function(x) paste(x,collapse="_"))
     if(length(condon)==length(vml)) {  
@@ -76,7 +103,8 @@ results.to.bf <- function(X,add.names=TRUE,...) {
 
 
   
-
+# read a 'spec' file, which basicaly just lists whether each snp in table 1 is
+# conditional, has a conditional or hit, or neither
 read.spec.file <- function(st.fn="/chiswick/data/ncooper/iChipData/spectable1bf.csv") {
   if(!file.exists(st.fn)) { stop("spec file did not exist at: ",st.fn) }
   spec <- reader(st.fn)
@@ -87,22 +115,24 @@ read.spec.file <- function(st.fn="/chiswick/data/ncooper/iChipData/spectable1bf.
   return(spec)
 }
 
+# get the list of conditional snps
 get.pure.conds <- function(vml,...) {
-  ct <- read.spec.file(...)
+  ct <- read.cond.tests(...)
   to.keep.as.cond <- vml[which(ct$COND!=0)]
   names(to.keep.as.cond) <- ct$TABLE1[which(ct$COND!=0)]
   return(to.keep.as.cond)
 }
 
+# get the list of index snps with conditional hits
 get.index.conds <- function(vml,...) {
-  ct <- read.spec.file(...)
+  ct <- read.cond.tests(...)
   to.move.to.prime <- vml[which(ct$PRIME==1)]
   names(to.move.to.prime) <- ct$TABLE1[which(ct$PRIME==1)]
   return(to.move.to.prime)
 }
 
 
-
+# read the file entered to run the indistinguishableCondAnalysis.R script on the right SNPs
 read.cond.tests <- function(ct.fn="conditionalTests.csv") {
   if(!file.exists(ct.fn)) { stop("conditional tests file did not exist at: ",ct.fn) }
   ct <- reader(ct.fn,stringsAsFactors=F)
@@ -115,7 +145,7 @@ read.cond.tests <- function(ct.fn="conditionalTests.csv") {
 }
 
 
-
+# wrapper for read.cond.tests to return the list of conditional snp sets
 get.condlist <- function(...) {
   ct <- read.cond.tests(...)
   condlist <- apply(ct,1,function(X) { paste(c(narm(X[1:2]))) })
@@ -127,7 +157,7 @@ get.condlist <- function(...) {
 
 ### for all ##
 
-
+# apply function for a vs.max.liks object
 apply.vs <- function(X,FUN,...) {
   if(detect.vml.big(X)) {
     out <- lapply(X,function(Y) { lapply(Y,FUN,...) } )
@@ -137,7 +167,7 @@ apply.vs <- function(X,FUN,...) {
   return(out)
 }
 
-
+# determine whether it is a 2 level (T) or 1 level (F) vs.max.liks object
 detect.vml.big <- function(X) {
   if(is.list(X)) {
    return(any(sapply(lapply(X,is),"[",1)=="list"))
@@ -147,7 +177,18 @@ detect.vml.big <- function(X) {
 }
 
 
+# determine whether it is a 3 level (T) or 2 level (F) all.results object
+detect.ar.big <- function(X) {
+  if(is.list(X)) {
+    return(!all(sapply(X,length)==2))
+  } else {
+    stop("invalid all.results object")
+  }
+}
 
+# BF lists are with respect to the index snp, so the BF for this snp should be zero,
+#  if not, this script will perform the necessary transformation to make it so, it
+# assumes the index snp in each case is defined by the sublist name
 set.list.names.to.zero <- function(X) {
   if(detect.vml.big(X)) {
     for(cc in 1:22) {
@@ -169,13 +210,14 @@ set.list.names.to.zero <- function(X) {
 }
 
 
+# remove duplicate names from vs.max.liks sublists
 remove.dups.vml <- function(X) {
   FUN <- function(X) { X[!duplicated(names(X))] }
   X <- apply.vs(X,FUN)
   return(X)
 }
 
-
+# convert the ids in a vs.max.liks object to ichip ids
 rs.to.ic.vml <- function(X) {
   FUN <- function(X) { 
     names(X) <- rs.to.ic(names(X)) 
@@ -186,7 +228,7 @@ rs.to.ic.vml <- function(X) {
   return(X)
 }
 
-
+# convert the ids in a vs.max.liks object to rs ids
 ic.to.rs.vml <- function(X,dups=TRUE,bs=FALSE) {
   FUN <- function(X) { 
     names(X) <- ic.to.rs(names(X)) 
@@ -201,7 +243,7 @@ ic.to.rs.vml <- function(X,dups=TRUE,bs=FALSE) {
 }
 
 
-
+## produce a summary table of which BFs in a vs.max.liks object pass different thresholds
 summarise.bf <- function(X,thresh=c(-3,-5.3,-10,-20,-30,-100)) {
 	# make a summary table of bayes factors in SNP lists
 	nr <- length(unlist(apply.vs(X,function(Y,thr) { length(Y[Y>thr]) },thr=thresh[1])))	
@@ -217,7 +259,7 @@ summarise.bf <- function(X,thresh=c(-3,-5.3,-10,-20,-30,-100)) {
 
 
 
-
+# flatten a vs.max.liks object either completely, or by one level
 flatten.vml <- function(X,max=F) {
  if(!is.list(X)) { return(X) }
  if(detect.vml.big(X)) {
@@ -230,7 +272,9 @@ flatten.vml <- function(X,max=F) {
 
 
 
-
+# add a set of 'new' SNPs and BFs into an existing vs.max.liks object 'vml'
+# can specify which list name (where) or let the function detect the best
+# insertion point based on a chr, pos lookup from the snp id 
 add.entry.vml <- function(vml,new,where=NULL) {
   if(!is.null(where)) { if(length(where)==1) { where <- rep(where,times=length(new)) } }
   if(detect.vml.big(vml)) {
@@ -252,7 +296,7 @@ add.entry.vml <- function(vml,new,where=NULL) {
   }
 }
 
-
+# workhorse function used to insert new BF/Snp entries into a vs.max.liks object
   ## in CHR or little one
   lilbit <- function(vml,new,where=NULL) { 
     if(is.null(names(new))) { stop("new must be named") }
@@ -295,6 +339,8 @@ add.entry.vml <- function(vml,new,where=NULL) {
     return(vml)
   }
 
+
+# function to insert a single BF/snp into a vs.max.liks object
 insert.one <- function(llist,new) {
   if(length(new)>1) { stop("new must be length 1") }
   nm <- names(llist)
@@ -321,4 +367,51 @@ insert.one <- function(llist,new) {
   return(ovl)
 }
 
+
+
+
+
+
+
+
+make.final.lists <- function(ind.fn,icnd.fn,rs.ids=FALSE,keep.b=TRUE,out.i="",out.c=out.i,save=FALSE) {
+  ind.cond <- reader(icnd.fn)
+  ind.list <- reader(ind.fn)
+  vml.c <- results.to.bf(ind.cond)
+  vml.i <- results.to.bf(ind.list)
+  vml.i <- set.list.names.to.zero(vml.i)
+  vml.i <- remove.dups.vml(vml.i)
+  #vml.i <- rs.to.ic.vml(vml.i)
+  vml.c <- remove.dups.vml(vml.c)
+  #vml.c <- rs.to.ic.vml(vml.c)
+  to.move.to.indx <- get.index.conds(vml.c)
+  vml.c <- get.pure.conds(vml.c)
+  ntmti <- names(to.move.to.indx)
+  chr.list <- lapply(vml.i,names)
+  for (cc in 1:length(ntmti)) {
+    nxt.chr <- Chr(ntmti[cc])
+    cat("Ready to transfer",ntmti[cc],"into vml.i\n")
+    sub.list.ids <- chr.list[[nxt.chr]]
+    cat("Chr",nxt.chr," has groups",comma(sub.list.ids),"\n")
+    n.to.repl <- which(sub.list.ids==ntmti[cc])
+    cat("so now will replace index ",n.to.repl,"with",names(to.move.to.indx)[cc],"\n")
+    vml.i[[nxt.chr]][[n.to.repl]] <- to.move.to.indx[[cc]]
+  }
+  vml.i <- rs.to.ic.vml(vml.i)
+  vml.c <- rs.to.ic.vml(vml.c)
+  if(rs.ids) {
+    vml.i <- ic.to.rs.vml(vml.i,T,!keep.b)
+    vml.c <- ic.to.rs.vml(vml.c,T,!keep.b) 
+  }
+  if(save) {
+    if(out.i=="") { out.i <- simple.date(time=F) }
+    if(out.c=="") { out.c <- simple.date(time=F) }
+    out.i <- cat.path(getwd(),"IndistinguishableList_",suf=out.i,ext="RData")
+    out.c <- cat.path(getwd(),"IndistinguishableCondList_",suf=out.c,ext="RData")
+    vs.max.liks <- vml.i;  save(vs.max.liks,file=out.i); cat("Saved index BFs to",out.i,"\n")
+    vs.max.liks <- vml.c;  save(vs.max.liks,file=out.c); cat("Saved conditional BFs to",out.c,"\n")
+  }
+  out <- list(index=vml.i,conditional=vml.c)
+  return(out)
+}
 

@@ -1,6 +1,7 @@
+#!/usr/bin/Rscript
+
 ## Chris W's load ichip script, slightly modified to use reader::parge.args() instead of chris' args function
 
-#!/usr/bin/Rscript
 library(methods)
 library(reader)
 #args <- getArgs(defaults=list(chr="19",snp=NULL, start=NULL, end=NULL, file="ichip-data.RData"))

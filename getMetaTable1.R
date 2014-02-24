@@ -2,20 +2,20 @@
 # and finding the top meta results in each region, then tabulating
 
 
-bonf <- .05/135836   #3.23*(10^-7)
+bonf <- .05/135836   #3.68   3.23*(10^-7)
 source("~/github/iChip/iFunctions.R")
-setwd("/chiswick/data/ncooper/iChipData")
+work.dir <- "/chiswick/data/ncooper/iChipData"
+setwd(work.dir)
 library(reader)
 require(genoset); source("~/github/plumbCNV/FunctionsCNVAnalysis.R")
-
 # get hard coded lists of SNPs passing, failing QC, appearing in table 1, etc #tab1snps
 source('~/github/iChip/hardCodedSnpLists.R', echo=FALSE)
 
 print(load("all.support.RData"))
 new.table <- TRUE
 table.only <- F  #F #TRUE
-new.table.fn <- "nick.meta.table3.RData"
-qc.excluded.snps <- reader("snpsExcluded3.txt")
+new.table.fn <- "nick.meta.table4.RData"
+qc.excluded.snps <- reader("snpsExcluded.txt")
 qc.excluded.snps <- qc.excluded.snps[!rs.to.ic(qc.excluded.snps) %in% rs.to.ic(table1snpsfinaljan30)]
 
 # once this has been run once, can speed up by setting this to FALSE
@@ -27,7 +27,12 @@ if(!exists("TR") | (table.only) ) {
   } else {
     table1 <- reader(docs[1])
   }
+  ## FIX UVA XCHR name screw up ##
+  table1 <- rmv.uva.dup.rows(table1)
+  ##
   rownames(table1) <- clean.snp.ids(rownames(table1))
+  table1 <- rmv.uva.dup.rows(table1)
+  table1 <- table1[which(!is.na(ic.to.rs(rownames(table1)))),]
   excl <- reader(docs[2])
   prv(table1)
   prv(excl)
@@ -39,8 +44,11 @@ if(!exists("TR") | (table.only) ) {
   if(length(excl.index)>0) { table1a <- table1[-excl.index,] } else { table1a <- table1 }
   table1a <- table1a[order(table1a[,"Position"]),]
   table1a <- table1a[order(table1a[,"CHR"]),]
+  #print(table1a)
   #table1a <- table1a[order(table1a[,11]),]
-
+  table1a <- rmv.uva.dup.rows(table1a)
+  table1a <- table1a[!rownames(table1a) %in% c("rs1790121","rs12920271"),]  # shouldn't be in t1a
+  
   if(table.only) { stop() }
   p.cols <- c(2,9,11,16,18,20)  #c(3,10,12,15,18)-1
   prv.large(table1a[,p.cols],rows=20,cols=7)
@@ -74,7 +82,7 @@ if(!exists("TR") | (table.only) ) {
   #snp.info <- get(paste(load("/chiswick/data/ncooper/immunochipRunTest/ANNOTATION/snpinfo.RData")))
   #lookup.ind <- match(clean.snp.ids(all.support$SNP),clean.snp.ids(rownames(snp.info)))
   poz <- poz37
-  table.ranges <- RangedData(ranges=IRanges(start=poz,end=poz,names=table1a[,1]),
+  table.ranges <- RangedData(ranges=IRanges(start=poz,end=poz,names=ic.to.rs(rownames(table1a))),
                              space=table1a[,"CHR"],OR=table1a[,"OR_CC"],p.value=table1a[,"P_CC"],fam.OR=table1a[,"OR_Fam"],
                              fam.p.value=table1a[,"P_Fam"],meta.OR=table1a[,"OR_Meta"],meta.p.value=table1a[,"P_Meta"])
   
@@ -178,6 +186,32 @@ if(T) {
  # think 'b' is ok for rs34536443(b)
  ### top.snps <- gsub("imm_19_10324118","rs34536443",top.snps)
  ### top.snps.dat[,"whichSNP"] <- gsub("imm_19_10324118","rs34536443",top.snps.dat[,"whichSNP"])
+  for (dd in 1:length(iden.list)) {
+    next.lst <- iden.list[[dd]]
+    first.snp <- next.lst[1]
+    dubious <- function(x) { (unchecked(ic.to.rs(x)) | (ic.to.rs(x) %in% qc.cloud.fail)) }
+    better.ns <- which(!dubious(next.lst[-1]))+1
+    if(dubious(first.snp) & any(!dubious(next.lst[-1]))) {
+      # replace with a better choice
+      if(exists("table1snpsfinaljan30")) {
+        repl <- ((next.lst[better.ns])[next.lst[better.ns] %in% table1snpsfinaljan30])[1]
+      } else {
+        repl <- (next.lst[better.ns])[1]
+      }
+      cat("replacing SNP: ",first.snp," with known/checked SNP: ",repl,"\n")
+      top.snps <- gsub(first.snp,repl,top.snps)
+      top.snps.dat[,"whichSNP"] <- gsub(first.snp,repl,top.snps.dat[,"whichSNP"])
+    } else {
+      if(exists("table1snpsfinaljan30")) {
+        repl <- ((next.lst[better.ns])[next.lst[better.ns] %in% table1snpsfinaljan30])[1]
+        if(!is.na(repl)) {
+          cat("replacing SNP: ",first.snp," with SNP that was in the original table 1: ",repl,"\n")
+          top.snps <- gsub(first.snp,repl,top.snps)
+          top.snps.dat[,"whichSNP"] <- gsub(first.snp,repl,top.snps.dat[,"whichSNP"])
+        } else { if((dubious(first.snp))) { cat("first snp",first.snp,"is unchecked but no good replacement\n") } }
+      } else { if((dubious(first.snp))) { cat("first snp",first.snp,"is unchecked but no good replacement\n") } }
+    }
+  }
   top.snps <- gsub("rs3842752","rs3842727",top.snps)
   top.snps.dat[,"whichSNP"] <- gsub("rs3842752","rs3842727",top.snps.dat[,"whichSNP"])
  ## top.snps <- gsub("imm_16_11258712","rs193778",top.snps)
@@ -209,8 +243,9 @@ if(T) {
   #OTHER_12q24.21 delete as too close to 12q24.11;12q24.12;12q24.13
   #OTHER_12q24.13 delete as within 12q24.11;12q24.12;12q24.13
   
+
   # these haven't had cloud QC
-  list.to.check <- paste(bonf.snps[(!bonf.snps %in% qc.cloud.fail) & (!bonf.snps %in% good.snps.checked)])
+  list.to.check <- bonf.snps[unchecked(bonf.snps)]
   # these failed cloud qc and need next best for replacement
   list.to.get.new <- paste(bonf.snps[bonf.snps %in% qc.cloud.fail])
   

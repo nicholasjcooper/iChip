@@ -18,6 +18,10 @@ require(genoset); source("~/github/plumbCNV/FunctionsCNVAnalysis.R")
 ### output: 'all.results'; a list containing the OR,OR_L,OR_H,P-value for each snp in 'topsnplist', by chromosome
 
 bonf <- .05/135836  #3.64  #3.23*(10^-7) # bonferroni threshold #
+thresholds <- list(MAF=0.005,CR=.99,HWE=3.8905,SCR=0.953,HZlo=.19,HZhi=.235,
+                                     bonf=3.68*(10^-7),bonfcond=.05/23236 )
+current.qc.file <- "SNPQC_FEB14.RData"
+cm.window <- .1; bp.ext <- 0
 covs <- TRUE
 
 if(!exists("covs")) { covs <- c(TRUE,FALSE)[2] }
@@ -30,14 +34,15 @@ use.imputation <- TRUE
 source('~/github/iChip/hardCodedSnpLists.R', echo=FALSE)
 
 # get resulting Snps from 'getMetaTable1.R'
-print(load("/chiswick/data/ncooper/iChipData/finalMetaTopHitsFEB16.RData"))
+print(load("/chiswick/data/ncooper/iChipData/finalMetaTopHitsFEB17.RData"))
 
 ### get list of snps to test:
 #### should i be reading bonf.snps from /chiswick/data/ncooper/iChipData/finalMetaTopHits15JAN.RData ??
 #topsnplist <- tab1snps # table1snpsfinal ##NEW!  i think the former is right, although latter was last to be run
 topsnplist <- bonf.snps
-#topsnplist[topsnplist %in% "rs3842727"] <- "rs689"
+topsnplist[topsnplist %in% "rs3842727"] <- "rs689"
 topsnplist <- topsnplist[!topsnplist %in% qc.cloud.fail]
+topsnplist <- ids.by.pos(topsnplist)
 
 ## not sure whether this is necessary???
 if(F) {
@@ -62,7 +67,7 @@ if(load.uva.table) {
   #table1a <- table1a[order(table1a[,11]),]
   #prv.large(table1a[,c(3,10,12,15,18)-1],rows=100,cols=7)
   poz <- as.numeric(table1a[,3])
-  table1a$SNP_ID[match("imm_19_10324118",table1a$SNP_ID)] <- "rs34536443"
+  #table1a$SNP_ID[match("imm_19_10324118",table1a$SNP_ID)] <- "rs34536443"
 }
 
 #stop()
@@ -88,9 +93,9 @@ if(load.ichip.regions) {
   if(!exists("ms")) { ms <- list.rowsummary(chr.dat) } # if re-running the script, save repeating the QC
   chrz <- 1:22
   ## create filter for call rate and Heterozygosity ##
-  sample.filt <- samp.summ(ms,CR=0.953,HZlo=0.19,HZhi=0.235) # + print summary 
+  sample.filt <- samp.summ(ms,CR=thresholds$SCR,HZlo=thresholds$HZlo,HZhi=thresholds$HZhi) # + print summary 
   # prints SNPQC overall summary, but actually for analysis this is done chr by chr
-  ignore.for.now <- snp.summ(MAF=0.005,CR=.99,HWE=3.8905,qc.file="snpqc.RData") 
+  ignore.for.now <- snp.summ(MAF=thresholds$MAF,CR=thresholds$CR,HWE=thresholds$HWE,qc.file=current.qc.file)
   excl.ids <- suppressWarnings(rownames(get.SnpMatrix.in.file(chr.dat[[22]]))[!sample.filt])  # ID exclusion list
   excl.snps <- clean.snp.ids(rownames(excl)) # from UVA, above
   #not.top.snps = non significant ids from #clear.not.tops <- lapply(all.results,function(Y) { lapply(Y,clearly.suck,thresh=20) } )
@@ -110,7 +115,7 @@ if(load.ichip.regions) {
   file.out <- cat.path(work.dir,"all.results",suf=gsub(":",".",gsub(" ","_",date())),ext="RData")
 
   # run separately for each chromosome #
-  for(next.chr in chrz[chrz>14]) {
+  for(next.chr in chrz[chrz>0 & chrz<23]) {
     Header(paste("Chromosome",next.chr))
     chr <- next.chr
     print(load(cat.path(fn=ofn,suf=next.chr,ext="RData")))
@@ -124,10 +129,17 @@ if(load.ichip.regions) {
     ##snp.support <- clean.snp.support(snp.support)
     myData <- rbind(control.data,t1d.data) # combine the cases and controls
     colnames(myData) <- clean.snp.ids(colnames(myData))
+    if(next.chr==11){
+      rsmtch <- which( colnames(control.data) %in% "imm_11_2138800")
+      myData[,rsmtch] <- rep(as.raw("00"),times=nrow(myData)) # "imm_11_2138800" = "rs689"
+      rs689.snpmatrix <- get(paste(load("taqman_rs689.RData"))) #get.taqman.snp.from.text.file()
+      indzz <- match(rownames(rs689.snpmatrix),rownames(myData))
+      myData[narm(indzz),rsmtch] <- rs689.snpmatrix[which(!is.na(indzz)),1]
+    }
     snp.qc <- col.summary(myData[sample.filt,])
-    maf <- snp.qc$MAF>0.005
-    clr <- snp.qc$Call.rate>.99
-    hwe <- abs(snp.qc$z.HWE)<3.8905
+    maf <- snp.qc$MAF>thresholds$MAF
+    clr <- snp.qc$Call.rate>thresholds$CR
+    hwe <- abs(snp.qc$z.HWE)<thresholds$HWE
     qc.excl.snps <- rownames(snp.qc)[which(!maf | !clr | !hwe)]
       
     #qc.excl.snps <- qc.excl.snps[!qc.excl.snps %in% unexclude]
@@ -155,48 +167,8 @@ if(load.ichip.regions) {
     snpic.list <- narm(snpic.list)
     if(length(snpic.list)<1) { next } # skip this chromosome if no SNPs were found to analyse  
 
-    ### READY TO ADD RECWINDOW FROM 'WORKING.R' 
-    #recwindow(chr,st,en=st,window=0.1,bp=0)
-    if(T) {
-      which.snps <- match(snpid.list,all.support$dbSNP)
-      if(any(is.na(which.snps))) { stop(paste("NAs in dbSNP match:",paste(snpid.list[is.na(which.snps)],collapse=","))) }
-      snps.locs <- Pos(snpid.list) #snp.support$Pos[which.snps]
-      if(!all(all.support$SNP[which.snps]==snpic.list)) { warning("bad rs-ic conversion!\n") }
-      #warning("dup SNPs:",all.support$SNP[which.snps][duplicated(all.support$SNP[which.snps])],"\n")
-      snp.rd <- RangedData(ranges=IRanges(start=snps.locs,
-                           end=snps.locs,names=all.support$SNP[which.snps]),
-                           space=rep(next.chr,length(snps.locs)))
-      snp.rd <- annot.cnv(snp.rd,gs=cyto); colnames(snp.rd) <- "band"
-      bands <- snp.rd$band
-      nxt.window <- lapply(snps.locs, function(X,...) { recwindow(st=X,...) },chr=next.chr,window=1) 
-      if(next.chr==16) {        
-        cat("changing window[[2]] from",paste(nxt.window[[2]],collapse=","),
-          "to",paste(c(10663100,11601037),collapse=","),"\n")
-        nxt.window[[2]] <- c(10663100,11601037) 
-      }
-      print(nxt.window)
-      st.window <- lapply(nxt.window, "[",1)
-      en.window <- lapply(nxt.window, "[",2)
-      n.snps <- vector("list",length(st.window))
-      for(cc in 1:length(st.window)) {
-        n.snps[[cc]] <- which(all.support$Chr==next.chr &
-                              all.support$Pos>=st.window[cc] & 
-                              all.support$Pos<=en.window[cc] &
-                            (!all.support$SNP %in% excl.snps) &
-                            (!all.support$dbSNP %in% excl.snps) 
-        )
-      }
-      grp.labs <- lapply(n.snps,function(X) { all.support$SNP[X] })
-      grp.snps <- lapply(n.snps,function(X) { all.support$dbSNP[X] })
-      for (cc in 1:length(grp.labs)) { 
-        if(any(is.na(grp.snps))) { stop(paste("NAs in grp.labs match:",paste(grp.snps[is.na(grp.snps)],collapse=","))) }
-        grp.snps[[cc]][is.na(grp.snps[[cc]])] <- grp.labs[[cc]][is.na(grp.snps[[cc]])]
-        grp.snps[[cc]][duplicated(grp.snps[[cc]])] <- grp.labs[[cc]][duplicated(grp.snps[[cc]])]
-      }
-      if(length(unique(bands))!=length(bands)) { warning("these bands are not unique ==> ",paste(bands[duplicated(bands)],collapse=",")) }
-      grpz <- 1:length(bands)
-      names(grp.snps) <- names(grp.labs) <- paste(grpz,bands,sep=":")
-    } 
+    ### get snps surrounding top snps by 0.1cM ##
+    grp.labs <- get.nearby.snp.lists(snpid.list,cM=cm.window,bp.ext=bp.ext,build=37,excl.snps=excl.snps)
     
     n.grps <- length(grp.labs) ; chr.results <- vector("list",n.grps)
     if(length(snpic.list)!=n.grps) { 
@@ -240,7 +212,6 @@ if(load.ichip.regions) {
       toppers <- (names(ppp)[baduns] %in% rs.to.ic(topsnplist))
       if(any(toppers)) { warning("top snp ",names(ppp)[baduns][toppers]," failed sanger/uva qc") ; baduns <- baduns[-which(toppers)] }
       grp.labs[[grp]] <- grp.labs[[grp]][!grp.labs[[grp]] %in% rs.to.ic(names(ppp)[baduns])]
-      grp.snps[[grp]] <- grp.snps[[grp]][!grp.snps[[grp]] %in% ic.to.rs(names(ppp)[baduns])]
       cat(length(baduns),"/",length(ppp)," SNPs failed on UVA vs Sanger genotype frequencies\n",sep="")
       #if(length(baduns)>0) { cat(paste(names(ppp)[baduns],collapse=","),"\n") }      
       if(length(baduns)==length(ppp)) { next; print("all failed") }
@@ -265,11 +236,10 @@ if(load.ichip.regions) {
       n.in.grp <- length(grp.labs[[grp]])
       #bic <- numeric(n.in.grp)
       ## decide between model with and without covariates ##
-      cat("running GWAS on",n.in.grp,"SNPs in surrounding 1 centimorgan region of marker:",snpid.list[grp],"\n")
+      cat("running GWAS on",n.in.grp,"SNPs in surrounding",cm.window,"centimorgan region of marker:",snpid.list[grp],"\n")
       if(any(!grp.labs[[grp]] %in% colnames(myDat))) {
         warning("missing ",length(which((!grp.labs[[grp]] %in% colnames(myDat))))," SNPs in myDat")
         print(grp.labs[[grp]][which((!grp.labs[[grp]] %in% colnames(myDat)))])
-        grp.snps[[grp]] <- grp.snps[[grp]][grp.labs[[grp]] %in% colnames(myDat)]
         grp.labs[[grp]] <- grp.labs[[grp]][grp.labs[[grp]] %in% colnames(myDat)]
         n.in.grp <- length(grp.labs[[grp]])
       }

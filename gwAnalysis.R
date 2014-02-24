@@ -18,9 +18,10 @@ require(genoset); source("~/github/plumbCNV/FunctionsCNVAnalysis.R")
 covs <- TRUE
 update.snp.qc <- TRUE
 #thresholds <- list(MAF=0.005,CR=.99,HWE=3.8905,SCR=0.953,HZlo=.19,HZhi=.235,
-#                   bonf=3.23*(10^-7),bonfcond=.05/23236 )
+#                   bonf=3.68*(10^-7),bonfcond=.05/23236 )
 thresholds <- list(MAF=0.005,CR=.90,HWE=6.46,SCR=0.953,HZlo=.19,HZhi=.235,
-                   bonf=3.23*(10^-7),bonfcond=.05/23236 ) # relaxed as exclusions can be done later
+                   bonf=3.68*(10^-7),bonfcond=.05/23236 ) # relaxed as exclusions can be done later
+current.qc.file <- "SNPQC_FEB14.RData"
 
 if(!exists("covs")) { covs <- c(TRUE,FALSE)[2] }
 
@@ -46,15 +47,16 @@ print(load(cat.path(work.dir,"all.support.RData")))   ## load object: all.suppor
 ### GET LIST OF FILE NAMES FOR RDATA FILES FOR EACH CHROMOSOME ###
 ofn <- "/chiswick/data/ncooper/iChipData/temp.ichip-data.RData"
 chr.dat <- cat.path(fn="temp.ichip-data",suf=paste(1:22),ext="RData")
+chr.dat <- c(chr.dat,cat.path(fn="temp.ichip-data",suf=c("X","MT"),ext="RData"))
 chr.dat <- as.list(chr.dat)
 
 ## do sample QC on each chrosome and recombine ##
 if(!exists("ms")) { ms <- list.rowsummary(chr.dat) } # if re-running the script, save repeating the QC
-chrz <- 1:22
+chrz <- c(1:22,"X","MT")
 ## create filter for call rate and Heterozygosity ##
 sample.filt <- samp.summ(ms,CR=thresholds$SCR,HZlo=thresholds$HZlo,HZhi=thresholds$HZhi) # + print summary 
 # prints SNPQC overall summary, but actually for analysis this is done chr by chr
-ignore.for.now <- snp.summ(MAF=thresholds$MAF,CR=thresholds$CR,HWE=thresholds$HWE,qc.file="snpqc.RData") 
+ignore.for.now <- snp.summ(MAF=thresholds$MAF,CR=thresholds$CR,HWE=thresholds$HWE,qc.file=current.qc.file) 
 excl.ids <- 
   suppressWarnings(rownames(get.SnpMatrix.in.file(chr.dat[[22]]))[!sample.filt])  # ID exclusion list
 excl.snps <- clean.snp.ids(rownames(excl)) # from UVA, above
@@ -70,7 +72,7 @@ file.out <- cat.path(work.dir,"gwas.results",suf=gsub(":",".",gsub(" ","_",date(
 if(update.snp.qc) { SNPQC <- vector("list",22) }
 
 # run separately for each chromosome #
-for(next.chr in chrz[chrz==12]) {
+for(next.chr in chrz[chrz %in% c("X")]) {
   Header(paste("Chromosome",next.chr))
   chr <- next.chr
   print(load(cat.path(fn=ofn,suf=next.chr,ext="RData")))
@@ -82,7 +84,7 @@ for(next.chr in chrz[chrz==12]) {
   
   myData <- rbind(control.data,t1d.data) # combine the cases and controls
   colnames(myData) <- clean.snp.ids(colnames(myData))
-  if(next.chr==11){
+  if(paste(next.chr)=="11"){
     rsmtch <- which( colnames(control.data) %in% "imm_11_2138800")
     myData[,rsmtch] <- rep(as.raw("00"),times=nrow(myData)) # "imm_11_2138800" = "rs689"
     rs689.snpmatrix <- get(paste(load("taqman_rs689.RData"))) #get.taqman.snp.from.text.file()
@@ -112,7 +114,7 @@ for(next.chr in chrz[chrz==12]) {
     prv(cov.dat)
   }
   ## get the list of SNP/dbSNP ids that are in the current chromosome
-  snpid.list <- clean.snp.ids(all.support$dbSNP[all.support$Chr==next.chr])
+  snpid.list <- clean.snp.ids(all.support$dbSNP[paste(all.support$Chr)==paste(next.chr)])
   snpic.list <- rs.to.ic(snpid.list) #snp.support$SNP[match(snpid.list,snp.support$dbSNP)]
   if(any(is.na(snpic.list))) { warning("missing dbSNP entries in list:",snpid.list[is.na(snpic.list)])}
   snpid.list <- snpid.list[!is.na(snpic.list)]

@@ -18,6 +18,30 @@ pt2 <- function(q, df, log.p=FALSE) {  2*pt(-abs(q), df, log.p=log.p) }
 
 
 
+
+pduplicated <- function(X) {
+  if(length(Dim(X))>1) {  stop("can only enter a vector into this function") }
+  return((duplicated(X,fromLast=T) | duplicated(X,fromLast=F)))
+}
+
+
+comma <- function(...) {
+  paste(...,collapse=",")
+}
+
+# for a subset 'n' and total 'N' nicely prints text n/N and/or percentage%
+out.of <- function(n,N=100,digits=2,pc=TRUE,oo=TRUE) {
+  pct <- 100*(n/N)
+  outof <- paste(n,"/",N,sep="")
+  percent <- paste(round(pct,digits),"%",sep="")
+  if(pc & oo) {
+    outof <- paste(outof," (",percent,")",sep="")
+  } else {
+    if(pc) { outof <- percent }
+  }
+  return(outof)
+}
+
 # function specific to getMetatable.R script
 #  gets a list of equivalent SNPs to the current snp
 
@@ -54,18 +78,7 @@ simple.date <- function(sep="_",long=FALSE,time=TRUE) {
   return(out)
 }
 
-# for a subset 'n' and total 'N' nicely prints text n/N and/or percentage%
-out.of <- function(n,N=100,digits=2,pc=TRUE,oo=TRUE) {
-  pct <- 100*(n/N)
-  outof <- paste(n,"/",N,sep="")
-  percent <- paste(round(pct,digits),"%",sep="")
-  if(pc & oo) {
-    outof <- paste(outof," (",percent,")",sep="")
-  } else {
-    if(pc) { outof <- percent }
-  }
-  return(outof)
-}
+
 
 ### GLOBAL QC STATS ###
 samp.summ <- function(ms,CR=0.953,HZlo=0.19,HZhi=0.235) {
@@ -331,6 +344,16 @@ clean.snp.support <- function(X) {
 }
 
 
+## FIX UVA XCHR name screw up ##
+rmv.uva.dup.rows <- function(table1) {
+  print(Dim(table1))
+  bad.tab <- table1[which(is.na(ic.to.rs(rownames(table1)))),]
+  nr <- substr(rownames(bad.tab),1,nchar(rownames(bad.tab))-1)
+  table1 <- table1[which(!rownames(table1) %in% paste(nr,"1",sep="")),] # remove duplicate rows
+  print(Dim(table1))
+  return(table1)
+}
+
 
 # standardize snp ids so they would always appear the same, all _,.;, etc replaced with _
 # all names leading with a number preceeded with X. mainly 'make.names' standard R-conventions
@@ -351,6 +374,7 @@ conv.36.37 <- function(ranged=NULL,chr=NULL,pos=NULL,chain.file="/home/oliver/R/
   chn <- import.chain(chain.file)
   toranged <- F
   if(!is.null(chr) & !is.null(pos)) { ranged <- data.frame.to.ranged(cbind(chr,pos),start="pos",end="pos") }
+  #return(ranged)
   if(is(ranged)[1]=="RangedData") {
     wd <- width(ranged)
     if(all(wd==1)) { SNPs <- TRUE } else { SNPs <- FALSE }
@@ -419,6 +443,13 @@ SnpMatrix.to.data.frame <- function(SnpMat) {
 
 # convert from a dataframe to a SnpMatrix
 data.frame.to.SnpMatrix <- function(X){
+  if(is.data.frame(X)) {
+    if(any(sapply(lapply(X,is),"[",1) %in% c("character","factor"))) {
+      for(cc in 1:ncol(X)) {
+        X[[cc]] <- as.numeric(X[[cc]])
+      }
+    }
+  }
   mxx <- max(X,na.rm=TRUE)
   if(mxx>3) { warning("Dataframe does not appear to contain allele codes") }
   X <- round(X)
@@ -698,6 +729,8 @@ impute.missing <- function (X, bp = 1:ncol(X), strata = NULL, numeric = FALSE, v
 ichip.imputation <- function(myData, imp.file, smp.filt=NULL, snp.filt=NULL) {
   if(is.null(smp.filt)) { smp.filt <- 1:nrow(myData) }
   if(is.null(snp.filt)) { snp.filt <- 1:ncol(myData) }
+  sample.names <- rownames(myData)[smp.filt]
+  #print("1");print(length(smp.filt)); print(Dim(myData))
   if(!file.exists(imp.file)) {
     myDataFilt <- myData[smp.filt,snp.filt]
     myDat <- impute.missing(myDataFilt,numeric=T)
@@ -709,7 +742,19 @@ ichip.imputation <- function(myData, imp.file, smp.filt=NULL, snp.filt=NULL) {
     cat("loaded imputed data from:",imp.file,"\n")
     print(load(imp.file))
     ### note this row/col check is not 100% foolproof!
-    if(nrow(myDat)!=length(smp.filt)) { stop("mismatching number of samples in loaded file") }
+    #print("2");print(length(smp.filt)); print(Dim(myDat))
+    if(nrow(myDat)!=length(smp.filt)) { 
+      if(!all(sample.names %in% rownames(myDat))) {
+        use.exist <- FALSE
+        stop("missing samples in loaded file, suggest deleting existing imputation and re-run") 
+      } else {
+        cat("re-arranging samples in file to match smp.filt\n")
+        indxz <- match(sample.names,rownames(myDat))
+        if(length(which(is.na(indxz)))<1) {  myDat <- myDat[indxz,] } else { stop("rearranging failed") }
+        if(nrow(myDat)!=length(smp.filt)) { stop("something went wrong with sample matching") }
+        if(any(rownames(myDat)!=sample.names)) { stop("selection went wrong with sample matching") }
+      }
+    }
     if(ncol(myDat)!=length(snp.filt)) { 
       ## if this has changed a bit, try to ressurrect without recalculating the whole thing
       cat("mismatching number of snps in loaded file\n") 
@@ -718,19 +763,33 @@ ichip.imputation <- function(myData, imp.file, smp.filt=NULL, snp.filt=NULL) {
       gotem <- narm(match(targs,colnames(bigDat)))
       aintgotem <- targs[!targs %in% colnames(bigDat)]
       if(length(aintgotem)>0) {
-        if(length(gotem)>0) {
+        use.exist <- length(gotem)>0
+        if(use.exist) {
           cat("combining",length(gotem),"previously imputed with",length(aintgotem),"from scratch\n")
           myDat.part1 <- impute.missing(myData[smp.filt,match(aintgotem,colnames(myData))],numeric=T)
           if(!exists("bigDat")) { print(load("allImputed.RData")) }
           myDat.part2 <- bigDat[,gotem]
-          if(any(rownames(myDat.part1)!=rownames(myDat.part2))) { stop("samples did not match up") }
+          if(any(rownames(myDat.part1)!=rownames(myDat.part2))) { 
+            if(!all(rownames(myDat.part1) %in% rownames(myDat.part2))) {
+              warning("samples missing from existing dataset") 
+              cat("samples were missing from existing dataset, ")
+              use.exist <- FALSE
+            } else {
+              indzx <- match(rownames(myDat.part1),rownames(myDat.part2))
+              if(length(which(is.na(indzx)))<1) {  myDat.part2 <- myDat.part2[indzx,] } else { stop("rearranging samps failed") }
+            }
+          }
+        }
+        if(use.exist) {
+          # ie, if still true [becomes false if samples were missing]
           myDat.cbind <- cbind(myDat.part1,myDat.part2)
           indz <- match(targs,colnames(myDat.cbind))
           if(any(is.na(indz))) { stop("combined data still missing target SNPs") }
           myDat <- myDat.cbind[,indz]
-        } else {
+        } else { cat("no existing valid imputation, ") }
+        if(!use.exist) {
           ## do all from scratch
-          cat("none were previously imputed, calculating from scratch\n")
+          cat("imputing from scratch\n")
           myDataFilt <- myData[smp.filt,snp.filt]
           myDat <- impute.missing(myDataFilt,numeric=T)
         }
@@ -739,8 +798,10 @@ ichip.imputation <- function(myData, imp.file, smp.filt=NULL, snp.filt=NULL) {
         cat("trimming loaded data to subset needed\n")
         indz <- match(targs,colnames(bigDat))
         if(any(is.na(indz))) { stop("not sure why loaded data is missing target SNPs") }
+        if(length(indz)==0) { stop("no target snps in list") }
         myDat <- bigDat[,indz]
       }
+      #prv(myDat)
       myDatSnp <- data.frame.to.SnpMatrix(myDat)
       myDat <- impute.missing(myDatSnp,numeric=T)
       myDat <- randomize.missing(myDat)
@@ -832,13 +893,91 @@ multitry <- function(expr, times=5, silent=FALSE, message=""){
 }
 
 
+
+find.overlapping.regions  <- function(ranged) {
+  if(is(ranged)[1]==("GRanges")) { ranged <- as(ranged,"RangedData") }
+  if(!is(ranged)[1]==("RangedData")) { stop("Need RangedData or GRanges object to proceed")} else {
+    ranged <- toGenomeOrder(ranged,strict=T) }  
+  rr <- NULL
+  chrz <- narm(rownames(chrInfo(ranged)))
+  LenC <- length(chrz)
+  if(LenC>1) { 
+    ret <- vector("list",LenC)
+    for (ccc in 1:LenC) { 
+      cat("Chr",chr(ranged[ccc])[1],":\n")
+      ret[[ccc]] <- find.overlapping.regions(ranged[ccc]) 
+      if(!is.null(ret[[ccc]])) { 
+        print(paste("chr",ccc))
+        uu <- ranged[ccc][sort(unique(as.numeric(ret[[ccc]]))),]
+        print(uu); if(ccc==1) { rr <- uu } else { rr <- rbind(rr,uu) }
+      }
+    }
+    names(ret) <- paste(chrz)[1:LenC]
+    isnull <- sapply(ret,function(X) { all(is.na(X)) })
+    return(rr) #ret[!isnull])
+  }
+  ov <- findOverlaps(ranged)
+  qh <- queryHits((ov))
+  sh <- subjectHits((ov))
+  ovs <- which(qh!=sh)
+  if(length(ovs)>0) {
+    overlaps <- cbind(qh,sh)[ovs,]
+    overlaps <- t(apply(overlaps,1,sort))
+   #s return(overlaps)
+    otxt <- apply(overlaps,1,function(x) { paste(x,collapse=",") })
+    overlaps <- overlaps[!duplicated(otxt),]
+    otxt <- otxt[!duplicated(otxt)]
+    otxt <- paste("overlap found for regions: ",otxt,"\n")
+    cat(otxt,"\n",sep="")
+    if(length(Dim(overlaps))==1) { dim(overlaps) <- c(1,2) }
+    if(!is.null(dim(overlaps))) {
+      colnames(overlaps) <- c("region.a","region.b")
+    }
+    return(overlaps)
+  } else {
+    cat("no overlaps\n")
+    return(NA)
+  }
+}
+
 # chris' function to get a centimorgan window from intervals
 # vector input
-recwindow <- function(chr,st,en=st,window=0.1, # cM either side
+recwindow <- function(ranged=NULL,chr=NA,st=NA,en=st,window=0.1, # cM either side
                       do.plot=FALSE, # if wanted to plot
-                      add.plot=FALSE,do.lines=TRUE,...) {
-  rates <- read.table(gzfile(sprintf("/dunwich/scratch/chrisw/HapMap/rates_rel22/genetic_map_chr%s_b36.txt.gz",chr)),
-                      header=TRUE)
+                      add.plot=FALSE,do.lines=TRUE,bp.ext=0,...) {
+  if(is(ranged)[1] %in% c("RangedData","GRanges")) { 
+    if(is(ranged)[1]=="GRanges") { ranged <- as(ranged,"RangedData") }
+    ranged <- toGenomeOrder(ranged,strict=T)
+    ss <- start(ranged); ee <- end(ranged); cc <- chr(ranged)
+    out <- recwindow(chr=cc,st=ss,en=ee,window=window,bp.ext=bp.ext,...)
+    outData <- RangedData(ranges=IRanges(start=out[,1],end=out[,2],names=rownames(ranged)),space=cc)
+    outData <- toGenomeOrder(outData,strict=TRUE)
+    for (zz in 1:ncol(ranged)) { outData[[colnames(ranged)[zz]]] <- ranged[[colnames(ranged)[zz]]]  }
+    if(is(ranged)[1]=="GRanges") { outData <- as(toGenomeOrder(outData,strict=T),"GRanges") }
+    return(outData)
+  } else {
+    if(all(!is.na(chr)) & all(!is.na(st)) & all(!is.na(en))) {
+      if(length(chr)==length(st) & length(st)==length(en)) {
+        if(length(chr)>1) {
+          # run for a vector
+          out <- matrix(ncol=2,nrow=length(chr)); colnames(out) <- c("start","end")
+          for (dd in 1:length(chr)) {
+            out[dd,] <- recwindow(chr=chr[dd],st=st[dd],en=en[dd],window=window,bp.ext=bp.ext,...)
+          }
+          return(out)
+        } else {
+          ## continue as normal, just a single coordinate/range to process
+        }
+      } else {
+        stop("invalid input, st, en and chr need to be the same length")
+      }
+    } else {
+      stop("invalid input, either use a RangedData object, or else chr, st and en")
+    }
+  }
+  rate.fn <- sprintf("/dunwich/scratch/chrisw/HapMap/rates_rel22/genetic_map_chr%s_b36.txt.gz",chr)
+  #print(rate.fn)
+  rates <- read.table(gzfile(rate.fn),header=TRUE)
   cm.st <- rates[which.min(abs(rates$position-st)),3]
   cm.en <- rates[which.min(abs(rates$position-en)),3]
   
@@ -847,7 +986,6 @@ recwindow <- function(chr,st,en=st,window=0.1, # cM either side
   cat("n hapmap snps in window =",nrow(kk),"\n")
   from <- min(kk[,1])
   to <- max(kk[,1])
-  
   if(do.plot) {
     kk <- rates[abs(rates[,3]-cm.st)<mx | abs(rates[,3]-cm.en)<mx,]
     if(add.plot) {
@@ -862,8 +1000,10 @@ recwindow <- function(chr,st,en=st,window=0.1, # cM either side
       legend("topleft",lty=c(1,1),col=c("red","blue"),legend=c("window","target"))
     }
   }
-  
-  cat("window size is\nleft: ",(st-from)/1000,"kb\tright: ",(to-en)/1000,"kb\ttotal: ",(to-from)/1000,"kb\n",sep="")
+  cat("new window size is\nleft: ",(st-from+bp.ext)/1000,"kb\tright: ",(to-en+bp.ext)/1000,"kb\ttotal: ",(to-from+(2*bp.ext))/1000,"kb\n",sep="")
+  if(bp.ext>0) { cat("in addition to cM distance, window was extended by",bp.ext,"base pairs on either side\n")} 
+  from <- max(c(0,(from-bp.ext)))
+  to <- min(c((to+bp.ext),get.chr.lens()[chr][1]),na.rm=T)
   return(c(from,to))
 }
 
@@ -1032,11 +1172,12 @@ data.frame.to.ranged <- function(dat,ids=NULL,start="start",end="end",width=NULL
       id <- paste(1:nrow(dat)) 
     }
   }
-  if(length(ch)>0) { ch <- gsub("chr","",dat[[ch]],ignore.case=T) } else { ch <- NULL }
-  if(length(st)>0) { st <- dat[[st]] } else { st <- NULL }
-  if(length(en)>0) { en <- dat[[en]] } else { en <- NULL }
-  if(length(wd)>0) { wd <- dat[[wd]] } else { wd <- NULL }
-  outData <- RangedData(ranges=IRanges(start=st,end=en,names=id),space=ch,universe=ucsc[1])
+  if(length(ch)>0) { ch1 <- gsub("X","chrX",gsub("chr","",dat[[ch]],ignore.case=T)) } else { ch1 <- NULL }
+  if(length(st)>0) { st1 <- as.numeric(dat[[st]]) } else { st1 <- NULL }
+  if(length(en)>0) { en1 <- as.numeric(dat[[en]]) } else { en1 <- NULL }
+  if(length(wd)>0) { en1 <- st1+as.numeric(dat[[wd]]) } # { en1 <- st1+dat[[wd]] }
+  #print(length(st1)); print(head(st1))
+  outData <- RangedData(ranges=IRanges(start=st1,end=en1,names=id),space=ch1,universe=ucsc[1])
   outData <- toGenomeOrder(outData,strict=T)
   # note when adding data subsequently that 'RangedData' sorts by genome order, so need
   # to resort any new data before adding.
@@ -1053,5 +1194,306 @@ data.frame.to.ranged <- function(dat,ids=NULL,start="start",end="end",width=NULL
 }
 
 
+## usage 
+# export.all.or.pv(TR,qc.excluded.snps,qc.cloud.fail,fn="forolly.RData")
+# function takes the object 'TR' tidies and makes a clean dataframe of results ready for export
+export.all.or.pv <- function(TR,qc.excluded.snps,qc.cloud.fail,fn="forolly.RData") {
+  jj <- order(TR[["meta.p.value"]])
+  tt <- as.data.frame(TR)[jj,]
+  kk2 <- which(!(rs.to.ic(tt[,5]) %in% unique(rs.to.ic(c(qc.excluded.snps,qc.cloud.fail)))))
+  tt <- tt[kk2,]
+  tt <- tt[,-3:-4]
+  colnames(tt)[1:2] <- c("Chr","Pos")
+  aabb <- AB(tt$names)
+  forolly <- cbind(tt,aabb)
+  colnames(forolly)[11:12] <- c("allele.A","allele.B")
+  colnames(forolly)[10] <- "band"
+  colnames(forolly)[3] <- "rsid"
+  rownames(forolly) <- rs.to.ic(forolly[,3])
+  
+  save(forolly,file=fn)
+  return(forolly)
+}
 
 
+# Create a table comparing the meta and case-control p-values for the old version of the table (uva)
+# versus the new version (DIL, includes extra ~2,500 CBR samples) 
+# e.g, 
+#  > compare.to.previous.results(bonfs.filt,first=T)
+#  > compare.to.previous.results(bonfs.filt,first=F,true.reps=c(6,20,23,39))
+compare.to.previous.results <- function(bonfs.filt,first=T,true.reps=NULL,
+                                        prv.fn="finalMetaTopHits7FEB.RData") {
+  new.tab <- bonfs.filt
+  print(load(prv.fn))
+  old.tab <- bonfs.filt
+  all.reg <- unique(c(rownames(new.tab),rownames(old.tab)))
+  nr <- length(all.reg); nc <- 5; com.tab <- as.data.frame(matrix(nrow=nr,ncol=nc))
+  rownames(com.tab) <- all.reg
+  colnames(com.tab) <- c("oldSnp","old_p","newSnp","new_p","equivalent.to.NEW")
+  sel1 <- which(rownames(com.tab) %in% rownames(old.tab))
+  sel2 <- which(rownames(com.tab) %in% rownames(new.tab))
+  com.tab[sel1,1:2] <- old.tab[match(rownames(com.tab)[sel1],rownames(old.tab)),1:2]
+  com.tab[sel2,3:4] <- new.tab[match(rownames(com.tab)[sel2],rownames(new.tab)),1:2]
+  com.tab[sel2,5] <- sapply(get.equivs(com.tab[sel2,3],iden.list),paste,collapse=",")
+  ## by inspection first time, checked whether any old snps in the equivalent list (shouldn't be):
+  # if they are, put the row numbers into the vector 'true.reps'
+  if(first) { 
+    iii <- (which("NA"!=(com.tab[,5]) & (com.tab[,1]!=com.tab[,3])))
+    print(com.tab[iii,]) ; stop() 
+  }
+  # then once vector is checked, first ==FALSE
+  if(length(true.reps)>0) {  com.tab[true.reps,3] <- com.tab[true.reps,1] }
+  com.tab[sel2,5] <- sapply(get.equivs(com.tab[sel2,3],iden.list),paste,collapse=",")
+  
+  com.tab[,4] <- paste(substr(com.tab[,4],1,6),substr(com.tab[,4],nchar(com.tab[,4])-3,nchar(com.tab[,4])),sep="")
+  chrzz <- apply(cbind(Chr(com.tab[,1]),Chr(com.tab[,3])),1,mean,na.rm=T)
+  com.tab <- com.tab[order(chrzz),]
+  
+  com.tab[["equiv.SNPs"]] <- com.tab[,5]
+  com.tab[,5] <- Pos(com.tab[,3],build=37)
+
+  colnames(com.tab)[5] <- "New.snp.pos"
+
+  return(com.tab)
+}
+
+
+
+## my GWAS with SNPstats will not have ORs/betas with the right directions to be consistent 
+# with UVA's TDT family analysis. In order to ensure the OR/betas are the right way around,
+# flip each if necessary to have log(sign) consistent with the UVA case-control analysis
+# e.g. 
+#    new.table.fn <- "nick.meta.table2.RData"
+#    table.nick <- convert.OR.directions(new.table.fn)
+#    save(table.nick,file="nick.meta.table3.RData")
+convert.OR.directions <- function(new.table.fn) {
+  nick.table <- reader(new.table.fn)
+  print(Dim(nick.table))
+  rownames(nick.table) <- clean.snp.ids(rownames(nick.table))
+  doc.path <- "ImChip_T1D_20130913"
+  docs <- cat.path(doc.path,list.files(doc.path))
+  excl <- reader(docs[2])
+  uva.table <- reader(docs[1])
+  rownames(uva.table) <- clean.snp.ids(rownames(uva.table))
+  uva.table <- uva.table[rownames(nick.table),]
+  wwu <- sign(log(uva.table[,"OR_CC"])) 
+  names(wwu) <- rownames(uva.table)
+  wwn <- sign(log(nick.table[,"OR_CC"])) 
+  names(wwn) <- rownames(nick.table)
+  wwun <- wwu[match(names(wwn),names(wwu))]
+  length(which(is.na(wwun)))
+  wwun[is.na(wwun)] <- wwn[is.na(wwun)] 
+  print(head(cbind(wwn,wwun)))
+  print(length(which(wwn==wwun)))
+  print(length(which(wwn!=wwun)))
+  print(Dim(nick.table))
+  nick.table[["OR_CC_Raw"]] <- nick.table[,"OR_CC"]
+  nick.table[,"OR_CC"][wwn!=wwun] <- 1/(nick.table[,"OR_CC"][wwn!=wwun])
+  cat("removing columns",paste(colnames(nick.table)[15:17],collapse=","),"\n")
+  cat("replacing with:",paste(colnames(meta.me(nick.table)),collapse=","),"\n")
+  table.nick <- cbind(nick.table[,-15:-17],(meta.me(nick.table)))
+  colnames(table.nick)[17:ncol(table.nick)] <- c("OR_Meta","b_Meta","SE_Meta","Z_Meta","P_Meta")
+  return(table.nick)
+}
+
+
+# returns list of snps from old table, not in new
+# prints summary of new vs old pvalues and odds ratios for those snps
+# e.g, examine.no.longer.t1.snps(table1snpsfinaljan30,bonf.snps,table1a,identicals,T,T)
+examine.no.longer.t1.snps <- function(table1snpsfinaljan30,bonf.snps,table1a,identicals,do.OR=FALSE,do.p=TRUE) {
+  doc.path <- "ImChip_T1D_20130913"
+  docs <- cat.path(doc.path,list.files(doc.path))
+  excl <- reader(docs[2])
+  uva.table <- reader(docs[1])
+  why <- table1snpsfinaljan30[!ic.to.rs(table1snpsfinaljan30) %in% ic.to.rs(bonf.snps)]
+  ct.fn <- "conditionalTests.csv"
+  ct <- reader(ct.fn,stringsAsFactors=F)
+  conditionals <- ct$TABLE1[ct$COND!=0]
+  if(length(why)>0 & exists("conditionals")) {  why <- why[!ic.to.rs(why) %in% ic.to.rs(conditionals)] }
+  if(length(why)>0) {   why <- why[!ic.to.rs(why) %in% ic.to.rs(identicals)] }
+  if(length(why)==0) { return("none found a mystery")}  
+  
+  if(do.p) {
+    # compare pvalues new vs old for SNPs in the old table 1, no longer in the new table 1
+    ww <- cbind(table1a[rs.to.ic(why),"P_Meta"],
+                uva.table[rs.to.ic(why),"P_Meta"],Chr(why),Pos(why))[order(Chr(why)),]
+    xx <- cbind(table1a[rs.to.ic(why),"P_CC"],
+                uva.table[rs.to.ic(why),"P_CC"])[order(Chr(why)),]
+    zz<-cbind(xx,ww)
+    colnames(zz) <- c("New_CC","Old_CC","New_Meta","Old_Meta","Chr","Pos")
+    zz <- zz[,c(5,6,1,2,3,4)]
+    rownames(zz) <- why[order(Chr(why))]
+    print(zz,digits=4)
+  }
+  if(do.OR) {
+    # compare odds ratios new vs old for SNPs in the old table 1, no longer in the new table 1
+    ww2 <- cbind(table1a[rs.to.ic(why),"OR_Fam"],
+                 uva.table[rs.to.ic(why),"OR_Fam"],Chr(why),Pos(why))[order(Chr(why)),]
+    xx2 <- cbind(table1a[rs.to.ic(why),"OR_CC"],
+                 uva.table[rs.to.ic(why),"OR_CC"])[order(Chr(why)),]
+    zz2 <-cbind(xx2,ww2)
+    colnames(zz2) <- c("New_CC","Old_CC","New_Fam","Old_Fam","Chr","Pos")
+    zz2 <- zz2[,c(5,6,1,2,3,4)]
+    rownames(zz2) <- why[order(Chr(why))]
+    print(zz2,digits=4)  
+  }
+  return(why) # returns list of snps from old table, not in new
+}
+
+
+# T/F see whether snps in a list have been checked for signal clouds previous
+unchecked <- function(snps) {
+  source("~/github/iChip/hardCodedSnpLists.R",local=TRUE,echo=FALSE)
+  list.to <- ((!snps %in% qc.cloud.fail) & (!snps %in% ok) & (!snps %in% good.snps.checked))
+  return(list.to)
+}
+
+
+# to get meta analysis parameters from table containing case-control and family data beta, se values
+meta.me <- function(X) {
+  OR.CC <- X[,"OR_CC"]
+  beta.CC  <- log(X[,"OR_CC"])
+  se.CC <- X[,"SE_CC"]
+  OR.family <- X[,"OR_Fam"]
+  beta.family  <- log(X[,"OR_Fam"])
+  se.family <- X[,"SE_Fam"]
+  z.CC <- beta.CC/se.CC
+  z.family <- beta.family/se.family
+  
+  inv.CC <- 1 / (se.CC^2)
+  inv.family <- 1 / (se.family^2)
+  var.meta <- 1 / (inv.CC+inv.family)
+  weight.CC <- inv.CC * var.meta
+  weight.family <- inv.family * var.meta
+  
+  famN <- 3819*2  #3509*2   #  3819*2   #  10796
+  ccN <- 9416+6670
+  WeightFam = sqrt(famN)/(sqrt(famN)+sqrt(ccN))
+  #WeightFam = wf
+  WeightCC <- 1-WeightFam
+  
+  beta.meta <- round((weight.CC * beta.CC) + (weight.family * beta.family),digit=3)
+  z.metaW1 <- round((weight.CC * z.CC) + (weight.family * z.family),digit=6)
+  z.metaW2 <- round((WeightCC * z.CC) + (WeightFam * z.family),digit=6)
+  se.meta <- round(sqrt(var.meta), digit=3)
+  z.meta <- beta.meta/se.meta
+  OR.meta <- exp(beta.meta)
+  p.meta <- 2*pnorm(-abs(z.meta))
+  p.metaW1 <- 2*pnorm(-abs(z.metaW1))
+  p.metaW2 <- 2*pnorm(-abs(z.metaW2))
+  out <- (cbind(OR.meta,beta.meta,se.meta,z.meta,p.meta)) #,z.metaW1,p.metaW1,z.metaW2,p.metaW2))
+  rownames(out) <- rownames(X)
+  return(out)
+}
+
+
+
+# turn the 'condit.res' object returned by conditionalAnalysis.R into a 
+# clean table ready to paste into table 1
+condit.to.res <- function(condit.res) {
+  newt1rown <- unlist(lapply(condit.res,names))
+  newt1p <- unlist(lapply(condit.res,function(X) { lapply(X,"[",1) }))
+  newt1simp <- unlist(unlist(lapply(condit.res,function(X) { lapply(X,"[","glm") }),recursive=F),recursive=F)
+  OR_SE <- lapply(newt1simp,function(X) { Y <- tail(X,1); return(Y[c(1,5)]) })
+  out <- cbind(newt1rown,newt1p,sapply(OR_SE,"[",1),sapply(OR_SE,"[",2))
+  colnames(out) <- c("rsid","aov.P","CC_OR","CC_SE.beta")
+  out <- cbind(out,Chr(out[,"rsid"]),Pos(out[,"rsid"],37))
+  colnames(out)[5:6] <- c("Chr","Pos")
+  out <- as.data.frame(shift.rownames(out))
+  rn <- rownames(out)
+  out <- as.data.frame(lapply(out,as,"numeric"))
+  rownames(out) <- rn
+  out[["allele.A"]] <- out[["allele.B"]] <- rep("A",nrow(out))
+  out[,6:7] <- AB(rownames(out))
+  return(out)
+}
+
+
+## for a list of snp-ids from iChip, obtain the nearby SNP-lists within 0.1cm, etc
+# do.bands labels each sublist by the band name, but faster not to do this
+get.nearby.snp.lists <- function(snpid.list,cM=0.1,bp.ext=0,build=37,excl.snps=NULL,do.bands=TRUE) {
+  if(!exists("all.support")) { print(load("all.support.RData")) }
+  snpic.list <- rs.to.ic(snpid.list)
+  cyto <- get.cyto(); cyto[["gene"]] <- rownames(cyto)
+  #which.snps <- match(snpid.list,all.support$dbSNP)
+  #if(any(is.na(which.snps))) { stop(paste("NAs in dbSNP match:",paste(snpid.list[is.na(which.snps)],collapse=","))) }
+  snps.locs36 <- Pos(snpid.list,36) #snp.support$Pos[which.snps]
+  snps.locs37 <- Pos(snpid.list,37)
+  next.chr <- unique(Chr(snpid.list)); if(length(next.chr)>1) { stop("enter snpids from only 1 chromosome at a time!") }
+  if(build==36) { snps.locs <- snps.locs36 } else { snps.locs <- snps.locs37 }
+  if(any(snps.locs!=sort(snps.locs))) { 
+    warning("snp-ids not in position order, rearrangement is preferred but will attempt to continue")
+    sort.back <- match(snps.locs,sort(snps.locs))
+  } else { sort.back <- 1:length(snps.locs) }
+  ddz <- snpic.list[duplicated(snpic.list)]
+  if(length(ddz)>0) { warning("dup SNPs:",ddz,"\n") }
+  snp.rd <- RangedData(ranges=IRanges(start=snps.locs,end=snps.locs,names=snpic.list),
+                       space=rep(next.chr,length(snps.locs)))
+  snp.rd <- toGenomeOrder(snp.rd,strict=T) # think it autosorts anyway, but just in case
+  if(do.bands) {
+    snp.rd <- annot.cnv(snp.rd,gs=cyto); colnames(snp.rd) <- "band"
+    bands <- snp.rd$band
+  }
+  ## recwindow uses build36 only, so convert back afterwards
+  nxt.window <- lapply(snps.locs36, function(X,...) { recwindow(st=X,...) },chr=next.chr,window=cM,bp.ext=bp.ext)
+  if(build==36) {
+    st.window <- sapply(nxt.window, "[",1)
+    en.window <- sapply(nxt.window, "[",2)
+    pozz <- all.support$Pos
+  } else {
+    st.window <- conv.36.37(chr=next.chr,pos=sapply(nxt.window, "[",1))$Pos
+    en.window <- conv.36.37(chr=next.chr,pos=sapply(nxt.window, "[",2))$Pos
+    pozz <- all.support$Pos37
+  }
+  n.snps <- vector("list",length(st.window))
+  for(cc in 1:length(st.window)) {
+    n.snps[[cc]] <- which(all.support$Chr==next.chr &
+                            pozz>=st.window[cc] & 
+                            pozz<=en.window[cc] &
+                            (!all.support$SNP %in% excl.snps) &
+                            (!all.support$dbSNP %in% excl.snps) 
+    )
+  }
+  grp.labs <- lapply(n.snps,function(X) { all.support$SNP[X] })
+  if(do.bands) {
+    if(length(unique(bands))!=length(bands)) { warning("these bands are not unique ==> ",paste(bands[duplicated(bands)],collapse=",")) }
+    grpz <- 1:length(bands)
+    names(grp.labs) <- paste(grpz,bands,sep=":")
+  }
+  grp.labs <- grp.labs[sort.back]
+  return(grp.labs)
+}
+
+
+# order rs-ids or ichip ids by genome chr, position
+ids.by.pos <- function(ids) {
+  pp <- Pos(ids)
+  if(any(is.na(pp))) { stop("invalid id list, could not find position for all") }
+  ids <- ids[order(pp)]
+  cc <- Chr(ids)
+  ids <- ids[order(cc)]
+  return(ids)
+}
+
+
+# calibrate the bonferroni threshold for conditional analyses
+calibrate.cond.bonf <- function(snplist,cm.window=0.1,bp.ext=0,build=37,qclist="snpsExcluded3.txt") {
+  all.snps.tested <- NULL
+  qc.excluded.snps <- reader(qclist)
+  qc.excluded.snps <- qc.excluded.snps[!rs.to.ic(qc.excluded.snps) %in% rs.to.ic(snplist)]
+  
+  for (cc in 1:22) {
+    cat("chr",cc,"\n")
+    snpid.list <- snplist[Chr(snplist) %in% cc]
+    if(length(snpid.list)<1) { next }
+    grp.labs <- get.nearby.snp.lists(snpid.list,cM=cm.window,bp.ext=bp.ext,build=37,excl.snps=qc.excluded.snps,do.bands=FALSE)
+    all.snps.tested <- c(all.snps.tested,unlist(grp.labs))  
+  }
+  
+  ast <- all.snps.tested[!rs.to.ic(all.snps.tested) %in% rs.to.ic(c(qc.excluded.snps,qc.cloud.fail))]
+  bcf <- length(ast)
+  bcfu <- length(unique(ast))
+  cat("implied bonferroni (count all tests) threshold is:",.05/bcf,"\n")
+  cat("implied bonferroni (count unique snps only) threshold is:",.05/bcfu,"\n")
+  return(list(all.tests=bcf,unique.snps=bcfu))
+}

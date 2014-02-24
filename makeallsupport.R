@@ -1,4 +1,13 @@
 
+# to import the ichip files in the first place:
+ofn <- "/chiswick/data/ncooper/iChipData/temp.ichip-data.RData"
+for(chr in 1:22) {
+  system(paste("~/github/iChip/load-ichip.R chr=",chr," file=",out.file=ofn,sep=""))
+}
+system(paste("~/github/iChip/load-ichip.R chr=X file=",out.file=ofn,sep=""))
+
+
+
 ambigs <- (which(all.support$dbSNP=="AMBIG"))
 ambo <- (all.support[ambigs,])
 amb <- character(nrow(ambo))
