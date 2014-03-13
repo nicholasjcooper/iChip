@@ -22,7 +22,7 @@ current.qc.file <- "SNPQC_FEB14.RData"
 cm.window <- .2; bp.ext <- 0  #50000  # 0
 use.se.OR <- FALSE  # whether to report SE of the beta or the odds ratio (log/exp units)
 covs <- TRUE   # use covariates of sex and region in analysis
-store.top.snps <- T # FALSE #T  #FALSE  store the topsnplist snps in a single matrix for later use
+store.top.snps <-  FALSE #T  #FALSE  store the topsnplist snps in a single matrix for later use
 proper.run <- FALSE    # whether to save results to be used in further calcs (or just testing, etc)
 
 if(!exists("covs")) { covs <- c(TRUE,FALSE)[2] }
@@ -113,7 +113,7 @@ if(load.ichip.regions) {
   file.out <- cat.path(work.dir,"cond.results",suf=gsub(":",".",gsub(" ","_",date())),ext="RData")
 
   # run separately for each chromosome #
-  for(next.chr in chrz[chrz==15]) {
+  for(next.chr in chrz[chrz==4]) {
     #chrz[chrz %in% c(2,10,16,17,19)]) {
  # for(next.chr in c(19)) {
     Header(paste("Chromosome",next.chr))

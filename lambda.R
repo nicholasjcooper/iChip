@@ -16,7 +16,7 @@ require(genoset); source("~/github/plumbCNV/FunctionsCNVAnalysis.R")
 
 #bonf <- .05/23236      #3.23*(10^-7) # bonferroni threshold #
 covs <- TRUE
-update.snp.qc <- TRUE
+update.snp.qc <- FALSE #TRUE
 #thresholds <- list(MAF=0.005,CR=.99,HWE=3.8905,SCR=0.953,HZlo=.19,HZhi=.235,
 #                   bonf=3.68*(10^-7),bonfcond=.05/23236 )
 thresholds <- list(MAF=0.005,CR=.90,HWE=6.46,SCR=0.953,HZlo=.19,HZhi=.235,
@@ -52,7 +52,7 @@ chr.dat <- as.list(chr.dat)
 
 ## do sample QC on each chrosome and recombine ##
 if(!exists("ms")) { ms <- list.rowsummary(chr.dat) } # if re-running the script, save repeating the QC
-chrz <- c(1:22,"X","MT")
+chrz <- c(1:22,"X")  #,"MT")
 ## create filter for call rate and Heterozygosity ##
 sample.filt <- samp.summ(ms,CR=thresholds$SCR,HZlo=thresholds$HZlo,HZhi=thresholds$HZhi) # + print summary 
 # prints SNPQC overall summary, but actually for analysis this is done chr by chr
@@ -67,7 +67,7 @@ sample.excl2 <- reader("unacknowledged-dups-2011-08-11.tab")[,5]
 excl.ids <- unique(c(excl.ids,sample.excl1,sample.excl2,nonconsent))
 ###
 
-all.results <- vector("list",22)
+all.results <- vector("list",length(chrz))
 file.out <- cat.path(work.dir,"gwas.results",suf=gsub(":",".",gsub(" ","_",date())),ext="RData")
 if(update.snp.qc) { SNPQC <- vector("list",22) }
 
@@ -75,6 +75,7 @@ if(update.snp.qc) { SNPQC <- vector("list",22) }
 for(next.chr in chrz) {
   Header(paste("Chromosome",next.chr))
   chr <- next.chr
+  nchr<- if(chr=="X") { 23 } else { as.numeric(chr) }
   print(load(cat.path(fn=ofn,suf=next.chr,ext="RData")))
   #loads: annotated.snp.support, t1d.data, t1d.support, control.data, control.support
   
@@ -93,13 +94,13 @@ for(next.chr in chrz) {
   }
   
   snp.qc <- col.summary(myData[sample.filt,])
-  if(update.snp.qc) { SNPQC[[next.chr]] <- snp.qc }
+  if(update.snp.qc) { SNPQC[[nchr]] <- snp.qc }
   maf <- snp.qc$MAF>thresholds$MAF
   clr <- snp.qc$Call.rate>thresholds$CR
   hwe <- abs(snp.qc$z.HWE)<thresholds$HWE
   qc.excl.snps <- rownames(snp.qc)[which(!maf | !clr | !hwe)]
   excl.snps <- unique(c(excl.snps,qc.excl.snps))
-  excl.snps <- excl.snps[!excl.snps %in% unique(rs.to.ic(c(unexclude,table1snpsfinaljan30,topsnplist)))]
+  excl.snps <- excl.snps[!excl.snps %in% unique(rs.to.ic(c(unexclude,table1snpsfinaljan30)))]
   
   ## extract covariates as 'cov.dat' ##
   if(covs) {
@@ -173,24 +174,32 @@ for(next.chr in chrz) {
   n.in.grp <- length(snpic.list)
   ## decide between model with and without covariates ##
   cat("running chromosome wide analysis on",n.in.grp,"SNPs in chromosome:",next.chr,"\n")
-  if(!covs) {
-    fm <- paste("Pheno ~ 1")
-  } else {
-    fm <- paste("Pheno ~ sex + region")
-  }
-  result <- snp.rhs.estimates(as.formula(fm),snp.data=myDatSnp)
-  BB <- sapply(result,"[[","beta",USE.NAMES=F)
-  OO <- exp(BB)
-  SS <- sqrt(sapply(result,"[[","Var.beta",USE.NAMES=F))
-  NN <- sapply(result,"[[","N",USE.NAMES=F)
-  PP <- pt2(BB/SS,df=NN-1)
-  results <- data.frame(CC_OR=OO,CC_SE=SS,CC_P=PP,N=NN)
-  rownames(results) <- names(NN)
+  lambda <- lambdas(myDatSnp,pheno=Pheno,cc1000=TRUE)
+  rownames(lambda) <- colnames(myDatSnp)
   
-  all.results[[next.chr]] <- results
+  all.results[[nchr]] <- lambda
   save(all.results,file=file.out)
   cat("updated object in: ",file.out,"\n")
 }  
+
+
+# extract all as a table
+print(load(file.out))
+
+# uncomment rest of these line sif names screw up
+#all.results <- (all.results[-1:-22])
+c2 <- do.call("rbind",all.results)
+#cn1 <- do.call("c",sapply(all.results,rownames))
+#rownames(c1) <- cn1
+print(load("/chiswick/data/ncooper/iChipData/compiledTableAllResultsPassingQC.RData"))
+near.region <- grep("EXT",tt$gene)
+out.region <- grep("OTHER",tt$gene)
+in.region <- which(!1:nrow(tt) %in% c(near.region,out.region)) 
+
+p.m.reg <- names(p.meta[names(p.meta) %in% rs.to.ic(tt$names[in.region])])
+p.m.out <- names(p.meta[names(p.meta) %in% rs.to.ic(tt$names[out.region])])
+
+save(c2,p.m.reg,p.m.out,file="lambdaTableVars.RData")
 
 ## A PROBLEM= OFTEN CC BEST != BEST - how did i deal with this before???
 
@@ -202,7 +211,7 @@ if(F) {
   
   ORs <- lapply(all.results,function(Y) { lapply(Y,function(X) { do.call("[",args=list(X,indx,1)) }) } )
   Ps <- lapply(all.results,function(Y) { lapply(Y,function(X) { do.call("[",args=list(X,indx,4)) }) } )
-  
+
   all.fn <- cat.path(work.dir,"totalGWAS.RData")
   save(ORs,Ps,all.results,file=all.fn)
   cat("wrote file",all.fn,"\n")

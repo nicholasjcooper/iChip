@@ -17,6 +17,29 @@ Cor <- function(...) { cor(...,use="pairwise.complete") }
 pt2 <- function(q, df, log.p=FALSE) {  2*pt(-abs(q), df, log.p=log.p) }
 
 
+if(F) {
+  LL <- length(which(!is.na(qchisq(p.cc,1)))) ; plot(qchisq(1-((1:LL)/LL),1),qchisq(1-sort(p.cc),1),xlim=c(0,6),type="l",main="Case-control Analysis (ChiSq)",xlab="expected",ylab="observed"); lines(x=qchisq(1-((1:LL)/LL),1),y=qchisq(1-((1:LL)/LL),1),col="red",lty="dotted")
+  ww <- (which(!is.na(-log10(p.cc)))); LL <- length(ww)
+  plot(-log10(((1:LL)/LL)),-log10(sort(p.cc)),xlim=c(0,6),type="l",main="Case-control Analysis -Log10(p)",xlab="expected",ylab="observed"); lines(x=-log10(((1:LL)/LL)),y=-log10(((1:LL)/LL)),col="red",lty="dotted")
+  
+  do.the.meta.ones <- function(p.meta) {
+    LL <- length(which(!is.na(qchisq(p.meta,1)))) ; plot(qchisq(1-((1:LL)/LL),1),qchisq(1-sort(p.meta),1),xlim=c(0,6),type="l",main="Meta Analysis (ChiSq)",xlab="expected",ylab="observed"); lines(x=qchisq(1-((1:LL)/LL),1),y=qchisq(1-((1:LL)/LL),1),col="red",lty="dotted")
+    ww <- (which(!is.na(-log10(p.meta)))); LL <- length(ww)
+    plot(-log10(((1:LL)/LL)),-log10(sort(p.meta)),xlim=c(0,6),type="l",main="Meta Analysis -Log10(p)",xlab="expected",ylab="observed"); lines(x=-log10(((1:LL)/LL)),y=-log10(((1:LL)/LL)),col="red",lty="dotted")
+  }
+  
+  print(load("/chiswick/data/ncooper/iChipData/compiledTableAllResultsPassingQC.RData"))
+  near.region <- grep("EXT",tt$gene)
+  out.region <- grep("OTHER",tt$gene)
+  in.region <- which(!1:nrow(tt) %in% c(near.region,out.region))
+  
+  print(load("pvaluesforqq.RData"))
+  p.m.reg <- p.meta[names(p.meta) %in% rs.to.ic(tt$names[in.region])]
+  p.m.out <- p.meta[names(p.meta) %in% rs.to.ic(tt$names[out.region])]
+  do.the.meta.ones(p.m.reg)
+  do.the.meta.ones(p.m.out)
+}
+
 
 
 pduplicated <- function(X) {
@@ -28,6 +51,242 @@ pduplicated <- function(X) {
 comma <- function(...) {
   paste(...,collapse=",")
 }
+
+
+
+
+get.allele.counts <- function(myData,cc1000=FALSE) {
+  ii <-  col.summary(myData)
+  ii[["majmin"]] <- c("minor","major")[as.numeric(round(ii$RAF,3)!=round(ii$MAF,3))+1]
+  if(cc1000) { ii$Calls <- rep(1000,nrow(ii)) }
+  aa <- aA <- AA <- rep(0,nrow(ii))
+  aa[which(ii$majmin=="minor")] <- (ii$P.BB*ii$Calls)[which(ii$majmin=="minor")]
+  aa[which(ii$majmin=="major")] <- (ii$P.AA*ii$Calls)[which(ii$majmin=="major")]
+  AA[which(ii$majmin=="minor")] <- (ii$P.AA*ii$Calls)[which(ii$majmin=="minor")] 
+  AA[which(ii$majmin=="major")] <- (ii$P.BB*ii$Calls)[which(ii$majmin=="major")]
+  aA <- ii$P.AB*ii$Calls
+  ii[["aa"]] <- aa
+  ii[["aA"]] <- aA
+  ii[["AA"]] <- AA
+  colnames(ii)[1] <- "TOTAL"
+  return(ii[c("aa","aA","AA","TOTAL")])
+}
+
+
+# convert inflation factors to lamba1000
+lambda_nm <- function(Lnm,n=1000,m=1000,nr,mr) { 1 + ((Lnm-1)*(((1/nr)+(1/mr))/((1/n)+(1/m)))) }
+# likelihood for one marker
+Likelihood_Lj <- function(c,Lnm) { rchisq(c/Lnm,df=1)/Lnm }
+# total likelihood across all K markers  : http://www.nature.com/ng/journal/v36/n4/full/ng1333.html
+
+LLikelihood_L <- function(Cj,LNMj) {
+  tot <- 0
+  for (cc in 1:length(Cj)) { 
+    tot <- tot + log(Likelihood_Lj(Cj[cc],LNMj[cc])) 
+  }
+  return(tot) 
+}
+
+Y_2 <- function(r1,r2,n1,n2,N,R) { (N*((N*(r1+(2*r2)))-(R*(n1+(2*n2))))^2) / ((R*(N-R))*((N*(n1+(4*n2)))-(n1+(2*n2))^2)) }
+
+X_2 <- function(r1,r2,n1,n2,N,R) { (2*N*((2*N*(r1+(2*r2)))-(R*(n1+(2*n2))))^2) / ((4*R*(N-R))*((2*N*(n1+(2*n2)))-(n1+(2*n2))^2)) }
+
+#Y2 ~ L*X2
+
+#Case     r0  r1  r2  R
+#Control  s0  s1  s2  S
+#Total    n0  n1  n2  N
+
+#http://en.wikipedia.org/wiki/Population_stratification
+
+
+## function that calculates SNP-WISE Lambda and Lambda1000 statistics for inflation due to population structure
+# works on a SnpMatrix or dataframe coded 0,1,2,NA (autodetects which)
+lambdas <- function(X, pheno, checks=TRUE, cc1000=FALSE) {
+  ## workhorse internal function ##
+  do.lambda <- function(x,ph,snpmat=NULL) {
+    if(!is.null(snpmat)) {
+      if(!snpmat) {
+        tt <- table(round(as.numeric(x)),ph)
+      }
+    }
+    if(is.null(snpmat)) {
+      tt <- table(round(as.numeric(x)),ph)
+      if("3" %in% rownames(tt)) { snpmat <- T } else { snpmat <- F }
+    }
+    if(snpmat) {
+      xx <- round(as.numeric(x))-1; xx[xx==-1] <- NA
+      tt <- table(xx,ph)
+    }
+    #tt <- narm(tt)
+    if(checks) {
+      # checks will slow down running so can optionally turn them off
+      if(length(tt)<1) { warning("all allele counts were empty!"); return(NA) }
+      if(!all(rownames(tt) %in% paste(c(0,1,2)))) { 
+         warning("invalid genotype values in X: ",paste(head(unique(names(tt))),collapse=",")) ; return(NA) 
+      }
+      if(!all(colnames(tt) %in% paste(c(0,1,2)))) {
+         warning("invalid genotype values in X: ",paste(head(unique(names(tt))),collapse=",")) ; return(NA)  
+      }
+    }
+
+    if("0" %in% rownames(tt)) { Ctrl0 <- tt["0","0"]; Case0 <- tt["0","1"] } else { Ctrl0 <- Case0 <- 0 }
+    if("1" %in% rownames(tt)) { Ctrl1 <- tt["1","0"]; Case1 <- tt["1","1"] } else { Ctrl1 <- Case1 <- 0 }
+    if("2" %in% rownames(tt)) { Ctrl2 <- tt["2","0"]; Case2 <- tt["2","1"] } else { Ctrl2 <- Case2 <- 0 }
+    Ctrl0[is.na(Ctrl0)] <- 0; Ctrl1[is.na(Ctrl1)] <- 0; Ctrl2[is.na(Ctrl2)] <- 0
+    Case0[is.na(Case0)] <- 0; Case1[is.na(Case1)] <- 0; Case2[is.na(Case2)] <- 0
+
+    A0 <- Case0+Ctrl0; A1 <- Case1+Ctrl1; A2 <- Case2+Ctrl2
+    a0 <- (A0*2)+A1; a2 <- (A2*2)+A1
+    if(a0 > a2) { type <- "minor" }
+    if(a2 > a0) { type <- "major" }
+    if(a0==a2) { type <- "neutral"  }
+    if( length(which(c(A0,A1,A2)==0))==2 ) { type <- "monomorph" }
+    #cat(type,"\n")
+    if(type=="minor") {
+      #Case
+      r0 <- Case2  ; r1 <- Case1  ; r2 <- Case0  ; R <- Case0+Case1+Case2
+      #Control  s0  s1  s2  S
+      s0 <- Ctrl2  ; s1 <- Ctrl1  ; s2 <- Ctrl0  ; S <- Ctrl0+Ctrl1+Ctrl2
+    } else {
+      #Case
+      r0 <- Case2  ; r1 <- Case1  ; r2 <- Case0  ; R <- Case0+Case1+Case2
+      #Control  s0  s1  s2  S
+      s0 <- Ctrl2  ; s1 <- Ctrl1  ; s2 <- Ctrl0  ; S <- Ctrl0+Ctrl1+Ctrl2
+    }
+    return(c(r0,r1,r2,R,s0,s1,s2,S))  #,n0,n1,n2,N,xx2,yy2,LL,L1000))
+    #return(c(LL,L1000))
+  }
+  ## main code ##
+  if(!max(Dim(pheno)) %in% Dim(X)) { warning("Phenotype data different size to dataset X"); return(NA)}
+  if(all(pheno %in% c(1,2))) { pheno <- pheno-1 }
+  if(!all(pheno %in% c(0,1))) { warning("Phenotype must be coded as controls,cases=0,1; or =1,2"); return(NA) }
+  if(length(Dim(X))!=2) {
+    if(length(Dim(X))==1) { return(do.cw(as.numeric(X),ph=pheno)) } else {
+      warning("invalid object for case/control orientation testing"); return(NA)
+    }
+  }
+  snpmat <- F
+  if(is(X)[1] %in% "SnpMatrix") { snpmat <- T } else {
+    tt.temp <- table(round(as.numeric(X[,1])));  if("3" %in% names(tt.temp)) { snpmat <- T }
+  }
+  if(snpmat) {
+    cnts0 <- get.allele.counts(X[pheno==0,],cc1000=cc1000)
+    cnts1 <- get.allele.counts(X[pheno==1,],cc1000=cc1000)
+    cnts <- cbind(cnts1,cnts0)
+  } else {
+    cnts <- apply(X,2,do.lambda,ph=pheno,snpmat=snpmat)
+    cnts <- t(cnts)
+  }
+  #Total
+  colnames(cnts) <- c("r0","r1","r2","R","s0","s1","s2","S")
+  if(cc1000) { cnts <- round(cnts) }
+  tryCatch(detach("cnts"),error=function(e) {NULL}) # in case erroneously attached from earlier
+  attach(cnts)
+  n0 <- r0 + s0 ; n1 <- r1 + s1 ; n2 <- r2 + s2 ; N <- R + S
+  xx2 <- X_2(r1,r2,n1,n2,N,R)
+  yy2 <- Y_2(r1,r2,n1,n2,N,R)
+  LL <- yy2/xx2
+  L1000 <- lambda_nm(Lnm=LL,n=1000,m=1000,nr=R,mr=S)
+  detach(cnts)
+  all.res <- cbind(cnts,xx2,yy2,LL,L1000)
+  colnames(all.res)[9:12] <- c("X2","Y2","Lambda","L1000")
+  return(all.res)
+}
+
+
+# calculate and print the overall lambdas reflecting inflation
+calculate.overall.lambdas <- function(surround=FALSE) {
+  print(load("lambdaTableVars.RData")) #"c2"      "p.m.out" "p.m.reg"
+  # c2 is a table of results including armitage trend test 'Y2' column, calc derived using lambda.R
+  work.dir <- "/chiswick/data/ncooper/iChipData/"
+  print(load("/chiswick/data/ncooper/iChipData/finalMetaTopHitsFEB17.RData"))
+  # ^file contains objects from getMetaTable1.R
+  # "bonfs.filt"     "non.bonfs.filt" "bonf.snps"      "non.bonf.snps" 
+  print(load("/chiswick/data/ncooper/iChipData/compiledTableAllResultsPassingQC.RData"))
+  # "tt"
+  print(load("pvaluesforqq.RData"))
+  # "p.meta" "p.cc"
+  near.region <- grep("EXT",tt$gene)
+  out.region <- grep("OTHER",tt$gene)
+  in.region <- which(!1:nrow(tt) %in% c(near.region,out.region))
+  potential.novel.region <- which(1:nrow(tt) %in% c(near.region,out.region))
+  p.m.reg <- names(p.meta[names(p.meta) %in% rs.to.ic(tt$names[in.region])])
+  p.m.out <- names(p.meta[names(p.meta) %in% rs.to.ic(tt$names[out.region])])
+  p.m.nov <- names(p.meta[names(p.meta) %in% rs.to.ic(tt$names[potential.novel.region])])
+  
+  if(surround) {
+    t1dsnps <- calibrate.cond.bonf(topsnplist,cm.window=0.2,bp.ext=0,build=37,qclist="snpsExcluded.txt",ret.snps=T)
+  }
+  t1region <- tt$gene %in% rownames(bonfs.filt)
+  t1region.novel <- (tt$gene %in% rownames(bonfs.filt)) & (rs.to.ic(tt$names) %in% rs.to.ic(p.m.nov))
+  t1regsnps <- rs.to.ic(tt$names[t1region])
+  t1regsnps.novel <- rs.to.ic(tt$names[t1region.novel])
+  p.m.out.not.t1 <- p.m.out[!p.m.out %in% t1regsnps.novel]
+  cat("there were",length(t1regsnps.novel),"SNPs in novel regions\n")
+  if(surround) { cat("raw lambda for the cM regions surrounding t1dhits:",median(c2[t1dsnps,"Y2"],na.rm=T)/.456,"\n") }
+  cat("raw lambda for the regions containing t1dhits:",median(c2[t1regsnps,"Y2"],na.rm=T)/.456,"\n")
+  lam0 <- median(c2[,"Y2"],na.rm=T)/.456
+  cat("raw lambda for all SNPs passing QC:",lam0,"\n")  
+  lam1000.0 <- lambda_nm(lam0,1000,1000,median(c2$R,na.rm=T),median(c2$S,na.rm=T))
+  cat("lambda_1000 for all SNPs passing QC:",lam1000.0,"\n")
+  if(surround) { lam1 <- median(c2[-which(rownames(c2) %in% t1dsnps),"Y2"],na.rm=T)/.456 }
+  lam2 <- median(c2[-which(rownames(c2) %in% t1regsnps),"Y2"],na.rm=T)/.456
+  if(surround) { cat("raw lambda excluding the 0.2 cM regions surrounding t1dhits:",lam1,"\n") }
+  cat("raw lambda excluding the dense regions containing t1dhits or other table-1 novel regions:",lam1,"\n")
+  if(surround) { lam1000.1 <- lambda_nm(lam1,1000,1000,median(c2$R,na.rm=T),median(c2$S,na.rm=T)) }
+  lam1000.2 <- lambda_nm(lam2,1000,1000,median(c2$R,na.rm=T),median(c2$S,na.rm=T))
+  if(surround) { cat("lambda_1000 excluding the cM regions surrounding t1dhits:",lam1000.1,"\n") }
+  cat("lambda_1000 excluding the dense regions containing t1dhits or other table-1 novel regions:",lam1000.2,"\n")
+  lam3 <- median(c2[p.m.out,"Y2"],na.rm=T)/.456
+  lam4 <- median(c2[p.m.reg,"Y2"],na.rm=T)/.456
+  lam5 <- median(c2[p.m.out.not.t1,"Y2"],na.rm=T)/.456
+  cat("raw lambda for outside ichip dense regions:",lam3,"\n")
+  cat("raw lambda for inside ichip dense regions:",lam4,"\n")
+  cat("raw lambda for outside ichip dense regions and excluding table1 novel regions:",lam5,"\n")
+  lam1000.3 <- lambda_nm(lam3,1000,1000,median(c2$R,na.rm=T),median(c2$S,na.rm=T))
+  lam1000.4 <- lambda_nm(lam4,1000,1000,median(c2$R,na.rm=T),median(c2$S,na.rm=T))
+  lam1000.5 <- lambda_nm(lam5,1000,1000,median(c2$R,na.rm=T),median(c2$S,na.rm=T))
+  cat("lambda_1000 for outside ichip dense regions:",lam1000.3,"\n")
+  cat("lambda_1000 for inside ichip dense regions:",lam1000.4,"\n")
+  cat("lambda_1000 for outside ichip dense regions and excluding table1 novel regions:",lam1000.5,"\n")
+  
+  #L = 1.641179
+  #L1000 = 1.074309
+  do.the.meta.ones <- function(p.meta,suf="") {
+    pdf(cat.path("","chiqq",ext="pdf",suf=suf))
+    #prv(p.meta)
+    #p.meta <- narm(p.meta)
+    txt <- paste("Meta Analysis (ChiSq) [",toheader(paste(gsub("."," ",suf,fixed=T),"regions")),"]",sep="")
+    LL <- length(which(!is.na(qchisq(p.meta,1))))
+    xx <- qchisq(1-((1:LL)/LL),1); yy <- qchisq(1-sort(p.meta),1)
+    cond <- (is.na(xx) | is.na(yy) | !is.finite(yy) | !is.finite(xx))
+    xx <- xx[!cond]; yy <- yy[!cond]
+    three4 <- function(x) { mean(c(min(x,na.rm=T), rep(max(x,na.rm=T),3))) }
+    plot(xx,yy,type="l",main=txt,xlab="expected",ylab="observed",xlim=c(0,20))
+    text(three4(xx),three4(yy),paste("slope =",round(coefficients(lm(yy~xx))[2],3)))
+    lines(x=qchisq(1-((1:LL)/LL),1),y=qchisq(1-((1:LL)/LL),1),col="red",lty="dotted")
+    dev.off()
+  }
+  
+  # QQ for dense versus non dense regions #
+  p.meta.reg <- p.meta[names(p.meta) %in% rs.to.ic(tt$names[in.region])]
+  #p.meta.out <- p.meta[names(p.meta) %in% rs.to.ic(tt$names[out.region])]
+  p.meta.out <- p.meta[names(p.meta) %in% rs.to.ic(p.m.out.not.t1)]
+  do.the.meta.ones(p.meta.reg,"inside.dense")
+  do.the.meta.ones(p.meta.out,"outside.dense")
+  # QQ for t1d versus non dense regions #
+  p.meta.reg <- p.meta[names(p.meta) %in% rs.to.ic(t1regsnps)]
+  p.meta.out <- p.meta[!names(p.meta) %in% rs.to.ic(t1regsnps)]
+  do.the.meta.ones(p.meta.reg,"inside.t1d")
+  do.the.meta.ones(p.meta.out,"outside.t1d")
+  
+  return(c(lam1000.1,lam1000.2,lam1000.3,lam1000.4,lam1000.5))
+}
+
+
+#send cw: bonferonnis, numbers of snps
+
 
 # for a subset 'n' and total 'N' nicely prints text n/N and/or percentage%
 out.of <- function(n,N=100,digits=2,pc=TRUE,oo=TRUE) {
@@ -81,7 +340,17 @@ simple.date <- function(sep="_",long=FALSE,time=TRUE) {
 
 
 ### GLOBAL QC STATS ###
-samp.summ <- function(ms,CR=0.953,HZlo=0.19,HZhi=0.235) {
+samp.summ <- function(ms,CR=0.953,HZlo=0.19,HZhi=0.235,by.pheno=FALSE) {
+  if(by.pheno) {
+    if(exists("control.data") & exists("t1d.data")) {
+      ph <- make.pheno(ms,rownames(t1d.data),rownames(control.data))
+      cat("Sample QC for CASES (phenotype=1)\n")
+      sample.filt1 <- samp.summ(ms=ms[ph==1,],CR=CR,HZlo=HZlo,HZhi=HZhi,by.pheno=FALSE)
+      cat("Sample QC for CONTROLS (phenotype=0)\n")
+      sample.filt0 <- samp.summ(ms=ms[ph==0,],CR=CR,HZlo=HZlo,HZhi=HZhi,by.pheno=FALSE)
+      return(c(sample.filt0,sample.filt1))
+    }
+  }
   nsamp <- nrow(ms)
   cr.filt <- ms$Call.rate>=CR
   hz.filt <- ms$Heterozygosity>=HZlo & ms$Heterozygosity<=HZhi
@@ -104,8 +373,8 @@ snp.summ <- function(MAF=0.005,CR=.99,HWE=3.8905,qc.file="snpqc.RData") {
     excl.rules <- rownames(SNPQC)[which(!maf | !clr | !hwe)]
     cat(out.of(length(which(!maf)),nsnp)," snps fail on MAF < ",MAF," ... \n",sep="")
     cat("... of which ",length(which(mono))," were monomorphic and ",length(which(maf.not.mono))," were just rare\n",sep="")
-    cat(out.of(length(which(!clr)),nsnp)," snps fail on call rate < ",CR,"\n",sep="")
-    cat(out.of(length(which(!hwe)),nsnp)," snps fail on HWE < ",HWE," [p=",round(2*(1-pnorm(HWE)),8),"]\n",sep="")
+    cat(out.of(length(which(!clr & maf)),nsnp)," snps fail on call rate < ",CR,"\n",sep="")
+    cat(out.of(length(which(!hwe & clr & maf)),nsnp)," snps fail on HWE < ",HWE," [p=",round(2*(1-pnorm(HWE)),8),"]\n",sep="")
     cat(out.of(length(excl.rules),nsnp)," snps fail on MAF, Callrate or HWE \n",sep="")
     return(excl.rules)
   }
@@ -211,10 +480,17 @@ get.t1d.snps <- function(ucsc="hg19") {
 
 # create a phenotype vector for a dataframe with rownames that are subject ids, where
 # cases and controls are text vectors of which IDs are that category; ctrls coded 0, cases 1
+# or can also enter X as a vector of all ids, e.g, X = rownames(someDataFrame)
 make.pheno <- function(X,cases,controls) {
-  Pheno <- rep(NA,nrow(X)) # missing (default)
-  Pheno[rownames(X) %in% cases] <- 1 # CASE if in the T1d dataset row (id) names
-  Pheno[rownames(X) %in% controls] <- 0 # CONTROL if in the Controls dataset row (id) names
+  if(length(Dim(X))==1) {
+    Pheno <- rep(NA,length(X)) # missing (default)
+    Pheno[X %in% cases] <- 1 # CASE if in the T1d dataset row (id) names
+    Pheno[X %in% controls] <- 0 # CONTROL if in the Controls dataset row (id) names
+  } else {
+    Pheno <- rep(NA,nrow(X)) # missing (default)
+    Pheno[rownames(X) %in% cases] <- 1 # CASE if in the T1d dataset row (id) names
+    Pheno[rownames(X) %in% controls] <- 0 # CONTROL if in the Controls dataset row (id) names
+  }  
   return(Pheno)
 }
 
@@ -507,7 +783,12 @@ majmin <- function(X,checks=TRUE) {
   if(is(X)[1] %in% "SnpMatrix") { snpmat <- T } else {
     tt1 <- table(round(as.numeric(X[,1])));  if("3" %in% names(tt1)) { snpmat <- T }
   }
-  all.typz <- apply(X,2,do.mm,snpmat=snpmat)
+  if(snpmat) {  
+    ii <-  col.summary(X)
+    all.typz <- c("minor","major")[as.numeric(round(ii$RAF,3)!=round(ii$MAF,3))+1]
+  } else {
+    all.typz <- apply(X,2,do.mm,snpmat=snpmat)
+  }
   return(factor(all.typz))
 }
 
@@ -1367,7 +1648,7 @@ meta.me <- function(X) {
   weight.family <- inv.family * var.meta
   
   famN <- 3819*2  #3509*2   #  3819*2   #  10796
-  ccN <- 9416+6670
+  ccN <-  6683+12173 # including CBR, or for UVA analyses use instead: 9416+6670
   WeightFam = sqrt(famN)/(sqrt(famN)+sqrt(ccN))
   #WeightFam = wf
   WeightCC <- 1-WeightFam
@@ -1412,7 +1693,7 @@ condit.to.res <- function(condit.res) {
 ## for a list of snp-ids from iChip, obtain the nearby SNP-lists within 0.1cm, etc
 # do.bands labels each sublist by the band name, but faster not to do this
 get.nearby.snp.lists <- function(snpid.list,cM=0.1,bp.ext=0,build=37,excl.snps=NULL,do.bands=TRUE) {
-  if(!exists("all.support")) { print(load("all.support.RData")) }
+  #if(!exists("all.support")) { print(load("all.support.RData")) }
   snpic.list <- rs.to.ic(snpid.list)
   cyto <- get.cyto(); cyto[["gene"]] <- rownames(cyto)
   #which.snps <- match(snpid.list,all.support$dbSNP)
@@ -1477,7 +1758,7 @@ ids.by.pos <- function(ids) {
 
 
 # calibrate the bonferroni threshold for conditional analyses
-calibrate.cond.bonf <- function(snplist,cm.window=0.1,bp.ext=0,build=37,qclist="snpsExcluded3.txt") {
+calibrate.cond.bonf <- function(snplist,cm.window=0.1,bp.ext=0,build=37,qclist="snpsExcluded.txt",ret.snps=FALSE) {
   all.snps.tested <- NULL
   qc.excluded.snps <- reader(qclist)
   qc.excluded.snps <- qc.excluded.snps[!rs.to.ic(qc.excluded.snps) %in% rs.to.ic(snplist)]
@@ -1495,5 +1776,12 @@ calibrate.cond.bonf <- function(snplist,cm.window=0.1,bp.ext=0,build=37,qclist="
   bcfu <- length(unique(ast))
   cat("implied bonferroni (count all tests) threshold is:",.05/bcf,"\n")
   cat("implied bonferroni (count unique snps only) threshold is:",.05/bcfu,"\n")
-  return(list(all.tests=bcf,unique.snps=bcfu))
+  if(ret.snps) {
+    return(unique(ast))
+  } else {
+    return(list(all.tests=bcf,unique.snps=bcfu))
+  }
 }
+
+
+  

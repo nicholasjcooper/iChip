@@ -132,6 +132,7 @@ if(T) {
 #  kk2 <- all.support$SNP[match(topsnplist,all.support$dbSNP)]
   kk2 <- which(!(rs.to.ic(tt[,5]) %in% unique(rs.to.ic(c(qc.excluded.snps,qc.cloud.fail)))))
   tt <- tt[kk2,]
+  save(tt,file="compiledTableAllResultsPassingQC.RData")
   kk <- which(as.numeric(tt[["meta.p.value"]])<(10^-5))
   tt <- tt[kk,]
   prv.large(tt[,-2:-4],rows=20,cols=6)
@@ -231,7 +232,7 @@ if(T) {
   to.chuck <- c(bands1[duplicated(b1)])  # after inspection, these are those in the bonf table to remove
   duplicates <- bands1[duplicated(b1) | rev(duplicated(rev(b1)))] # show table of both members of dup pairs
   superceeded <- bands2[b2 %in% b1]  # these have a passing hit passing bonferroni on same arm
-  if(length(superceeded)>0) {  non.bonfs.filt <- non.bonfs[-(match(superceeded,rownames(non.bonfs))),] }
+  if(length(superceeded)>0) {  non.bonfs.filt <- non.bonfs[-(match(superceeded,rownames(non.bonfs))),] } else { non.bonfs.filt <- non.bonfs }
   if(length(to.chuck)>0) { bonfs.filt <- bonfs[-(match(to.chuck,rownames(bonfs))),] }
   if(length(which(not.top.snps %in% bonfs.filt[,1]))>0) {
      bonfs.filt <- bonfs.filt[-(narm(match(not.top.snps,bonfs.filt[,1]))),] } # not.top.snps from 'hardcoded' file
