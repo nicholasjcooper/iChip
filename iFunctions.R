@@ -9,6 +9,10 @@ require(reader)
 require(genoset)
 
 
+##file includes the generally useful functions: simple.date, out.of, randomize.missing
+
+
+
 # stats function convenience wrappers
 p.to.Z <- function(p) { O <- qnorm(1-(p/2),F); O[!is.finite(O)] <- NA; return(O) }
 Z.to.p <- function(Z) { O <- 2*pnorm(-abs(Z)); O[!is.finite(O)] <- NA; return(O) }
@@ -443,15 +447,139 @@ or.pos <- function(X) {
   return(x)
 }
 
-# flip odds ratios - pretty pointless really as it's just 1/x
-or.flip <- function(X){
-  x <- X; sel <- !is.na(X)
-  X <- X[sel]
-  X <- 1/(X)
-  x[sel] <- X
-  return(x)
+
+# flip odds ratios 
+# true/false vector of whether the odds ratio should be greater than 1
+# GWAS convention is that ORs>1 when cases have more of the minor allele than controls
+or.flip <- function(X,greater.than.1=rep(T,length(X))) {
+  gt1 <- greater.than.1 # save space
+  if(!is.numeric(X)) { stop("X should be numeric (ie, odds ratios)") }
+  if(!is.logical(gt1) | (length(gt1)!=length(X) & length(gt1)!=1) ) { 
+    stop("'greater.than.1' should be logical (ie, TRUE/FALSE for each member of X)") }
+  xx <- X; sel <- !is.na(gt1) & !is.na(X)
+  X <- X[sel]; gtone <- gt1[sel]
+  gt1s <- X>1
+  lt1s <- X<1
+  X[gt1s & !gtone] <- 1/X[gt1s & !gtone]
+  X[lt1s & gtone] <- 1/X[lt1s & gtone]
+  xx[sel] <- X
+  return(xx)
 }
 
+
+
+list.to.env <- function(list) {
+  if(!is.list(list)) { stop("this function's sole parameter must be a list object")}
+  if(is.null(names(list))) { stop("list elements must be named") }
+  if(length(list)>1000) { warning("list contains over 1000 elements, this operation will crowd the workspace") }
+  for(cc in 1:length(list)) {
+    assign(x=names(list)[cc],value=list[[cc]],pos=parent.frame())
+  }
+  return(NULL)
+}
+
+# to extract info from 22 separate chromosomes
+# pheno <- make.pheno(rawdata,rownames(t1d.data),rownames(control.data)) # assume all are same length
+# for (cc in 1:22) {
+#   
+#   load(paste("temp.ichip-data",cc,".RData",sep=""))
+#   rawdata <- rbind(control.data,t1d.data)
+#   tt <- fix.OR.directions(tt, OR.col=c(4,6,8), snp.data=rawdata, pheno=pheno, partial=T,verbose=F)
+#   loop.tracker(cc,22)
+# }
+
+fix.OR.directions <- function(results, OR.col=1, snp.data=NULL, pheno=NULL, partial=FALSE,
+                              case.list=NULL, control.list=NULL, effect.labels=TRUE, verbose=TRUE, alt.return=FALSE) {
+  nameslist <- colnames(snp.data)
+  if(length(OR.col)>0) {
+    if(is.character(OR.col)) {
+      if(any(!OR.col %in% colnames(results))) { stop("OR.col must be column names or numbers of 'results'") } else { do.or.col <- T }
+    }
+    if(is.numeric(OR.col)) {
+      if(any(OR.col > ncol(results))) { stop("OR.col was greater than the number of columns in 'results'") } else { do.or.col <- T }
+    } 
+  } else { effect.labels <- TRUE }
+  rr_in_ss <- rownames(results) %in% nameslist
+  if(!all(rr_in_ss)) { 
+    if(!partial) { warning(length(which(!rr_in_ss))," rownames from results not found in colnames of snp.data") };
+    incomplete <- T  
+  } else { incomplete <- F }
+  if(!any(rr_in_ss)) { stop("no rownames from results were found in colnames of snp.data") }
+  if(is.null(pheno) & !is.character(case.list) & is.character(control.list)) {  
+    pheno <- make.pheno(snp.data,case.list,control.list)
+  }
+  if(length(pheno)!=nrow(snp.data)) { 
+    stop("pheno (or case.list+control.list) must be ",
+         "the same length as the number of rows in snp.data") }
+  indx <- match(rownames(results)[rr_in_ss],nameslist)
+  majminlist <- majmin(snp.data[,indx])
+  reflist <- caseway(snp.data[,indx],pheno)
+  if(alt.return) { return(list(majminlist=majminlist,reflist=reflist,
+                               nameslist=nameslist,indx=indx,rr_in_ss=rr_in_ss)) }
+  # get logical vectors
+  l1 <- (majminlist=="minor" & reflist=="CasesRef-")
+  l2 <- (majminlist=="minor" & reflist=="CasesRef+")
+  l3 <- (majminlist=="major" & reflist=="CasesRef-")
+  l4 <- (majminlist=="major" & reflist=="CasesRef+")
+  OR.dir <- rep(as.logical(NA),length(indx)); 
+  caseshave <- rep("nodiff",length(indx))
+  # assign non-default values based on logical vectors above
+  OR.dir[l1] <- FALSE; caseshave[l1] <- "MoreMajor"
+  OR.dir[l2] <- TRUE;  caseshave[l2] <- "MoreMinor"
+  OR.dir[l3] <- TRUE;  caseshave[l3] <- "MoreMinor"
+  OR.dir[l4] <- FALSE; caseshave[l4] <- "MoreMajor"
+  if(do.or.col) {
+    for(cc in 1:length(OR.col)) { 
+      results[rr_in_ss,OR.col[cc]] <- or.flip(results[rr_in_ss,OR.col[cc]],OR.dir)
+      if(verbose) { cat("inverted any inconsistent odds-ratios in column",OR.col[cc],"\n") }
+    }
+  }
+  if(effect.labels) {
+   # if(incomplete) { results[["CasesHave"]][!rr_in_ss] <- NA }
+    results[["CasesHave"]][rr_in_ss] <- caseshave
+  }
+  return(results)
+}
+
+  
+# to extract info from 22 separate chromosomes
+#  pheno <- make.pheno(rawdata,rownames(t1d.data),rownames(control.data)) # assume all are same length
+#  for (cc in 1:22) {
+#    load(paste("temp.ichip-data",cc,".RData",sep=""))
+#    rawdata <- rbind(control.data,t1d.data)
+#    tt2 <- add.allele.to.result(tt2, OR.col=8, snp.data=rawdata, pheno=pheno, partial=T)
+#    loop.tracker(cc,22)
+#  }
+
+add.allele.to.result <- function(results, OR.col=1, snp.data=NULL, pheno=NULL, partial=FALSE,
+                              case.list=NULL, control.list=NULL) {
+  lll <- fix.OR.directions(results, OR.col=OR.col[1], snp.data=snp.data, pheno=pheno, partial=partial,verbose=FALSE,
+                          case.list=case.list, control.list=control.list, effect.labels=FALSE,alt.return=TRUE)
+  list.to.env(lll) # gets: majminlist,reflist,nameslist,indx,rr_in_ss
+  al.names <- c("allele.A","allele.B")
+  if(all(al.names %in% colnames(results))) {
+    tt <- results
+  } else {
+    tt <- cbind(results,AB(rownames(results)))
+    colnames(tt)[(ncol(tt)-c(1,0))] <- al.names
+  }
+  ## T>A   #  cases h ave more T, less A
+  ## T is ref because ref is allele.B
+  ## if cases ref+ then  allele.B >  allele.A
+  ## if cases ref- then  allele.A >  allele.B
+  ## else allele.A ~ allele.B
+  
+  # get logical vectors
+  l1 <- (majminlist=="minor")
+  l2 <- (majminlist=="major")
+  relship <- paste((tt$allele.A[rr_in_ss]),"~",(tt$allele.B[rr_in_ss]))
+  relship[l1] <- paste((tt$allele.A[rr_in_ss]),">",(tt$allele.B[rr_in_ss]))[l1]
+  relship[l2] <- paste((tt$allele.B[rr_in_ss]),">",(tt$allele.A[rr_in_ss]))[l2]
+  if(!"effect" %in% colnames(tt)) { tt[["effect"]] <- NA }
+  #prv(reflist,l1,l2,relship,indx,rr_in_ss)
+  tt[rr_in_ss,"effect"] <- relship
+  return(tt)
+}
 
 
 # retrieve t1d previous SNP hits from t1dbase in either build hg18/hg19 coords (b36/37)
@@ -496,9 +624,9 @@ make.pheno <- function(X,cases,controls) {
 
 
 # remove leading X from variable names (e.g, if original name started with a number and changed by make.names)
-remove.X <- function(str) {
+remove.X <- function(str,char="X") {
   bdz <- substr(str,1,1)
-  str[bdz=="X"] <- substr(str,2,100000)[bdz=="X"]
+  str[bdz==char] <- substr(str,2,100000)[bdz==char]
   return(str)
 }
 
@@ -516,7 +644,8 @@ add.x <- function(str) {
 # convert from immunochip ids to rs-ids
 ic.to.rs <- function(ic.ids) {
   ic.ids <- clean.snp.ids(ic.ids)
-  if(!exists("all.support")) { print(load(cat.path(work.dir,"all.support.RData"))) }  ## load object: all.support [snp support for whole chip]
+  if(!exists("work.dir")) { work.dir <- getwd() }
+  if(!exists("all.support")) { (load(cat.path(work.dir,"all.support.RData"))) }  ## load object: all.support [snp support for whole chip]
   outlist <- all.support$dbSNP[match(ic.ids,all.support$SNP)]
   outlist2 <- all.support$dbSNP[match(ic.ids,all.support$dbSNP)]
   outlist[is.na(outlist)] <- outlist2[is.na(outlist)]
@@ -527,7 +656,8 @@ ic.to.rs <- function(ic.ids) {
 # convert from rs-ids to immunochip ids
 rs.to.ic <- function(rs.ids) {
   rs.ids <- clean.snp.ids(rs.ids)
-  if(!exists("all.support")) { print(load(cat.path(work.dir,"all.support.RData"))) }  ## load object: all.support [snp support for whole chip]
+  if(!exists("work.dir")) { work.dir <- getwd() }
+  if(!exists("all.support")) { (load(cat.path(work.dir,"all.support.RData"))) }  ## load object: all.support [snp support for whole chip]
   outlist <- all.support$SNP[match(rs.ids,all.support$dbSNP)]
   outlist2 <- all.support$SNP[match(rs.ids,all.support$SNP)]
   outlist[is.na(outlist)] <- outlist2[is.na(outlist)]
@@ -538,9 +668,10 @@ rs.to.ic <- function(rs.ids) {
 
 # for an immunochip or rs-id returns the chromosome it is a member of
 Chr <- function(id) {
+  if(!exists("work.dir")) { work.dir <- getwd() }
   ic.chr <- function(ic.ids) {
     ic.ids <- clean.snp.ids(ic.ids)
-    if(!exists("all.support")) { print(load(cat.path(work.dir,"all.support.RData"))) }  ## load object: all.support [snp support for whole chip]
+    if(!exists("all.support")) { (load(cat.path(work.dir,"all.support.RData"))) }  ## load object: all.support [snp support for whole chip]
     outlist <- all.support$Chr[match(ic.ids,all.support$SNP)]
     return(outlist)
   }
@@ -551,9 +682,10 @@ Chr <- function(id) {
 
 # for an immunochip or rs-id returns the genome position (build = 36 or 37)
 Pos <- function(id,build=36,warn.build=FALSE) {
+  if(!exists("work.dir")) { work.dir <- getwd() }
   ic.pos <- function(ic.ids,build=36,warn.build=FALSE) {
     ic.ids <- clean.snp.ids(ic.ids)
-    if(!exists("all.support")) { print(load(cat.path(work.dir,"all.support.RData"))) }  ## load object: all.support [snp support for whole chip]
+    if(!exists("all.support")) { (load(cat.path(work.dir,"all.support.RData"))) }  ## load object: all.support [snp support for whole chip]
     if(build==37 & ("Pos37" %in% colnames(all.support))) {
       if(warn.build) { cat("Build 37/hg19 coordinates:\n") }
       outlist <- all.support$Pos37[match(ic.ids,all.support$SNP)]
@@ -570,9 +702,10 @@ Pos <- function(id,build=36,warn.build=FALSE) {
 
 # returns a table of the annotated allele 1 and allele 2 for a set of rs or ichip ids
 AB <- function(id) {
+  if(!exists("work.dir")) { work.dir <- getwd() }
   ic.ab <- function(ic.ids) {
     ic.ids <- clean.snp.ids(ic.ids)
-    if(!exists("all.support")) { print(load(cat.path(work.dir,"all.support.RData"))) }  ## load object: all.support [snp support for whole chip]
+    if(!exists("all.support")) { (load(cat.path(work.dir,"all.support.RData"))) }  ## load object: all.support [snp support for whole chip]
     outlist <- cbind(all.support$A1[match(ic.ids,all.support$SNP)],all.support$A2[match(ic.ids,all.support$SNP)])
     return(outlist)
   }
@@ -797,9 +930,15 @@ majmin <- function(X,checks=TRUE) {
 # will indicate with respect to cases whether they have more reference allele, or less, 
 # or also if the heterozygous is the affected genotype
 # works on a SnpMatrix or dataframe coded 0,1,2,NA (autodetects which)
-caseway <- function(X, pheno, checks=TRUE, long=FALSE) {
+# using SnpMatrix with het.effects=FALSE can be much faster (5-100x) than other options
+caseway <- function(X, pheno, checks=TRUE, long=FALSE, het.effects=FALSE) {
+  # coding of output based on long=T/F
+  if(long) { r1 <- "cases have more 1, less 0,2" } else { r1 <- "CasesHet+" }
+  if(long) { r2 <- "cases have less 1, more 0,2" } else { r2 <- "CasesHet-" }
+  if(long) { r3 <- "cases have more 0, less 2" } else { r3 <- "CasesRef-" }
+  if(long) { r4 <- "cases have more 2, less 0" } else { r4 <- "CasesRef+" }
   ## workhorse internal function ##
-  do.cw <- function(x,ph,snpmat=NULL) { 
+  do.cw <- function(x,ph,snpmat=NULL,r1,r2,r3,r4) { 
     if(!is.null(snpmat)) { 
       if(!snpmat) { 
         tt <- table(round(as.numeric(x)),ph) 
@@ -830,18 +969,14 @@ caseway <- function(X, pheno, checks=TRUE, long=FALSE) {
     ctrl.pc2 <- Ctrl2/sum(Ctrl0,Ctrl1,Ctrl2); case.pc2 <- Case2/sum(Case0,Case1,Case2)
     #prv(ctrl.pc0,ctrl.pc1,ctrl.pc2,case.pc0,case.pc1,case.pc2)
     if(long) { res <- "unclear results" } else { res <- "???" }
-    if(long) { r1 <- "cases have more 1, less 0,2" } else { r1 <- "CasesHet+" }
-    if(long) { r2 <- "cases have less 1, more 0,2" } else { r2 <- "CasesHet-" }
-    if(long) { r3 <- "cases have more 0, less 2" } else { r3 <- "CasesRef-" }
-    if(long) { r4 <- "cases have more 2, less 0" } else { r4 <- "CasesRef+" }
-    if((case.pc0 < ctrl.pc0) & (case.pc2 < ctrl.pc2)) { res <-r1  }
-    if((case.pc0 > ctrl.pc0) & (case.pc2 > ctrl.pc2)) { res <-r2  }
-    if((case.pc0 > ctrl.pc0) & (case.pc2 < ctrl.pc2)) { res <-r3  }
-    if((case.pc0 < ctrl.pc0) & (case.pc2 > ctrl.pc2)) { res <-r4  }
-    if((case.pc0 == ctrl.pc0) & (case.pc2 < ctrl.pc2)) { res <-r3  }
-    if((case.pc0 == ctrl.pc0) & (case.pc2 > ctrl.pc2)) { res <-r4  }
-    if((case.pc0 > ctrl.pc0) & (case.pc2 == ctrl.pc2)) { res <-r3  }
-    if((case.pc0 < ctrl.pc0) & (case.pc2 == ctrl.pc2)) { res <-r4  }
+    if((case.pc0 < ctrl.pc0) & (case.pc2 < ctrl.pc2)) { res <- r1  }
+    if((case.pc0 > ctrl.pc0) & (case.pc2 > ctrl.pc2)) { res <- r2  }
+    if((case.pc0 > ctrl.pc0) & (case.pc2 < ctrl.pc2)) { res <- r3  }
+    if((case.pc0 < ctrl.pc0) & (case.pc2 > ctrl.pc2)) { res <- r4  }
+    if((case.pc0 == ctrl.pc0) & (case.pc2 < ctrl.pc2)) { res <- r3  }
+    if((case.pc0 == ctrl.pc0) & (case.pc2 > ctrl.pc2)) { res <- r4  }
+    if((case.pc0 > ctrl.pc0) & (case.pc2 == ctrl.pc2)) { res <- r3  }
+    if((case.pc0 < ctrl.pc0) & (case.pc2 == ctrl.pc2)) { res <- r4  }
     return(res)
   }
   ## main code ##
@@ -854,10 +989,22 @@ caseway <- function(X, pheno, checks=TRUE, long=FALSE) {
     }
   }
   snpmat <- F
-  if(is(X)[1] %in% "SnpMatrix") { snpmat <- T } else {
+  if(is(X)[1] %in% "SnpMatrix") { 
+    snpmat <- T
+    if(!het.effects) {
+      SSTS <- single.snp.tests(pheno, snp.data=X, score=T)
+      direc <- effect.sign(SSTS)
+      if(long) { r3 <- "cases have more of the allele coded '0'" } else { r3 <- "CasesRef-" }
+      if(long) { r4 <- "cases have more of the allele coded '2'" } else { r4 <- "CasesRef+" }
+      all.res <- rep("???",length(direc))
+      all.res[direc==1] <- r4
+      all.res[direc==-1] <- r3
+      return(factor(all.res))
+    }
+  } else {
     tt.temp <- table(round(as.numeric(X[,1])));  if("3" %in% names(tt.temp)) { snpmat <- T }
   }
-  all.res <- apply(X,2,do.cw,ph=pheno,snpmat=snpmat)
+  all.res <- apply(X,2,do.cw,ph=pheno,snpmat=snpmat,r1=r1,r2=r2,r3=r3,r4=r4)
   return(factor(all.res))
 }
 
@@ -1629,6 +1776,44 @@ unchecked <- function(snps) {
   return(list.to)
 }
 
+#' Posterior probability of association function
+#'
+#' @param p p-value you want to test [p<0.367]
+#' @param prior prior odds for the hypothesis (Ha) being tested
+#' @return prints calculations, then returns the posterior 
+#' probability of association given the observed p-value 
+#' under the specified prior
+#' @references
+#' Equations 1, 2 from
+#' http://www.readcube.com/articles/10.1038/nrg2615
+#' Equations 2, 3 from
+#' http://www.tandfonline.com/doi/pdf/10.1198/000313001300339950
+#' @examples
+#' ps <- rep(c(.05,.01),3)
+#' prs <- rep(c(.05,.50,.90),each=2)
+#' mapply(ps,prs,FUN=ppa)  # replicate Nuzzo 2014 table
+#' # try with bayes factors
+#' ppa(BF=3,prior=.9)
+#' ppa(BF=10,prior=.5)
+ppa <- function(p=.05, prior=.5, BF=NULL, quiet=TRUE) {
+  if(any(p<=0 | p>=(1/exp(1)))) { stop("invalid p value") }
+  if(any(prior<=0 | prior>=(1))) { stop("invalid prior") }
+  if(is.null(BF)) { 
+    # calculate bayes factors from p, if BF not entered
+    if(!quiet) { cat("\np value:",p,"with prior:",prior,"\n") }
+    BF <- (-exp(1)*(p)*log(p) )^(-1)
+    # NB: ^invert BF so in terms of % support for Ha 
+  } else { 
+    if(!quiet) { cat("\nprior:",prior,"with ") }
+    if(any(BF<0)) { stop("invalid bayes factor (BF)") }
+  }
+  if(!quiet) { cat("bayes factor:",BF,"\n") }
+  P0 <- (prior/(1-prior)) * (BF) 
+  if(!quiet) { cat("posterior odds = bayes factor * H1/H0 prior:",P0,"\n") }
+  ppa <- (P0/(1+P0)) 
+  if(!quiet) { cat("posterior probability of association:",ppa,"\n") }
+  return(ppa)
+}
 
 # to get meta analysis parameters from table containing case-control and family data beta, se values
 meta.me <- function(X) {

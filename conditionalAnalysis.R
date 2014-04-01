@@ -19,7 +19,7 @@ thresholds <- list(MAF=0.005,CR=.99,HWE=3.8905,SCR=0.953,HZlo=.19,HZhi=.235,
                                       bonf=3.68*(10^-7),bonfcond=.05/18718) #23236 ) 16782) 18718 #
 redo.bonf <- FALSE # whether to recalculate the bonferroni threshold
 current.qc.file <- "SNPQC_FEB14.RData"
-cm.window <- .2; bp.ext <- 0  #50000  # 0
+cm.window <- 1; bp.ext <- 0  #50000  # 0
 use.se.OR <- FALSE  # whether to report SE of the beta or the odds ratio (log/exp units)
 covs <- TRUE   # use covariates of sex and region in analysis
 store.top.snps <-  FALSE #T  #FALSE  store the topsnplist snps in a single matrix for later use
@@ -113,7 +113,7 @@ if(load.ichip.regions) {
   file.out <- cat.path(work.dir,"cond.results",suf=gsub(":",".",gsub(" ","_",date())),ext="RData")
 
   # run separately for each chromosome #
-  for(next.chr in chrz[chrz==4]) {
+  for(next.chr in chrz[chrz>=16 & chrz<=16]) {
     #chrz[chrz %in% c(2,10,16,17,19)]) {
  # for(next.chr in c(19)) {
     Header(paste("Chromosome",next.chr))
