@@ -810,8 +810,8 @@ conv.36.37 <- function(ranged=NULL,chr=NULL,pos=NULL,chain.file="/home/oliver/R/
     seqlevels(ranged.gr.37)<-gsub("chr","",seqlevels(ranged.gr.37))
     #new.coords.df <- as.data.frame(ranged.gr.37)
   }
-  if(!toranged) { return(ranged.gr.37) }
-  ranged.gr.37 <- toGenomeOrder(as(as(ranged.gr.37,"IRangesList"),"RangedData"))
+  if(!toranged | T) { return(ranged.gr.37) }
+  ranged.gr.37 <- toGenomeOrder2(as(ranged.gr.37,"RangedData"))
   if(all(c("XMYINDEXX","XMYCHRXX") %in% colnames(ranged.gr.37))) {
     RN <- ranged.gr.37[["XMYINDEXX"]]
     nr <- nrow(ranged.gr.37)
