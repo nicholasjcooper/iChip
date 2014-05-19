@@ -307,7 +307,6 @@ out.of <- function(n,N=100,digits=2,pc=TRUE,oo=TRUE) {
 
 # function specific to getMetatable.R script
 #  gets a list of equivalent SNPs to the current snp
-
 get.equivs <- function(id,iden.list,na.fail=T) {
   id <- ic.to.rs(id) 
   do.one <- function(id,iden.list,na.fail) {
@@ -467,7 +466,7 @@ or.flip <- function(X,greater.than.1=rep(T,length(X))) {
 }
 
 
-
+# places named objects in a list into the working environment as variables in their own right
 list.to.env <- function(list) {
   if(!is.list(list)) { stop("this function's sole parameter must be a list object")}
   if(is.null(names(list))) { stop("list elements must be named") }
@@ -487,7 +486,7 @@ list.to.env <- function(list) {
 #   tt <- fix.OR.directions(tt, OR.col=c(4,6,8), snp.data=rawdata, pheno=pheno, partial=T,verbose=F)
 #   loop.tracker(cc,22)
 # }
-
+### specific to ichip paper analysis
 fix.OR.directions <- function(results, OR.col=1, snp.data=NULL, pheno=NULL, partial=FALSE,
                               case.list=NULL, control.list=NULL, effect.labels=TRUE, verbose=TRUE, alt.return=FALSE) {
   nameslist <- colnames(snp.data)
@@ -642,9 +641,9 @@ add.x <- function(str) {
 
 
 # convert from immunochip ids to rs-ids
-ic.to.rs <- function(ic.ids) {
+ic.to.rs <- function(ic.ids,dir=NULL) {
+  if(!exists("work.dir")) { if(is.null(dir)) { work.dir <- getwd() } else { work.dir <- dir } }
   ic.ids <- clean.snp.ids(ic.ids)
-  if(!exists("work.dir")) { work.dir <- getwd() }
   if(!exists("all.support")) { (load(cat.path(work.dir,"all.support.RData"))) }  ## load object: all.support [snp support for whole chip]
   outlist <- all.support$dbSNP[match(ic.ids,all.support$SNP)]
   outlist2 <- all.support$dbSNP[match(ic.ids,all.support$dbSNP)]
@@ -654,9 +653,9 @@ ic.to.rs <- function(ic.ids) {
 
 
 # convert from rs-ids to immunochip ids
-rs.to.ic <- function(rs.ids) {
+rs.to.ic <- function(rs.ids,dir=NULL) {
+  if(!exists("work.dir")) { if(is.null(dir)) { work.dir <- getwd() } else { work.dir <- dir } }
   rs.ids <- clean.snp.ids(rs.ids)
-  if(!exists("work.dir")) { work.dir <- getwd() }
   if(!exists("all.support")) { (load(cat.path(work.dir,"all.support.RData"))) }  ## load object: all.support [snp support for whole chip]
   outlist <- all.support$SNP[match(rs.ids,all.support$dbSNP)]
   outlist2 <- all.support$SNP[match(rs.ids,all.support$SNP)]
@@ -667,8 +666,8 @@ rs.to.ic <- function(rs.ids) {
 
 
 # for an immunochip or rs-id returns the chromosome it is a member of
-Chr <- function(id) {
-  if(!exists("work.dir")) { work.dir <- getwd() }
+Chr <- function(id,dir) {
+  if(!exists("work.dir")) { if(is.null(dir)) { work.dir <- getwd() } else { work.dir <- dir } }
   ic.chr <- function(ic.ids) {
     ic.ids <- clean.snp.ids(ic.ids)
     if(!exists("all.support")) { (load(cat.path(work.dir,"all.support.RData"))) }  ## load object: all.support [snp support for whole chip]
@@ -681,8 +680,8 @@ Chr <- function(id) {
 
 
 # for an immunochip or rs-id returns the genome position (build = 36 or 37)
-Pos <- function(id,build=36,warn.build=FALSE) {
-  if(!exists("work.dir")) { work.dir <- getwd() }
+Pos <- function(id,build=36,warn.build=FALSE,dir=NULL,snps.only=FALSE) {
+  if(!exists("work.dir")) { if(is.null(dir)) { work.dir <- getwd() } else { work.dir <- dir } }
   ic.pos <- function(ic.ids,build=36,warn.build=FALSE) {
     ic.ids <- clean.snp.ids(ic.ids)
     if(!exists("all.support")) { (load(cat.path(work.dir,"all.support.RData"))) }  ## load object: all.support [snp support for whole chip]
@@ -695,10 +694,162 @@ Pos <- function(id,build=36,warn.build=FALSE) {
     }
     return(outlist)
   }
-  ic <- ic.pos(rs.to.ic(id),build=as.numeric(build[1]),warn.build=warn.build)
+  query <- rs.to.ic(id)
+  if(!snps.only & all(is.na(query))) { 
+    ## unless the 'snps.only' function is set, then if it looks like we have not been handed
+    ## snp ids, then check for band ids or gene ids instead
+    numpqs <- (length(grep("q",id))+length(grep("p",id)))
+    if(numpqs==length(id)) { try.band <- T } else { try.band <- F }
+    if(try.band) {
+      suppressWarnings(test <- Pos.band(id,dir=dir,build=build,warn.build=warn.build))
+      if(!is.null(test)) { return(test) }
+    }
+    suppressWarnings(test <- Pos.gene(id,dir=dir,build=build,warn.build=warn.build))
+    if(!is.null(test)) { return(test) } 
+  } 
+  ic <- ic.pos(query,build=as.numeric(build[1]),warn.build=warn.build)
   return(ic)
 }
 
+# for an immunochip or rs-id returns the genome position (build = 36 or 37)
+# bioC - whether to return ranges or dataframe
+# band - whether to include band/stripe in returned object
+# dir - putting a dir will speedup future lookups as annotation will be save here
+# unique - some genes have split ranges, this merges to give only 1 range per gene
+Pos.gene <- function(genes,build=36,warn.build=FALSE,dir=NULL,bioC=FALSE,band=FALSE,unique=TRUE,map.cox.to.6=TRUE) {
+  ucsc <- ucsc.sanitizer(build)
+  char.lim <- 100
+  ga <- get.gene.annot(dir=dir,ucsc=ucsc,range.out=bioC,unique=unique,map.cox.to.6=map.cox.to.6)
+  if(warn.build) {
+    if(build!="hg18") {    cat("Build 37/hg19 coordinates:\n") 
+    } else {    cat("Build 36/hg18 coordinates:\n") }
+  }
+  mt <- match(genes,ga$gene)
+  failz <- paste(genes[is.na(mt)],collapse=", "); if(nchar(failz)>char.lim) { failz <- paste(substr(failz,1,char.lim),",...",sep="") }
+  if(length(mt)<1 | all(is.na(mt))) { 
+    warning("did not find any 'genes' features: ",failz) ; return(NULL) }
+  if(any(is.na(mt))) { 
+    cnt <- length(which(is.na(mt)))
+    warning("did not find the following ",cnt," 'genes' features: ",failz) 
+  }
+  outlist <- ga[sort(mt[!is.na(mt)]),]
+  if(!band) { outlist <- outlist[,-which(colnames(outlist) %in% "band")] }
+  if(unique & ("gene" %in% colnames(outlist))) {
+    rownames(outlist) <- outlist[["gene"]]
+    outlist <- outlist[,-which(colnames(outlist) %in% "gene")]
+    if(all(genes %in% rownames(outlist))) {
+      outlist <- outlist[genes,]
+    }
+  }
+  return(outlist)
+}
+
+Pos.band <- function(bands,build=36,warn.build=FALSE,dir=NULL,bioC=FALSE) {
+  ucsc <- ucsc.sanitizer(build)
+  char.lim <- 100
+  ga <- get.cyto(ucsc=ucsc,bioC=bioC,dir=dir)
+  if(warn.build) {
+    if(build!="hg18") {    cat("Build 37/hg19 coordinates:\n") 
+    } else {    cat("Build 36/hg18 coordinates:\n") }
+  }
+  mt <- match(bands,rownames(ga))
+  failz <- paste(bands[is.na(mt)],collapse=", "); if(nchar(failz)>char.lim) { failz <- paste(substr(failz,1,char.lim),",...",sep="") }
+  msg <- ("format for bands is: chromosome[p/q]xx.xx ; e.g, 13q21.31, Yq11.221, 6p23, etc")
+  if(length(mt)<1 | all(is.na(mt))) { 
+    warning("did not find any 'bands' features: ",failz) ; warning(msg); return(NULL) }
+  if(any(is.na(mt))) { 
+    cat("format for bands is: chromosome[p/q]xx.xx ; e.g, 13q21.31, Xq27.1, 6p23, etc")
+    cnt <- length(which(is.na(mt)))
+    warning("did not find the following ",cnt," 'bands' features: ",failz,"...") ; warning(msg)
+  }
+  outlist <- ga[sort(mt[!is.na(mt)]),]
+  if(any(colnames(outlist) %in% "negpos")) { outlist <- outlist[,-which(colnames(outlist) %in% "negpos")] }
+  if(all(bands %in% rownames(outlist)) & !bioC) {
+    outlist <- outlist[bands,]
+  }
+  return(outlist)
+}
+
+Band <- function(genes=NULL,chr=NULL,ranges=NULL,build=36,dir=getwd(),...) {
+  if(all(is.character(genes))) { 
+    Band.gene(genes=genes,build=build,dir=dir,...)
+  } else {
+    Band.pos(chr=chr,ranges=ranges,build=build,dir=dir,...)
+  }
+}
+
+Band.gene <- function(genes,build=36,dir=getwd(),append.chr=TRUE,data.frame=FALSE) {
+  pg <- Pos.gene(genes,build=build,warn.build=FALSE,dir=dir,bioC=F,band=TRUE,unique=TRUE)
+  if(data.frame) {
+    if(all(c("start","end") %in% colnames(pg))) { pg <- pg[,-which(colnames(pg) %in% c("start","end"))] }
+    if(all(c("gene") %in% colnames(pg))) { rownames(pg) <- pg[["gene"]] ; pg <- pg[,-which(colnames(pg) %in% c("gene"))] }
+    out <- pg
+  } else {
+    if(append.chr) {
+      out <- paste(pg[["chr"]],pg[["band"]],sep="")
+    } else {
+      out <- pg[["band"]]
+    }
+  }
+  return(out)    
+}
+
+# if bioC=F
+# will return a vector if concat=T, else a list (allowing for multiple hits per range)
+# if bioC=T, if concat=F, will return a RangedData object which will have a column 'rangeindex' showing
+# for each row, which query location index the band/pos information originated (to allow
+# for multiple bands for ranges). Otherwise if concat=T, will just concatenate multi hits into single rows
+# to match dimension of the query set
+# can input chr, pos, or chr,start,end, or ranges=RangedData
+# concat will return bands separated by semi colons when bioC=FALSE if there are multiple in 1 range
+Band.pos <- function(chr,pos=NA,start=NA,end=NA,ranges=NULL,build=36,dir=NULL,bioC=FALSE,concat=FALSE) {
+  ucsc <- ucsc.sanitizer(build)
+  if(is(ranges)[1]!="RangedData") {
+    if(any(!is.na(pos))) { start <- pos; end <- pos }
+    if(length(chr)==1 & length(start)>1) { chr <- rep(chr,times=length(start)) }
+    if(length(chr)!=length(start)) { stop("chr vector must have same length as pos or start/end") }
+    if(any(is.na(chr))) { stop("cannot have chr=NA") }
+    Pos <- matrix(ncol=2,nrow=length(start))
+    for (cc in 1:length(start)) {
+      Pos[cc,] <- force.chr.pos(Pos=c(start[cc],end[cc]),Chr=chr[cc],dir=dir,ucsc=ucsc)
+    }
+    #if(any(tolower(substr(chr,1,3))!="chr")) { chr <- gsub("chr",chr,sep="") }
+    #chr <- gsub("chrchr","chr",chr)
+    testData <- RangedData(ranges=IRanges(start=Pos[,1],end=Pos[,2]),space=chr,universe=ucsc[1])
+    testData <- toGenomeOrder2(testData,strict=T)
+  } else {
+    testData <- ranges # set.chr.to.char(ranges)
+  }
+  testData <- set.chr.to.numeric(testData)
+  #return(testData)
+  cyto <- get.cyto(ucsc=ucsc,bioC=TRUE,dir=dir)
+  cyto <- set.chr.to.numeric(cyto,keep=F)
+  #if(any(colnames(cyto) %in% "negpos")) { cyto <- cyto[,-which(colnames(cyto) %in% "negpos")] }
+  newDataList <- vector("list",nrow(testData))
+  overlaps <- findOverlaps(testData,cyto)
+  bandz <- rownames(cyto)[subjectHits(overlaps)]
+  indexz <- queryHits(overlaps)
+  if(!concat & bioC) {
+    newData <- testData[queryHits(overlaps),]
+    newData[["inputindex"]] <- indexz
+    newData[["band"]] <- bandz
+  } else {
+    out <- tapply(bandz,factor(indexz),c,simplify=FALSE)
+    if(concat) { 
+      out <- sapply(out,function(X) { paste(X,collapse=";") }) 
+      if(bioC) {
+        newData <- testData
+        newData[["band"]] <- out
+      } else { 
+        return(out)
+      }
+    } else {
+      return(out)
+    }
+  }
+  return(newData)
+  #if(!all(chr %in% chr2(ga))) { stop("invalid chromosome(s) entered") } # redundant i think
+}
 
 # returns a table of the annotated allele 1 and allele 2 for a set of rs or ichip ids
 AB <- function(id) {
@@ -773,6 +924,12 @@ clean.snp.ids <- function(snpid.list) {
 }
 
 
+# convenience function to reverse the conversion
+conv.37.36 <- function(ranged=NULL,chr=NULL,pos=NULL,chain.file="/home/oliver/R/stuff/hg19ToHg18.over.chain") {
+  return(conv.36.37(ranged=ranged,chr=chr,pos=pos,chain.file=chain.file))
+}
+  
+  
 ## convert from build 36 to build 37 coordinates. should work for GRanges or RangedData or Chr,Pos
 # and should return modified GRanges, or otherwise a dataframe of rownames,Chr,Pos.
 # works for regions or SNPs. if using GRanges, can get an output of a different length to input
@@ -796,6 +953,7 @@ conv.36.37 <- function(ranged=NULL,chr=NULL,pos=NULL,chain.file="/home/oliver/R/
     if(!is(ranged)[1]=="GRanges") { stop("need GRanges or RangedData 'ranged' object") } 
     wd <- width(ranged)
     if(all(wd==1)) { SNPs <- TRUE } else { SNPs <- FALSE }
+    ranged.gr <- ranged
   }
   ranged.gr.37<-liftOver(ranged.gr,chn)
   myfun <- function(x) { 
@@ -1880,7 +2038,7 @@ condit.to.res <- function(condit.res) {
 get.nearby.snp.lists <- function(snpid.list,cM=0.1,bp.ext=0,build=37,excl.snps=NULL,do.bands=TRUE) {
   #if(!exists("all.support")) { print(load("all.support.RData")) }
   snpic.list <- rs.to.ic(snpid.list)
-  cyto <- get.cyto(); cyto[["gene"]] <- rownames(cyto)
+  cyto <- get.cyto(dir=getwd()); cyto[["gene"]] <- rownames(cyto)
   #which.snps <- match(snpid.list,all.support$dbSNP)
   #if(any(is.na(which.snps))) { stop(paste("NAs in dbSNP match:",paste(snpid.list[is.na(which.snps)],collapse=","))) }
   snps.locs36 <- Pos(snpid.list,36) #snp.support$Pos[which.snps]
