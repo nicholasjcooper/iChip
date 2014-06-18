@@ -14,11 +14,102 @@ require(genoset)
 
 
 # stats function convenience wrappers
-p.to.Z <- function(p) { O <- qnorm((p/2),F); O[!is.finite(O)] <- NA; return(-O) }
-Z.to.p <- function(Z) { O <- 2*pnorm(-abs(Z)); O[!is.finite(O)] <- NA; return(O) }
+
+#' Convert p-values to Z-scores
+#' 
+#' Simple conversion of two-tailed p-values to Z-scores
+#' @param p p-values (between 0 and 1), numeric, scalar, vector or matrix, 
+#' or other types coercible using as.numeric()
+#' @return Z scores with the same dimension as the input
+#' @export
+#' @author Nicholas Cooper \email{nick.cooper@@cimr.cam.ac.uk}
+#' @seealso Z.to.p
+#' @examples
+#' p.to.Z(0.0001)
+#' p.to.Z("5E-8")
+#' p.to.Z(c(".05",".01",".005"))
+#' p.to.Z(matrix(runif(16),nrow=4))
+p.to.Z <- function(p) { 
+  if(!is.numeric(p)) { p <- as.numeric(p) }
+  if(!is.numeric(p)) { stop("p was not coercible to numeric type") }
+  ll <- length(which(p<0 | p>1))
+  if(ll>0) { warning(ll, " invalid p-values set to NA"); p[p<0 | p>1] <- NA }
+  O <- qnorm((p/2),F)
+  O[!is.finite(O)] <- NA
+  return(-O) 
+}
+
+#' Convert Z-scores to p-values
+#' 
+#' Simple conversion of Z-scores to two-tailed p-values
+#' @param Z Z score, numeric, scalar, vector or matrix, or other types coercible
+#'  using as.numeric()
+#' @return p-valuues with the same dimension as the input
+#' @export
+#' @author Nicholas Cooper \email{nick.cooper@@cimr.cam.ac.uk}
+#' @seealso p.to.Z
+#' @examples
+#' Z.to.p("1.96")
+#' Z.to.p(p.to.Z(0.0001))
+#' Z.to.p(37, T)
+#' Z.to.p(39, T) # maximum precision exceeded, warnings on
+#' Z.to.p(39) # maximum precision exceeded, warnings off
+Z.to.p <- function(Z, warn=FALSE) {
+  if(!is.numeric(Z)) { Z <- as.numeric(Z) }
+  if(!is.numeric(Z)) { stop("Z was not coercible to numeric type") }
+  if(any(abs(Z)>=38) & warn) { warning("maximum precision exceeded, p < 10^-300") }
+  O <- 2*pnorm(-abs(Z))
+  O[!is.finite(O)] <- NA
+  return(O) 
+}
+
+# internal
 l10 <- function(x) { O <- log10(x); O[!is.finite(O)] <- NA; return(O) }
+# internal
 Cor <- function(...) { cor(...,use="pairwise.complete") }
+# internal
 pt2 <- function(q, df, log.p=FALSE) {  2*pt(-abs(q), df, log.p=log.p) }
+
+
+#' Function to add commas for large numbers
+#' 
+#' Often for nice presentation of genomic locations it is helpful
+#' to insert commas every 3 digits when numbers are large. This function
+#' makes it simple and allows specification of digits if a decimal number
+#' is in use.
+#' @param x a vector of numbers, either as character, integer or numeric form
+#' @param digits integer, if decimal numbers are in use, how many digits to display, 
+#' same as input to base::round()
+#' @return returns a character vector with commas inserted every 3 digits
+#' @export
+#' @examples
+#' comify("23432")
+#' comify(x=c(1,25,306,999,1000,43434,732454,65372345326))
+#' comify(23432.123456)
+#' comify(23432.123456,digits=0)
+comify <- function(x,digits=2) {
+  if(length(Dim(x))>1) { stop("x must be a vector") }
+  if(length(x)>1) { return(sapply(x, comify, digits=digits)) }
+  x <- round(as.numeric(x),digits=digits)
+  x <- (paste(x)); dec <- ""
+  if(any(grep(".",x))) {
+    x.plus.dp <- strsplit(x,".",fixed=TRUE)[[1]]
+    if(length(x.plus.dp)>2) { stop("x contained invalid decimal point(s)") }
+    xx <- x.plus.dp[1]
+    if(length(x.plus.dp)==2) { dec <- paste(".",x.plus.dp[2],sep="") }
+  } else { xx <- x }
+  splt <- strsplit(xx,"")[[1]]
+  nm <- rev(splt)
+  cnt <- 0; new <- NULL
+  LL <- length(nm)
+  for (cc in 1:LL) {
+    new <- c(nm[cc],new)
+    cnt <- cnt+1
+    if(cnt>2 & cc!=LL) { new <- c(",",new); cnt <- 0 }
+  }
+  return(paste(paste(new,collapse=""),dec,sep=""))
+}
+
 
 
 if(F) {
@@ -45,20 +136,20 @@ if(F) {
 }
 
 
-
+#internal
 pduplicated <- function(X) {
   if(length(Dim(X))>1) {  stop("can only enter a vector into this function") }
   return((duplicated(X,fromLast=T) | duplicated(X,fromLast=F)))
 }
 
 
+#internal
 comma <- function(...) {
   paste(...,collapse=",")
 }
 
 
-## the following are internal functions for the 'lambdas' function below
-
+## internal function for the 'lambdas' function below
 get.allele.counts <- function(myData,cc1000=FALSE) {
   ii <-  col.summary(myData)
   ii[["majmin"]] <- c("minor","major")[as.numeric(round(ii$RAF,3)!=round(ii$MAF,3))+1]
@@ -77,13 +168,49 @@ get.allele.counts <- function(myData,cc1000=FALSE) {
 }
 
 
-# convert inflation factors to lamba1000
-lambda_nm <- function(Lnm,n=1000,m=1000,nr,mr) { 1 + ((Lnm-1)*(((1/nr)+(1/mr))/((1/n)+(1/m)))) }
-# likelihood for one marker
-Likelihood_Lj <- function(c,Lnm) { rchisq(c/Lnm,df=1)/Lnm }
-# total likelihood across all K markers  : http://www.nature.com/ng/journal/v36/n4/full/ng1333.html
 
+#' Normalize Lambda inflation factors to specific case-control count
+#' 
+#' Lambda inflation statistics are influenced by the size of the generating datasets. To facilitate
+#' comparison to other studies, this function converts a given lambda from nr cases and mr controls,
+#' to n cases and m controls, where m=n=1000 is the most common normalization. All values other than
+#' 'Lnm' are forced within this function to be positive integers.
+#' @param Lnm numeric, a raw Lambda inflation statistic, generated from nr cases and mr controls
+#' @param n integer, desired number of 'virtual' cases to normalise to
+#' @param m integer, desired number of 'virtual' controls to normalise to
+#' @param nr integer, original number of cases that Lnm was derived from
+#' @param mr integer, original number of controls that Lnm was derived from
+#' @return A normalized Lambda coefficient
+#' @export
+#' @author Nicholas Cooper \email{nick.cooper@@cimr.cam.ac.uk}
+#' @references Freedman M.L., et al. Assessing the impact of population stratification
+#'  on genetic association studies. Nat. Genet. 2004;36:388-393.
+#' @seealso lambdas
+#' @examples
+#' require(snpStats) ; data(testdata)
+#' pheno <- rep(0,nrow(Autosomes))
+#' pheno[subject.data$cc=="case"] <- 1
+#' raw.L <- lambdas(Autosomes,pheno,output="lambda")
+#' L1000 <- lambda_nm(raw.L,1000,1000,200,200)
+#' raw.L; L1000
+#' lambda_nm(1.56,1000,1000,6500,9300) # lambda1000<lambda when n's>1000,1000
+lambda_nm <- function(Lnm,n=1000,m=1000,nr,mr) { 
+  if(!is.numeric(Lnm)) { stop("Lnm must be numeric") }
+  if(!is.numeric(n)) { stop("n must be numeric") } else { n <- abs(round(n)) }
+  if(!is.numeric(m)) { stop("m must be numeric") } else { m <- abs(round(m)) }
+  if(!is.numeric(nr)) { stop("nr must be numeric") } else { nr <- abs(round(nr)) }
+  if(!is.numeric(mr)) { stop("mr must be numeric") } else { mr <- abs(round(mr)) }
+  return(1 + ((Lnm-1)*(((1/nr)+(1/mr))/((1/n)+(1/m)))) )
+}
+
+# internal functions for lambdas #
+
+
+Y_2 <- function(r1,r2,n1,n2,N,R) { (N*((N*(r1+(2*r2)))-(R*(n1+(2*n2))))^2) / ((R*(N-R))*((N*(n1+(4*n2)))-(n1+(2*n2))^2)) }
+X_2 <- function(r1,r2,n1,n2,N,R) { (2*N*((2*N*(r1+(2*r2)))-(R*(n1+(2*n2))))^2) / ((4*R*(N-R))*((2*N*(n1+(2*n2)))-(n1+(2*n2))^2)) }
+Likelihood_Lj <- function(c,Lnm) { rchisq(c/Lnm,df=1)/Lnm } # likelihood for one marker
 LLikelihood_L <- function(Cj,LNMj) {
+  # total likelihood across all K markers  : http://www.nature.com/ng/journal/v36/n4/full/ng1333.html
   tot <- 0
   for (cc in 1:length(Cj)) { 
     tot <- tot + log(Likelihood_Lj(Cj[cc],LNMj[cc])) 
@@ -91,22 +218,36 @@ LLikelihood_L <- function(Cj,LNMj) {
   return(tot) 
 }
 
-Y_2 <- function(r1,r2,n1,n2,N,R) { (N*((N*(r1+(2*r2)))-(R*(n1+(2*n2))))^2) / ((R*(N-R))*((N*(n1+(4*n2)))-(n1+(2*n2))^2)) }
-
-X_2 <- function(r1,r2,n1,n2,N,R) { (2*N*((2*N*(r1+(2*r2)))-(R*(n1+(2*n2))))^2) / ((4*R*(N-R))*((2*N*(n1+(2*n2)))-(n1+(2*n2))^2)) }
-
-#Y2 ~ L*X2
-
-#Case     r0  r1  r2  R
-#Control  s0  s1  s2  S
-#Total    n0  n1  n2  N
-
-#http://en.wikipedia.org/wiki/Population_stratification
 
 
-## function that calculates SNP-WISE Lambda and Lambda1000 statistics for inflation due to population structure
-# works on a SnpMatrix or dataframe coded 0,1,2,NA (autodetects which)
-lambdas <- function(X, pheno, checks=TRUE, cc1000=FALSE) {
+#' Calculate Lambda inflation factors for SNP dataset
+#' 
+#' This function calculates SNP-wise or overall Lambda and Lambda_1000 statistics for inflation due
+#' to population structure. It works on a SnpMatrix object or dataframe coded 0,1,2,NA (autodetects which).
+#' @param x numeric, it's the thing that goes in
+#' @return if snp.wise is false, the scalar value(s) specified by 'output', or otherwise a matrix
+#' of parameters for each SNP, optionally limited to just the lambda column(s) by the value of 'output'.
+#' @export
+#' @author Nicholas Cooper \email{nick.cooper@@cimr.cam.ac.uk}
+#' @references Freedman M.L., et al. Assessing the impact of population stratification
+#'  on genetic association studies. Nat. Genet. 2004;36:388-393.
+#' @seealso lambda_nm
+#' @examples
+#' # http://en.wikipedia.org/wiki/Population_stratification
+#' # Note that Y2 ~ L*X2, where allele counts are symbolized:
+#' # Case     r0  r1  r2  R
+#' # Control  s0  s1  s2  S
+#' # Total    n0  n1  n2  N
+#' require(snpStats) ; data(testdata)
+#' pheno <- rep(0,nrow(Autosomes))
+#' pheno[subject.data$cc=="case"] <- 1
+#' lambdas(Autosomes,pheno)
+#' lambdas(Autosomes[,1:5],pheno,snp.wise=T) # list everything snp-wise for the first 5 SNPs
+#' lambdas(Autosomes[,1:5],pheno) # just for the first 5 SNPs
+lambdas <- function(X, pheno, checks=TRUE, 
+                    output=c("all","lamba","l1000","both"),snp.wise=FALSE) {
+  ## i don't think this should ever be used: ?? cc1000=TRUE, ??
+  cc1000 <- FALSE
   ## workhorse internal function ##
   do.lambda <- function(x,ph,snpmat=NULL) {
     if(!is.null(snpmat)) {
@@ -162,6 +303,7 @@ lambdas <- function(X, pheno, checks=TRUE, cc1000=FALSE) {
     #return(c(LL,L1000))
   }
   ## main code ##
+  if(!snp.wise) { cc1000 <- FALSE }
   if(!max(Dim(pheno)) %in% Dim(X)) { warning("Phenotype data different size to dataset X"); return(NA)}
   if(all(pheno %in% c(1,2))) { pheno <- pheno-1 }
   if(!all(pheno %in% c(0,1))) { warning("Phenotype must be coded as controls,cases=0,1; or =1,2"); return(NA) }
@@ -195,10 +337,27 @@ lambdas <- function(X, pheno, checks=TRUE, cc1000=FALSE) {
   detach(cnts)
   all.res <- cbind(cnts,xx2,yy2,LL,L1000)
   colnames(all.res)[9:12] <- c("X2","Y2","Lambda","L1000")
-  return(all.res)
+  output <- tolower(paste(output[1]))
+  output <- gsub("lamda","lambda",output); output <- gsub("lamba","lambda",output)
+  if(!output %in% c("lambda","l1000","both")) { output <- "all" }
+  if(!snp.wise) {
+    # return overall scalar result(s) across all SNPs (median based)
+    lam <- median(all.res[,"Y2"],na.rm=T)/.456
+    if(output=="all") { output <- "both" }
+    if(output %in% c("both","l1000")) { 
+      lam1000 <- lambda_nm(lam,1000,1000,median(all.res$R,na.rm=T),median(all.res$S,na.rm=T))
+    }
+    out <- switch(output,lambda=lam,l1000=lam1000, both=c(Lambda=lam,L1000=lam1000))
+  } else {
+    # return separate result(s) for each SNP
+    out <- switch(output,all=all.res,lambda=all.res[["Lambda"]],
+                l1000=all.res[["L1000"]], both=all.res[,c("Lambda","L1000")])
+  }
+  return(out)
 }
 
 
+# specific to me
 # calculate and print the overall lambdas reflecting inflation
 calculate.overall.lambdas <- function(surround=FALSE) {
   print(load("lambdaTableVars.RData")) #"c2"      "p.m.out" "p.m.reg"
@@ -309,7 +468,7 @@ get.equivs <- function(id,iden.list,na.fail=T) {
 }
 
 
-
+# specific
 ### GLOBAL QC STATS ###
 samp.summ <- function(ms,CR=0.953,HZlo=0.19,HZhi=0.235,by.pheno=FALSE) {
   if(by.pheno) {
@@ -332,6 +491,7 @@ samp.summ <- function(ms,CR=0.953,HZlo=0.19,HZhi=0.235,by.pheno=FALSE) {
   return(sample.filt)
 }
 
+#specific
 snp.summ <- function(MAF=0.005,CR=.99,HWE=3.8905,qc.file="snpqc.RData") {
   if(file.exists(qc.file)) { SNPQC <- reader(qc.file) } else { stop("couldn't find",qc.file) }
   mini.snp.qc <- function(SNPQC,MAF=0.005,CR=.99,HWE=3.8905) {
@@ -378,35 +538,101 @@ snp.summ <- function(MAF=0.005,CR=.99,HWE=3.8905,qc.file="snpqc.RData") {
 }
 ####################
 
-# with input as a glm model, returns a nice table of coefficients, p values, confidence intervals and SEs
-mysumfun <- function(glmr,o.digits=3,p.digits=6,lab=TRUE,ci=FALSE)
+
+
+
+#' Function to produce a clean table from logistic regression done via GLM
+#' 
+#' With input as a glm model result object, returns a clean dataframe with 
+#' coefficients, p values, confidence intervals and standard errors. Multiple
+#' options for which columns to return and digits to display
+#'
+#' @param glm.result should be type 'glm', the result of a call to glm() where
+#' the family parameter specifies logistic regression, i.e, family=binomial("logit")
+#' @param intercept logical, whether to display the intercept as the first row of results
+#' @param ci logical, whether to include upper and lower confidence limits in the table of results
+#' @param se logical, whether to include standard error (SE) in the table of results
+#' @param alpha percentage, the type 1 error rate to apply to calculation of confidence
+#' limits, e.g, alpha=.01 results in a 99% confidence interval.
+#' @param o.digits, integer, number of digits to use displaying odds-ratios and standard errors
+#' @param p.digits, integer, number of digits to round p-values to, not that a high number ensures
+#' that very small p-value are truncated to be displayed as zero.
+#' @param label, logical, whether to label output matrices as a list, with name corresponding to 
+#' the formula for the model
+#' @return the output returned
+#' @export
+#' @author Nicholas Cooper \email{nick.cooper@@cimr.cam.ac.uk}
+#' @examples
+#' ph <- c(0,0,0,1,1,1) # phenotype
+#' X <- rnorm(6) # independent variable
+#' test.glm <- glm(ph ~ X,family=binomial('logit'))
+#' logistic.summary(test.glm) # very simple example
+#' XX <- sim.cor(10,3)
+#' X1 <- XX[,1]; X2 <- XX[,2]; X3 <- XX[,3]
+#' ph <-c(rep(0,5),rep(1,5))
+#' test.glm <- glm(ph ~ X1 + X2 + X3,family=binomial('logit'))
+#' logistic.summary(test.glm,intercept=TRUE) # include intercept
+#' logistic.summary(test.glm,ci=TRUE,se=FALSE) # show 95% confidence intervals, hide standard error
+#' logistic.summary(test.glm,ci=TRUE,alpha=.01) # get 99% confidence intervals
+logistic.summary <- function(glm.result,intercept=FALSE,ci=FALSE,se=TRUE,alpha=.05,o.digits=3,p.digits=299,label=FALSE)
 {
-  co <- summary(glmr)$coefficients
-  predz <- rownames(co)[-1]
-  label <- paste(summary(glmr)$call)[2]
+  if(!"glm" %in% is(glm.result)) { stop("'glm.result' was not a glm result (of type 'glm'") }
+  if(family(glm.result)[[1]]!="binomial" | family(glm.result)[[2]]!="logit") { 
+    warning("this function is designed to work for glm logistic regression, i.e; ",
+            "glm(family=binomial('logit'))", " invalid output is likely")
+  }
+  co <- summary(glm.result)$coefficients
+  alpha <- force.percentage(alpha,default=.05)
+  if(rownames(co)[1]!="(Intercept)") { intercept <- TRUE }
+  predz <- rownames(co)
+  if(!intercept) { predz <- predz[-1] }
+  lab <- paste(summary(glm.result)$call)[2]
   #prv(co)
-  p <- co[2:nrow(co),4]; #print(p)
-  o.r <- exp(co[2:nrow(co),1]); #print(o.r)
+  if(length(Dim(co))<2) {
+    warning("glm result was empty of parameters")
+    return(NULL)
+  }
+  if(!intercept & nrow(co)<2) { 
+    warning("intercept was not in use, and there were no other parameters in the models") 
+    return(NULL) 
+  }
+  if(!intercept) { fst <- 2 } else { fst <- 1 }
+  p <- co[fst:nrow(co),4]; #print(p)
+  o.r <- exp(co[fst:nrow(co),1]); #print(o.r)
   p <- round(p,p.digits)
   
   # outlist <- list(round(o.r,o.digits),p)
   # names(outlist) <- c("OR","p-value")
+  SE <- co[fst:nrow(co),2]
   if(ci) {
     #prv(co)
-    co1 <- co[2:nrow(co),1]-(1.96*co[2:nrow(co),2])
-    co2 <- co[2:nrow(co),1]+(1.96*co[2:nrow(co),2])
+    co1 <- co[fst:nrow(co),1]-(p.to.Z(alpha)*SE)
+    co2 <- co[fst:nrow(co),1]+(p.to.Z(alpha)*SE)
     if(sum(co1)<=sum(co2)) { co.l <- co1; co.h <- co2 } else {  co.h <- co1; co.l <- co2 }
     co.l <- exp(co.l); co.h <- exp(co.h)
-    out.fr <- cbind(round(o.r,o.digits),round(co.l,o.digits),round(co.h,o.digits),p)
-    colnames(out.fr) <- c("OR","OR-low","OR-hi","p-value")
+    out.fr <- cbind(round(o.r,o.digits),round(SE,o.digits),round(co.l,o.digits),round(co.h,o.digits),p)
+    colnames(out.fr) <- c("OR","SE","OR-low","OR-hi","p-value")
   } else {
-    out.fr <- cbind(round(o.r,o.digits),p)
-    colnames(out.fr) <- c("OR","p-value")
+    out.fr <- cbind(round(o.r,o.digits),round(SE,o.digits),p)
+    colnames(out.fr) <- c("OR","SE","p-value")
   }
-  if(lab) { out.fr <- list(out.fr); names(out.fr) <- label }
+  if(is.null(rownames(out.fr)) & nrow(out.fr)==1) {
+    rownames(out.fr) <- predz
+  }
+  if(!se) {
+    if(length(Dim(out.fr))==2) {
+      out.fr <- out.fr[,-which(colnames(out.fr) %in% "SE")]
+    } else {
+      if(length(Dim(out.fr))==1) {
+        out.fr <- out.fr[-which(colnames(out.fr) %in% "SE")]
+      }
+    }
+  }
+  if(label) { out.fr <- list(out.fr); names(out.fr) <- lab }
   return(out.fr)
 }
 
+# trivial and specific ... internal for some function somewhere?
 # flip odds ratios to always be positive (e.g, to change whether with respect to minor/major alleles)
 or.pos <- function(X) { 
   x <- X; sel <- !is.na(X)
@@ -509,7 +735,7 @@ fix.OR.directions <- function(results, OR.col=1, snp.data=NULL, pheno=NULL, part
 #    tt2 <- add.allele.to.result(tt2, OR.col=8, snp.data=rawdata, pheno=pheno, partial=T)
 #    loop.tracker(cc,22)
 #  }
-
+### specific to ichip paper analysis
 add.allele.to.result <- function(results, OR.col=1, snp.data=NULL, pheno=NULL, partial=FALSE,
                               case.list=NULL, control.list=NULL) {
   lll <- fix.OR.directions(results, OR.col=OR.col[1], snp.data=snp.data, pheno=pheno, partial=partial,verbose=FALSE,
@@ -541,30 +767,83 @@ add.allele.to.result <- function(results, OR.col=1, snp.data=NULL, pheno=NULL, p
 }
 
 
-# retrieve t1d previous SNP hits from t1dbase in either build hg18/hg19 coords (b36/37)
-get.t1d.snps <- function(ucsc="hg19") {
-  filenm <- "t1dhits.tab"
-  cat("attempting to download t1d hits from t1dbase\n")
-  url36 <- "http://www.t1dbase.org/webservice/RegionDownloads/=/model/variantsTAB/species=Human&disease_id=1&type=assoc&build=GRCh36"
-  url37 <- "http://www.t1dbase.org/webservice/RegionDownloads/=/model/variantsTAB/species=Human&disease_id=1&type=assoc&build=GRCh37"
+
+#' Download GWAS hits from t1dbase.org
+#' 
+#' Retrieve human disease top GWAS hits from t1dbase in either build hg18 or hg19 coords (b36/37).
+#' 28 Diseases currently available
+#' @param disease integer (1-28), or character (abbreviation), or full name of one of the listed
+#' diseases. A full list of options can be obtained by setting show.codes=TRUE.
+#' @param ucsc character, either "hg18" or "hg19". Will also accept build number, 36 or 37.
+#' @param show.codes logical, if set to TRUE, instead of looking up t1dbase, will simply return
+#' a table of available diseases with their index numbers and abbreviations.
+#' @return A character vector of SNP rs-ids
+#' @export
+#' @author Nicholas Cooper \email{nick.cooper@@cimr.cam.ac.uk}
+#' @references PMID: 20937630
+#' @examples
+#' get.t1dbase.snps(disease="CEL",ucsc=36) # get SNP ids for celiac disease in build-36/hg18
+#' get.t1dbase.snps(disease="AS") # get SNP ids for Ankylosing Spondylitis in build-37/hg19
+#' get.t1dbase.snps(show.codes=TRUE) # show codes/diseases available to download
+#' get.t1dbase.snps(disease=27) # get SNP ids for Alopecia Areata
+#' get.t1dbase.snps("Vitiligo")
+get.t1dbase.snps <- function(disease="T1D",ucsc="hg19",show.codes=FALSE) {
+  disease.codes <- c("Type 1 Diabetes", "Crohns Disease","Rheumatoid Arthritis",
+  "Systemic Scleroderma",  "Ulcerative Colitis","Inflammatory Bowel Disease",  "Multiple Sclerosis",
+  "Bipolar Disorder",  "Diabetes Mellitus",  "Coronary Artery Disease",  "Hypertension",  "Celiac Disease",
+  "Systemic Lupus Erythematosus",  "Ankylosing Spondylitis",  "Type 2 Diabetes",  "Sjogren Syndrome",
+  "Graves' Disease",  "Juvenile Rheumatoid Arthritis",  "Vitiligo",  "Primary Biliary Cirrhosis",
+  "Psoriasis",  "Idiopathic Membranous Nephropathy",  "Immunoglobulin A Deficiency",
+  "Autoimmune Thyroid Disease",  "Juvenile Idiopathic Arthritis",  "Narcolepsy",  "Alopecia Areata",
+  "Alzheimer's Disease")
+  abbr <- c("T1D","CD","RA","SCL","UC","IBD","MS","BD","DM","CAD","HYP",
+            "CEL","SLE","AS","T2D","SS","GD","JRA","VIT",
+            "PBC","PSO","IMN","IGA","ATD","JIA","NAR","AA","AD")
+  code.table <- cbind(Abbreviation=abbr,FullNames=disease.codes)
+  if(show.codes) { cat("values for the 'disease' parameter can be specified by the following index numbers or abbreviations:\n")
+                   print(code.table,quote=F) ; return() }
+  disease <- disease[1]
+  if(toupper(disease) %in% abbr) { 
+    disN <- match(toupper(disease),toupper(abbr)) 
+  } else {
+    if(toupper(disease) %in% toupper(disease.codes)) {
+      disN <- match(toupper(disease),toupper(disease.codes))
+    } else {
+      if(as.numeric(disease) %in% 1:length(disease.codes)) { 
+        disN <- as.numeric(disease)
+      } else {
+        stop("Invalid input for 'disease', use show.codes=TRUE to see list of codes/abbreviations")
+      }
+    }
+  }
+  ucsc <- ucsc.sanitizer(ucsc)
+  filenm <- paste(dir=getwd(),pref=tolower(abbr[disN]),"hits",suf=ucsc,ext="tab")
+  cat("attempting to download",abbr[disN],"hits from t1dbase\n")
+  url36 <- paste("http://www.t1dbase.org/webservice/RegionDownloads/=/model/variantsTAB/species=Human&disease_id=",disN,"&type=assoc&build=GRCh36",sep="")
+  url37 <- paste("http://www.t1dbase.org/webservice/RegionDownloads/=/model/variantsTAB/species=Human&disease_id=",disN,"&type=assoc&build=GRCh37",sep="")
   urL <- switch(ucsc, hg18=url36,  hg19=url37)
   success <- T
   success <- tryCatch(download.file(urL ,filenm ,quiet=T),error=function(e) { F } )
   if(!is.logical(success)) { success <- T }
   if(success) {
-    print("download successful")
     t1dh <- readLines(filenm,)
     firsts <- substr(t1dh,1,2)
     t1dh <- t1dh[firsts!="##"]
     len.lst <- strsplit(t1dh,"\t")
     rsids <- sapply(len.lst,"[",3)
     if(substr(rsids[1],1,2)!="rs") { rsids <- rsids[-1] }
+    if(length(rsids)<1) { 
+      cat("download successful but the list of hits for",disease.codes[disN],"was empty\n") 
+    } else {
+      cat("download successful for",disease.codes[disN],"\n")
+    }
     return(unique(rsids))
   } else {
     stop("couldn't reach t1dbase website at: ",urL)
   }
 }
 
+##INTERNAL
 # create a phenotype vector for a dataframe with rownames that are subject ids, where
 # cases and controls are text vectors of which IDs are that category; ctrls coded 0, cases 1
 # or can also enter X as a vector of all ids, e.g, X = rownames(someDataFrame)
@@ -582,6 +861,7 @@ make.pheno <- function(X,cases,controls) {
 }
 
 
+#internal
 # remove leading X from variable names (e.g, if original name started with a number and changed by make.names)
 remove.X <- function(str,char="X") {
   bdz <- substr(str,1,1)
@@ -589,7 +869,7 @@ remove.X <- function(str,char="X") {
   return(str)
 }
 
-
+#internal
 # add X to the start of any string which has a digit as the first character
 add.x <- function(str) {
   bdz <- substr(str,1,1)
@@ -599,6 +879,7 @@ add.x <- function(str) {
 }
 
 
+## USEFUL ONES !! HERE !!!
 
 # convert from immunochip ids to rs-ids
 ic.to.rs <- function(ic.ids,dir=NULL) {
