@@ -145,6 +145,7 @@ impute.rs7111341 <- function(myData)
 }
 
 
+# DIL specific, extract the ichip data for a specified gene
 extract.ichip.data.for.gene <- function(chr.n=11,gn.nm="INS",ichipLabels,rs.ids,dil.grps=c("T1D","BR","UVA","SANGER"))
 {
   # define directories
@@ -199,13 +200,32 @@ extract.ichip.data.for.gene <- function(chr.n=11,gn.nm="INS",ichipLabels,rs.ids,
 }
 
 
-get.LD.mat <- function(targ.rownames,SNP.data,targ.cols=c(1:ncol(SNP.data)),dm=ncol(SNP.data))
+# easier LD function for snpStats::SnpMatrix objects
+# targ.cols allows specification of which snps to calculate LD for either by name, column # or logical vector,
+#  but actually it's probably easier to just force evaluation of the whole frame
+# r2 is an easy way of specifying whether to use r2 (default) or d.prime
+# targ.rownames allows specification of custom rownames for the resulting table
+get.LD.mat <- function(SNP.data,r2=TRUE,targ.cols=c(1:ncol(SNP.data)),targ.rownames=NULL)
 {
+  if(all(targ.cols %in% colnames(SNP.data))) { 
+    targ.cols <- match(targ.cols, colnames(SNP.data)) 
+  } else {
+    if(any(targ.cols %in% colnames(SNP.data))) { 
+      warning("some values of targ.cols were not found in the colnames of SNP.data, will use all columns")
+    }
+  }
+  if(is.logical(targ.cols)) { targ.cols <- which(targ.cols) }
+  if(any(!targ.cols %in% 1:ncol(SNP.data))) { 
+    warning("invalid targ.cols entered, reverting to all"); targ.cols <- 1:ncol(SNP.data) }
+  dm <- length(targ.cols)
+  if(length(targ.rownames)!=dm) { targ.rownames <- NULL }
+  if(is.null(targ.rownames)) { targ.rownames <- colnames(SNP.data)[targ.cols] }
   result <- matrix(nrow=dm,ncol=dm)
   colnames(result) <- rownames(result) <- targ.rownames
+  if(r2) { statz <- "R.squared" } else { statz <- "D.prime" }
   for (cc in 1:dm){
     for (dd in 1:dm) {
-      result[cc,dd] <- ld(SNP.data[,targ.cols[cc]],SNP.data[,targ.cols[dd]],stats="R.squared")
+      result[cc,dd] <- ld(SNP.data[,targ.cols[cc]],SNP.data[,targ.cols[dd]],stats=statz)
     }
   }
   diag(result) <- NA

@@ -14,7 +14,7 @@ require(genoset)
 
 
 # stats function convenience wrappers
-p.to.Z <- function(p) { O <- qnorm((p/2),F); O[!is.finite(O)] <- NA; return(-O) }
+p.to.Z <- function(p) { O <- qnorm(1-(p/2),F); O[!is.finite(O)] <- NA; return(O) }
 Z.to.p <- function(Z) { O <- 2*pnorm(-abs(Z)); O[!is.finite(O)] <- NA; return(O) }
 l10 <- function(x) { O <- log10(x); O[!is.finite(O)] <- NA; return(O) }
 Cor <- function(...) { cor(...,use="pairwise.complete") }
@@ -384,7 +384,6 @@ mysumfun <- function(glmr,o.digits=3,p.digits=6,lab=TRUE,ci=FALSE)
   co <- summary(glmr)$coefficients
   predz <- rownames(co)[-1]
   label <- paste(summary(glmr)$call)[2]
-  #prv(co)
   p <- co[2:nrow(co),4]; #print(p)
   o.r <- exp(co[2:nrow(co),1]); #print(o.r)
   p <- round(p,p.digits)
@@ -392,7 +391,6 @@ mysumfun <- function(glmr,o.digits=3,p.digits=6,lab=TRUE,ci=FALSE)
   # outlist <- list(round(o.r,o.digits),p)
   # names(outlist) <- c("OR","p-value")
   if(ci) {
-    #prv(co)
     co1 <- co[2:nrow(co),1]-(1.96*co[2:nrow(co),2])
     co2 <- co[2:nrow(co),1]+(1.96*co[2:nrow(co),2])
     if(sum(co1)<=sum(co2)) { co.l <- co1; co.h <- co2 } else {  co.h <- co1; co.l <- co2 }
@@ -679,7 +677,7 @@ Pos <- function(id,build=36,warn.build=FALSE,dir=NULL,snps.only=FALSE) {
 Pos.gene <- function(genes,build=36,warn.build=FALSE,dir=NULL,bioC=FALSE,band=FALSE,unique=TRUE,map.cox.to.6=TRUE) {
   ucsc <- ucsc.sanitizer(build)
   char.lim <- 100
-  ga <- get.gene.annot(dir=dir,ucsc=ucsc,bioC=bioC,unique=unique,map.cox.to.6=map.cox.to.6)
+  ga <- get.gene.annot(dir=dir,ucsc=ucsc,range.out=bioC,unique=unique,map.cox.to.6=map.cox.to.6)
   if(warn.build) {
     if(build!="hg18") {    cat("Build 37/hg19 coordinates:\n") 
     } else {    cat("Build 36/hg18 coordinates:\n") }
@@ -763,7 +761,7 @@ Band.gene <- function(genes,build=36,dir=getwd(),append.chr=TRUE,data.frame=FALS
 # to match dimension of the query set
 # can input chr, pos, or chr,start,end, or ranges=RangedData
 # concat will return bands separated by semi colons when bioC=FALSE if there are multiple in 1 range
-Gene.pos <- function(chr=NA,pos=NA,start=NA,end=NA,ranges=NULL,build=36,dir=NULL,bioC=FALSE,concat=TRUE) {
+Gene.pos <- function(chr,pos=NA,start=NA,end=NA,ranges=NULL,build=36,dir=NULL,bioC=FALSE,concat=TRUE) {
   ucsc <- ucsc.sanitizer(build)
   if(is(ranges)[1]!="RangedData") {
     if(any(!is.na(pos))) { start <- pos; end <- pos }
@@ -780,8 +778,6 @@ Gene.pos <- function(chr=NA,pos=NA,start=NA,end=NA,ranges=NULL,build=36,dir=NULL
     testData <- toGenomeOrder2(testData,strict=T)
   } else {
     testData <- ranges # set.chr.to.char(ranges)
-    #chr <- chr(testData)
-    if(!bioC) { warning("bioC was set false, but ranges argument in use so overriding") ; bioC <- T }
     if("index" %in% colnames(testData)) { warning("'index' is a reserved column name for ranges objects passed to this function so will be replaced. Consider renaming this column if this is undesired") }
     testData[["index"]] <- 1:nrow(testData)
   }
@@ -801,7 +797,7 @@ Gene.pos <- function(chr=NA,pos=NA,start=NA,end=NA,ranges=NULL,build=36,dir=NULL
     newData[["gene"]] <- genez
   } else {
     out <- tapply(genez,factor(indexz),c,simplify=FALSE)
-    out <- sapply(out,function(X) { X <- narm(unique(X)); X <- X[X!=""] ; paste(X,collapse=";") })
+    out <- sapply(out,function(X) { paste(X,collapse=";") })
     newData <- testData
     newData[["gene"]] <- rep("intergenic",nrow(newData))
     if(!is.null(names(out))) {
@@ -813,9 +809,7 @@ Gene.pos <- function(chr=NA,pos=NA,start=NA,end=NA,ranges=NULL,build=36,dir=NULL
   if(bioC) {
     return(newData)
   } else {
-    OO <- newData[["gene"]][order(newData[["index"]])]
-    OO <- narm(unique(OO)); OO <- OO[OO!=""]
-    return(OO)
+    return(newData[["gene"]][order(newData[["index"]])])
   }
   #if(!all(chr %in% chr2(ga))) { stop("invalid chromosome(s) entered") } # redundant i think
 }
@@ -1088,21 +1082,54 @@ clean.snp.ids <- function(snpid.list) {
 }
 
 
+ensemblify <- function(X) {
+  X <- paste(X)
+  if(!is.character(X)) { stop("X (ID list) must be character") }
+  if(!any(nchar(X)==15)) { 
+    X <- pad.left(c("00000000000",X),"0")
+    X <- paste("ENSG",X,sep="")
+    X <- X[-1]
+  }
+  if(!all(nchar(X)==15)) {
+    warning("not all ENSEMBL ids had 15 characters, input may be incorrect")
+  }
+  if(any(substr(X,1,4)!="ENSG")) {
+    warning("it looks like at least 1 X element had an invalid prefix, should be: ENSG00xxxxxx") 
+  }
+  prv(X)
+  return(X)
+}
 
 ## convert ensembl ids to gene ids - ... are args passed to get.gene.annot()
-# note that this will not find all IDs found on ensembl.org, I have a list of
-# some of the missing ones, but don't want to use it because this remainder is consistent with
-# what is in biomart
-ENS.to.GENE <- function(id.list,...,ucsc="hg18",name.dups=TRUE,name.missing=TRUE) {
+ENS.to.GENE <- function(id.list,ucsc="hg18",name.dups=TRUE,name.missing=TRUE,to.gene=TRUE) {
   must.use.package(c("biomaRt","genoset","gage"),T)
   ucsc <- ucsc.sanitizer(ucsc)
-  ga <- get.gene.annot(...,bioC=FALSE,ens.id=TRUE)
+  if(ucsc=="hg18") {
+    ens <- useMart("ENSEMBL_MART_ENSEMBL",
+                   dataset="hsapiens_gene_ensembl",
+                   host="may2009.archive.ensembl.org",
+                   path="/biomart/martservice",
+                   archive=FALSE)
+  } else {
+    ens <- useMart("ensembl")
+  }
+  ens <- useDataset("hsapiens_gene_ensembl",mart=ens)
+  data(egSymb)
+  egSymb[,"eg"] <- ensemblify(egSymb[,"eg"])
   ### now have the gene data with the ensembl ids ##
-  indx <- match(id.list,ga$ens.id)
+  if(to.gene) {
+    id.list <- ensemblify(id.list)
+    indx <- match(id.list,egSymb[,"eg"])
+    txt <- "ENSEMBL"; col <- "sym"
+  } else {
+    indx <- match(id.list,egSymb[,"sym"])
+    txt <- "Gene"; col <- "eg"
+  }
   missin <- length(which(is.na(indx))); valid <- length(indx)-missin
-  if(valid<1) { warning("did not find any ENSEMBL ids from id.list in the bioMart human gene reference"); return(NULL) }
-  if(missin>0) { warning(out.of(missin,(valid+missin))," of id.list did not match any ENSEMBL ids in the bioMart human gene reference") }
-  outData <- ga$gene[indx]
+  if(valid<1) {  warning("did not find any ",txt," ids from id.list in the bioMart human gene reference"); return(NULL) }
+  if(missin>0) {  warning(out.of(missin,(valid+missin))," of id.list did not match any ",txt," ids in the bioMart human gene reference") }
+  #prv(id.list,egSymb);
+  outData <- egSymb[indx,col]
   if(name.missing & any(is.na(outData))) {
     outData[is.na(outData)] <- paste("MISSING",pad.left(1:length(which(is.na(outData))),"0"),sep="_")
   }
@@ -1125,15 +1152,9 @@ ENS.to.GENE <- function(id.list,...,ucsc="hg18",name.dups=TRUE,name.missing=TRUE
 }
 
 ## convert gene ids to ensembl ids - ... are args passed to get.gene.annot()
-GENE.to.ENS <- function(id.list,...) {
-  ga <- get.gene.annot(...,bioC=FALSE,ens.id=TRUE)
-  ### now have the gene data with the ensembl ids ##
-  indx <- match(id.list,ga$gene)
-  missin <- length(which(is.na(indx))); valid <- length(indx)-missin
-  if(valid<1) { warning("did not find any gene ids from id.list in the bioMart human gene reference"); return(NULL) }
-  if(missin>0) { warning("at least one of id.list did not match any gene ids in the bioMart human gene reference") }
-  outData <- ga$ens.id[indx]
-  return(outData)
+GENE.to.ENS <- function(id.list,...,to.gene=FALSE) {
+  if(to.gene) { to.gene <- FALSE ; warning("to.gene is always false for GENE.to.ENS") }
+  return(ENS.to.GENE(id.list,...,to.gene=FALSE))
 }
 
 
@@ -1158,7 +1179,7 @@ conv.36.37 <- function(ranged=NULL,chr=NULL,pos=NULL,chain.file="/home/oliver/R/
     wd <- width(ranged)
     if(all(wd==1)) { SNPs <- TRUE } else { SNPs <- FALSE }
     ranged[["XMYINDEXX"]] <- orn <- rownames(ranged)
-    ranged[["XMYCHRXX"]] <- ocr <- chr2(ranged)
+    ranged[["XMYCHRXX"]] <- ocr <- chr(ranged)
     ranged <- set.chr.to.char(ranged)
     #print(head(ranged))
     ranged.gr <- as(ranged,"GRanges"); toranged <- T
@@ -1191,7 +1212,7 @@ conv.36.37 <- function(ranged=NULL,chr=NULL,pos=NULL,chain.file="/home/oliver/R/
       print(head(orn[!orn %in% RN],20) )
       ln <- orn[!orn %in% RN]
       #return(ranged)
-      newchr <- gsub("chr","",chr2(ranged[match(ln,ranged$XMYINDEXX),]))
+      newchr <- gsub("chr","",chr(ranged[match(ln,ranged$XMYINDEXX),]))
       extra <- data.frame(Chr=newchr,Pos=rep(NA,times=length(ln)))
       rownames(extra) <- ln
     }
@@ -1703,7 +1724,7 @@ find.overlapping.regions  <- function(ranged) {
   if(LenC>1) { 
     ret <- vector("list",LenC)
     for (ccc in 1:LenC) { 
-      cat("Chr",chr2(ranged[ccc])[1],":\n")
+      cat("Chr",chr(ranged[ccc])[1],":\n")
       ret[[ccc]] <- find.overlapping.regions(ranged[ccc]) 
       if(!is.null(ret[[ccc]])) { 
         print(paste("chr",ccc))
@@ -1747,7 +1768,7 @@ recwindow <- function(ranged=NULL,chr=NA,st=NA,en=st,window=0.1, # cM either sid
   if(is(ranged)[1] %in% c("RangedData","GRanges")) { 
     if(is(ranged)[1]=="GRanges") { ranged <- as(ranged,"RangedData") }
     ranged <- toGenomeOrder(ranged,strict=T)
-    ss <- start(ranged); ee <- end(ranged); cc <- chr2(ranged)
+    ss <- start(ranged); ee <- end(ranged); cc <- chr(ranged)
     out <- recwindow(chr=cc,st=ss,en=ee,window=window,bp.ext=bp.ext,...)
     outData <- RangedData(ranges=IRanges(start=out[,1],end=out[,2],names=rownames(ranged)),space=cc)
     outData <- toGenomeOrder(outData,strict=TRUE)
