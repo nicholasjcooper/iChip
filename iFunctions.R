@@ -10,7 +10,7 @@ require(genoset)
 
 
 ##file includes the generally useful functions: simple.date, out.of, randomize.missing
-
+ # simple.date, out.of should now be in NCmisc
 
 
 # stats function convenience wrappers
@@ -108,6 +108,26 @@ comify <- function(x,digits=2) {
     if(cnt>2 & cc!=LL) { new <- c(",",new); cnt <- 0 }
   }
   return(paste(paste(new,collapse=""),dec,sep=""))
+}
+
+
+
+# internal function to allow flexible input for the ucsc parameter
+ucsc.sanitizer <- function(ucsc,allow.multiple=FALSE,show.valid=FALSE) {
+  ucsc.alt <- c("hg15","hg20","hg17","hg18","hg19",17,18,19,35,36,37,
+                "build35","build36","build37","b35","b36","b37")
+  ucsc.new <- c("hg15","hg20",rep(c("hg17","hg18","hg19"),times=5))
+  if(show.valid) { return(cbind(valid=ucsc.alt,mapsTo=ucsc.new)) }
+  ucsc <- ucsc.new[match(tolower(ucsc),ucsc.alt)]
+  if(any(is.na(ucsc))) { 
+    warning("Illegal ucsc parameter, defaulting to hg18") 
+    ucsc[is.na(ucsc)] <- "hg18" 
+  }
+  if(allow.multiple) {
+    return(ucsc)
+  } else {
+    return(ucsc[1])
+  }
 }
 
 
@@ -1424,31 +1444,58 @@ conv.37.36 <- function(ranged=NULL,chr=NULL,pos=NULL,chain.file="/home/oliver/R/
 }
   
   
+#internal - to make valid GRanges from chr,pos or start/end
+make.chr.pos.granges <- function(chr,pos=NULL,start=NULL,end=NULL) {
+  if(is.null(start) & is.null(end) & !is.null(pos)) {
+    df <- cbind(chr,round(as.numeric(pos)))
+  } else {
+    if(!is.null(start) & !is.null(end) & is.null(pos)) {
+      pos <- cbind(round(as.numeric(start)),round(as.numeric(end)))
+      df <- cbind(chr,pos) 
+    } else {
+      stop("must use either 'pos' or 'start' and 'end'")
+    }
+  }
+  if(max(Dim(pos))!=length(chr)) { stop("chr and pos must be of the same length") }
+  if(length(Dim(pos))>1) { 
+    if(!ncol(pos) %in% c(1,2)) { 
+      stop("pos must be a vector of SNP locations, or a 2-column object with start and end coordinates") 
+    } else {
+      if(ncol(pos)==2) {
+        if(any(pos[,2]<pos[,1])) { warning("end coordinates should be equal or greater than start coordinates") }
+      }
+    }
+  }
+  if(ncol(df)==3) { 
+    colnames(df) <- c("chr","start","end") } else { colnames(df) <- c("chr","pos") }
+  ranged <- data.frame.to.granges(df,start=colnames(df)[2],end=tail(colnames(df),1)) 
+  return(ranged)
+}
+
 ## convert from build 36 to build 37 coordinates. should work for GRanges or RangedData or Chr,Pos
 # and should return modified GRanges, or otherwise a dataframe of rownames,Chr,Pos.
 # works for regions or SNPs. if using GRanges, can get an output of a different length to input
 # internals from Ollie Burren
 conv.36.37 <- function(ranged=NULL,chr=NULL,pos=NULL,chain.file="/home/oliver/R/stuff/hg18ToHg19.over.chain") {
   require(GenomicRanges); require(rtracklayer); require(genoset)
-  if(!file.exists(chain.file)) { stop("couldn't find ollie's script in: ",chain.file) }
+  if(!file.exists(chain.file)) { stop("couldn't find chain file: ",chain.file) }
   chn <- import.chain(chain.file)
-  toranged <- F
-  if(!is.null(chr) & !is.null(pos)) { ranged <- data.frame.to.ranged(cbind(chr,pos),start="pos",end="pos") }
-  #return(ranged)
-  if(is(ranged)[1]=="RangedData") {
+  #toranged <- F
+  if(!is.null(chr) & !is.null(pos)) { 
+    ranged <- make.chr.pos.granges(chr=chr,pos=pos)
+  } 
+  if(is(ranged)[1]=="GRanges") { ranged <- as(ranged, "RangedData") }
+  if(is(ranged)[1] %in% c("RangedData","GRanges")) {
     wd <- width(ranged)
     if(all(wd==1)) { SNPs <- TRUE } else { SNPs <- FALSE }
     ranged[["XMYINDEXX"]] <- orn <- rownames(ranged)
     ranged[["XMYCHRXX"]] <- ocr <- chr2(ranged)
     ranged <- set.chr.to.char(ranged)
     #print(head(ranged))
-    ranged.gr <- as(ranged,"GRanges"); toranged <- T
-  } else { 
-    if(!is(ranged)[1]=="GRanges") { stop("need GRanges or RangedData 'ranged' object") } 
-    wd <- width(ranged)
-    if(all(wd==1)) { SNPs <- TRUE } else { SNPs <- FALSE }
-    ranged.gr <- ranged
-  }
+    ranged.gr <- as(ranged,"GRanges"); #toranged <- T
+  } else {
+    stop("need GRanges or RangedData 'ranged' object") 
+  } 
   ranged.gr.37<-liftOver(ranged.gr,chn)
   myfun <- function(x) { 
     data.frame(start=min(start(x),na.rm=T),end=max(end(x),na.rm=T)) 
@@ -1457,19 +1504,25 @@ conv.36.37 <- function(ranged=NULL,chr=NULL,pos=NULL,chain.file="/home/oliver/R/
     new.coords.df <- do.call("rbind",lapply(ranged.gr.37,myfun))
     ranged.gr.37<-ranged.gr
     ranges(ranged.gr.37)<-with(new.coords.df,IRanges(start=start,end=end))
-    seqlevels(ranged.gr.37)<-gsub("chr","",seqlevels(ranged.gr.37))
+    #seqlevels(ranged.gr.37)<-gsub("chr","",seqlevels(ranged.gr.37))
   } else {
-    seqlevels(ranged.gr.37)<-gsub("chr","",seqlevels(ranged.gr.37))
+    #seqlevels(ranged.gr.37)<-gsub("chr","",seqlevels(ranged.gr.37))
     #new.coords.df <- as.data.frame(ranged.gr.37)
   }
-  if(!toranged | T) { return(ranged.gr.37) }
-  ranged.gr.37 <- toGenomeOrder2(as(ranged.gr.37,"RangedData"))
+  seqlevels(ranged.gr.37)<-gsub("chr","",seqlevels(ranged.gr.37))
+  out <- as(ranged.gr.37,"IRangesList")
+  out <- as(out,"RangedData")
+  #return(ranged.gr.37)
+  #ranged.gr.37 <- set.chr.to.numeric(ranged.gr.37)
+  #if(!toranged | T) { return(ranged.gr.37) }
+  ranged.gr.37 <- toGenomeOrder2(out)
   if(all(c("XMYINDEXX","XMYCHRXX") %in% colnames(ranged.gr.37))) {
     RN <- ranged.gr.37[["XMYINDEXX"]]
     nr <- nrow(ranged.gr.37)
     if(length(orn)>length(RN)) { 
-      cat("conversion failed for",length(orn[!orn %in% RN]),"rows, NAs produced\n") ;  
-      print(head(orn[!orn %in% RN],20) )
+      cat("conversion failed for",length(orn[!orn %in% RN]),"rows, NAs produced:\n") ;  
+      failz <- orn[!orn %in% RN]
+      cat(comma(head(failz,20))) ; if(length(failz)>20) { cat(", ... and",length(failz)-20,"more\n")  }
       ln <- orn[!orn %in% RN]
       #return(ranged)
       newchr <- gsub("chr","",chr2(ranged[match(ln,ranged$XMYINDEXX),]))
@@ -1484,7 +1537,15 @@ conv.36.37 <- function(ranged=NULL,chr=NULL,pos=NULL,chain.file="/home/oliver/R/
     }
     return(out)
   } else { warning("missing key columns for chr, snp-name") }
-  return(ranged.gr.37)
+  if(is(ranged)[1]=="GRanges") {
+    return(as(ranged.gr.37,"GRanges")) 
+  } else {
+    if(is.null(ranged)) {
+      return(ranged.to.data.frame(ranged.gr.37))
+    } else {
+      return(ranged.gr.37)
+    }
+  }
 }
 
 
@@ -2210,7 +2271,7 @@ conditional <- function(X) {
 
 
 
-data.frame.to.ranged <- function(dat,ids=NULL,start="start",end="end",width=NULL,
+data.frame.to.ranged2 <- function(dat,ids=NULL,start="start",end="end",width=NULL,
                                  chr="chr",exclude=NULL,ucsc="hg18") 
 {
   ## convert any data frame with chr,start,end, or pos data into a RangedData object
