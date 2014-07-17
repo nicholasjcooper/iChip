@@ -2577,7 +2577,7 @@ rSnpMatrix <- function(nsnp=5,nsamp=10,call.rate=.95,A.freq.fun=runif) {
 
 
 
-
+## HERE ##
 # chris' function to get a centimorgan window from intervals
 # vector input
 # internal
