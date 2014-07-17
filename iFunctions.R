@@ -18,6 +18,25 @@ require(genoset)
  # simple.date, out.of should now be in NCmisc
 
 
+minna <- function(...) {
+  min(...,na.rm=TRUE)
+}
+maxna <- function(...) {
+  max(...,na.rm=TRUE)
+}
+meanna <- function(...) {
+  mean(...,na.rm=TRUE)
+}
+medianna <- function(...) {
+  median(...,na.rm=TRUE)
+}
+sdna <- function(...) {
+  sd(...,na.rm=TRUE)
+}
+sumna <- function(...) {
+  sum(...,na.rm=TRUE)
+}
+
 # stats function convenience wrappers
 
 #' Convert p-values to Z-scores
@@ -384,10 +403,10 @@ lambdas <- function(X, pheno, checks=TRUE,
   if(!output %in% c("lambda","l1000","both")) { output <- "all" }
   if(!snp.wise) {
     # return overall scalar result(s) across all SNPs (median based)
-    lam <- median(all.res[,"Y2"],na.rm=T)/.456
+    lam <- medianna(all.res[,"Y2"])/.456
     if(output=="all") { output <- "both" }
     if(output %in% c("both","l1000")) { 
-      lam1000 <- lambda_nm(lam,1000,1000,median(all.res$R,na.rm=T),median(all.res$S,na.rm=T))
+      lam1000 <- lambda_nm(lam,1000,1000,medianna(all.res$R),medianna(all.res$S))
     }
     out <- switch(output,lambda=lam,l1000=lam1000, both=c(Lambda=lam,L1000=lam1000))
   } else {
@@ -1781,7 +1800,7 @@ conv.36.37 <- function(ranges=NULL,chr=NULL,pos=NULL,...,ids=NULL,chain.file="/h
   } else { found.xy <- FALSE }
   ranged.gr.37 <- liftOver(ranged.gr,chn)
   myfun <- function(x) { 
-    data.frame(start=min(start(x),na.rm=T),end=max(end(x),na.rm=T)) 
+    data.frame(start=minna(start(x)),end=maxna(end(x))) 
   }
   if(!SNPs ) {
     new.coords.df <- do.call("rbind",lapply(ranged.gr.37,myfun))
@@ -1955,7 +1974,7 @@ data.frame.to.SnpMatrix <- function(X){
     if(!is.matrix(X)) { warning("X should be a matrix or data.frame, ",
                                 "conversion is likely to fail if X is not sufficiently matrix-like")}
   }
-  mxx <- max(X,na.rm=TRUE)
+  mxx <- maxna(X)
   if(mxx>3) { warning("Dataframe does not appear to contain allele codes") }
   X <- round(X)
   if(mxx==3) { X <- X-1 ; X[X<0] <- NA }
@@ -2277,7 +2296,6 @@ abf <- function(p,maf, n0=9500, n1=6670, scale0=n0, scale1=n1) {
 # remaining functions to test and document #
 # randomize.missing
 # impute.missing
-# ichip.imputation
 # recwindow
 # meta.me
 # get.nearby.snp.lists
@@ -2291,9 +2309,9 @@ abf <- function(p,maf, n0=9500, n1=6670, scale0=n0, scale1=n1) {
 # 'impute.missing' will leave these blank. This function mops up the remainder
 # by randomly inserting values consistent with the minor allele frequency of each SNP
 # (Nick)
-randomize.missing <- function(X) {
+randomize.missing <- function(X,verbose=FALSE) {
   miss1 <- function(x) { 
-    TX <- table(x)
+    TX <- table(c(round(x),0,1,2))-c(1,1,1) # to force zero counts to be in the table
     naz <- which(is.na(x))
     if(length(naz)>0 & length(TX)>0) {
       x[naz] <- sample(as.numeric(names(TX)),size=length(naz),
@@ -2308,278 +2326,324 @@ randomize.missing <- function(X) {
   FF <- nrow(X)
   select <- nmiss>0
   if(length(which(select))<1) { return(X) }
+  if(verbose) { cat(sum(nmiss),"missing values replaced with random alleles\n") }
   if(length(which(select))==1) { X[,select] <- miss1(X[,select]); return(X) }
   X[,select] <- apply(X[,select],2,miss1)
   return(X)
 }
 
 
-## wrapper for the snpStats::snp.imputation function
-# allows for stratified imputation, and the parameter 'by' allows
-# speeding up of imputation for large sets by running the imputation
-# in smaller batches (as large ones are really slow)
+#' Replace missing values in a SnpMatrix object with imputed values
+#'
+#' This function is a wrapper for the snpStats snp.imputation() and impute.snps() functions.
+#' It allows a full imputation with one simple command, and facilitates stratified imputation for
+#' subsets of samples, and the parameter 'by' allows subsetting by SNPs, which speeds up the
+#' imputation for large sets by running it in smaller batches (as large ones are really slow).
+#' The standard use of the snpStats imputation functions will still leave some NA's behind,
+#' whereas the option 'random' ensures each missing value is replaced, even if just by an
+#' allele chosen at random (using existing frequencies).
 # (chris)
-impute.missing <- function (X, bp = 1:ncol(X), strata = NULL, numeric = FALSE, verbose=FALSE, by=NULL, ...) {
-  N <- as(X, "numeric")
-  if(any(Dim(X)!=Dim(N))) { stop("'as numeric' lost desired dimensionality") }
+#' @param X SnpMatrix object with missing data that you wish to impute
+#' @param strata factor, imputation can be done independently for different sample subsets,
+#' use a vector here of the same length as the number of samples (nrow(X)) to code this
+#' @param by integer, a parameter that is passed to impute.missing() to determine
+#' what sized subsets to impute by (smaller subsets makes imputation faster)
+#' @param random logical, when imputation is performed using the core function, impute.snps(),
+#' usually there are some SNPs that remain missing, due to missingness in the most correlated
+#' SNPs used to impute them. Setting this parameter TRUE, will replace this remainder with
+#' random values (using the allele frequencies for the non missing data). Setting to FALSE
+#' will leave these values as missing in which case you cannot rely on this function returning
+#' a fully complete matrix.
+#' @param data.frame logical, if TRUE then return the result as a data.frame instead of a
+#' SnpMatrix object
+#' @param verbose logical, if TRUE, more information about what is being done in the 
+#' imputation will be provided. Additionally, if TRUE and the dataset being imputed is 
+#' large enough to take a long time, then a progress bar will be displayed using
+#' 'loop.tracker()'. If FALSE, no progress bar will be used, regardless of the size of dataset.
+#' @param ... further arguments to 'impute.snps()' from snpStats, which is the core function
+#' that performs the main imputation.
+#' @return Returns a SnpMatrix with no missing values (as any originally present are imputed
+#' or randomized), or if random=FALSE, it may contain some missing values. If data.frame=TRUE
+#' then the returned object will be a data.frame rather than a SnpMatrix.
+#' @export
+#' @author Chris Wallace and Nicholas Cooper \email{nick.cooper@@cimr.cam.ac.uk}
+#' @examples
+#' test.mat <- rSnpMatrix(nsnp=5,nsamp=10)
+#' print(SnpMatrix.to.data.frame(test.mat))
+#' out.mat <- impute.missing(test.mat)
+#' print(SnpMatrix.to.data.frame(out.mat))
+#' test.mat2 <- rSnpMatrix(nsnp=200,nsamp=100,call.rate=.98)
+#' head(col.summary(test.mat2))
+#' out.mat2 <- impute.missing(test.mat2,by=50)
+#' cs <- col.summary(out.mat2)
+#' head(cs)
+#' # 'random' is true, so there should be no remaining missing values
+#' paste(out.of(length(which(cs$Call.rate==1)),nrow(cs)),"SNPs imputed to 0% missing\n")
+#' out.mat3 <- impute.missing(test.mat2,random=FALSE)
+#' cs <- col.summary(out.mat3)
+#' # random was FALSE, so some of these should still have missing values:
+#' paste(out.of(length(which(cs$Call.rate==1)),nrow(cs)),"SNPs imputed to 0% missing\n")
+#' # for instance, these
+#' print(head(cs[which(cs$Call.rate<1),]))
+#' # complicated example using both sample and SNP subsets for imputation
+#' out.mat4 <- impute.missing(test.mat2, by=100, strata = c(rep(1,25),rep(2,50),rep(3,25)), random=FALSE)
+impute.missing <- function (X,  strata = NULL, by=NULL, random=TRUE, data.frame = FALSE,
+                            verbose=TRUE,...) {
+  if(!is(X)[1]=="SnpMatrix") { stop("X must be a SnpMatrix object") }
+  if(Dim(X)[1] < 2 | Dim(X)[2] <2) { stop("X must be at least 2 x 2") }
+  N <- as(X, "numeric"); 
+  done <- FALSE
+  mem.max <- 0.02  #GB
+  bp <- 1:ncol(X) # parameter needed for snp.imputation() ?
+  if(!is.null(by)) {
+    if(!is.numeric(by)) { warning("by must be numeric, ignoring invalid parameter"); by <- NULL }
+    by <- round(by) # force integer
+    if(by<3) { warning("by is too small to be useful, ignoring parameter"); by <- NULL }
+    if((by*1.25)>ncol(X)) { by <- NULL } # ignore 'by' if num SNPs is not that large
+  }
+  if(any(Dim(X)!=Dim(N))) { stop("'as numeric' caused loss of dimensionality for unknown reason") }
   if (!is.null(strata)) {
-    strata <- as.factor(strata)
-    if (length(levels(strata)) > 10) 
-      stop("too many levels in strata\n")
-    for (i in levels(strata)) {
-      cat("\nstrata", i, "\n")
-      wh <- which(strata == i)
-      N[wh, ] <- impute.missing(X[wh, , drop = FALSE], 
-                                bp, numeric = TRUE, ...)
+    if(length(strata)==nrow(X)) {
+      ## Partition by sample subsets, then re-send the subsets to this function for processing
+      strata <- as.factor(strata)
+      if (length(levels(strata)) > 20) 
+        stop("too many levels in strata\n")
+      for (i in levels(strata)) {
+        if(verbose) { cat("\nImputing sample subset '", i, "' (strata)\n",sep="") }
+        wh <- which(strata == i)
+        N <- as.data.frame(N)
+        N[wh, ] <- impute.missing(X[wh, , drop = FALSE], 
+                                   data.frame = TRUE, by=by,...)
+      }
+      done <- TRUE
+    } else {
+      #print(length(strata));print(nrow(X))
+      warning("'strata' should have length==nrow(X), all samples will be imputed together")
     }
   }
   if (is.null(strata) & is.numeric(by)) {
+    ## Partition by SNP subsets, then re-send the subsets to this function for processing
     strata <- as.factor(make.split(ncol(X),by=by))
     # added by nick
     for (i in levels(strata)) {
-      cat("\nsplit", i, "\n")
       wh <- which(strata == i)
-      N[, wh] <- impute.missing(X[,wh , drop = FALSE], 
-                                bp, numeric = TRUE, ...)
+      if(verbose) { cat(" imputing SNP subset ", minna(wh), "-",maxna(wh),"\n",sep="") }
+      anything <- impute.missing(X[,wh , drop = FALSE], data.frame = TRUE, ...)
+      N <- as.data.frame(N)
+      N[, wh] <- anything
+    }
+    done <- TRUE
+  } else {
+    if(!done) {
+      # The core imputation, done using the snpStats functions 'snp.imputation' and 'impute.snps' #
+      csumm <- col.summary(X)
+      use <- csumm[, "Certain.calls"] == 1
+      X2 <- X[, use]
+      bp <- bp[use]
+      imp <- (csumm[, "Call.rate"] < 1 & !is.na(csumm[, "Call.rate"]))[use]
+      #if(sumna(imp)==175) { stst <- strata; byby <- by; prv(stst,byby)}
+      if(verbose) { cat(sumna(imp), " SNP",if(sumna(imp)!=1) {"s"} else { "" }," in the set had missing values\n",sep="")  }
+      ll <- length(which(imp)); dd <- 1 # mx <- max(which(imp),na.rm=T); 
+      if(estimate.memory(X2)<mem.max) { verbose <- FALSE }
+      for (i in which(imp)) {
+        if(verbose) {
+          loop.tracker(dd,ll); dd <- dd + 1 # track this loop as count, these pars not used elsewhere
+        }
+        supres <- capture.output(rule <- snp.imputation(X2[, -i, drop = FALSE], X2[, 
+                                                   i, drop = FALSE], bp[-i], bp[i]))
+        if (is.null(rule@.Data[[1]])) 
+          next
+        imp <- impute.snps(rules = rule, snps = X2[, rule@.Data[[1]]$snps, drop = FALSE], ...) 
+        wh.na <- which(is.na(N[, i]))
+        #gtWWW <- X2
+        #prv(gtWWW)
+        if(length(wh.na)>0) { 
+          N[wh.na, colnames(X2)[i]] <- imp[wh.na]
+        }
+      }
     }
   }
-  else {
-    csumm <- col.summary(X)
-    use <- csumm[, "Certain.calls"] == 1
-    X2 <- X[, use]
-    bp <- bp[use]
-    imp <- (csumm[, "Call.rate"] < 1 & !is.na(csumm[, "Call.rate"]))[use]
-    cat(sum(imp,na.rm=T), "to impute\n")
-    mx <- max(which(imp),na.rm=T)
-    for (i in which(imp)) {
-      loop.tracker(i,mx)
-      supres <- capture.output(rule <- snp.imputation(X2[, -i, drop = FALSE], X2[, 
-                                                                                 i, drop = FALSE], bp[-i], bp[i]))
-      if (is.null(rule@.Data[[1]])) 
-        next
-      imp <- impute.snps(rules = rule, snps = X2[, rule@.Data[[1]]$snps, drop = FALSE], ...) 
-      wh.na <- which(is.na(N[, i]))
-      N[wh.na, colnames(X2)[i]] <- imp[wh.na]
-    }
-    cat("\n")
-  }
-  if (numeric) {
+  if(random) { N <- randomize.missing(N,verbose=verbose) } # replace any remaining missing values
+  if(data.frame) {
     return(as.data.frame(N))
   }
   else {
-    print(Dim(N))
-    print(Dim(X@snps))
-    return(new("aSnpMatrix", .Data = new("SnpMatrix", data = (round(N) + 1),
-                                         , nrow = nrow(N), ncol = ncol(N), dimnames = dimnames(N)), 
-               snps = X@snps, samples = X@samples, phenotype = X@phenotype, 
-               alleles = X@alleles))
+    #print(Dim(N))
+    #print(Dim(X@snps))
+    N <- round(N)
+    N[is.na(N)] <- -1 # replace missing with -1 [will become zero in next line]
+    if(is(N)[1]=="list" | is(N)[1]=="data.frame") { N <- as.matrix(N) } # sometimes it becomes a list for some reason???
+    return(new("SnpMatrix", data = (as.raw(N+1)),
+                      nrow = nrow(N), ncol = ncol(N), dimnames = dimnames(N)))
   }
 }
 
-## imputation subscript ## 
-# Nick
-# used by conditional analysis and indistinguishable analyses scripts, does the imputation,
-# saving imputed results as we go so don't need to keep recalculating the same SNPs
-# will automatically proceed in the most efficient way possible
-ichip.imputation <- function(myData, imp.file, smp.filt=NULL, snp.filt=NULL, prv.file=NULL) {
-  if(is.null(smp.filt)) { smp.filt <- 1:nrow(myData) }
-  if(is.null(snp.filt)) { snp.filt <- 1:ncol(myData) }
-  prev.file <- FALSE
-  if(!is.null(prv.file)) { if(is.character(prv.file)) {
-    if(file.exists(prv.file)) {
-      if(get.ext(prv.file) %in% c("RData","rda")) {
-        prev.file <- TRUE # only try if the file exists and looks like R binary
-      }
-    }
-  } }
-  sample.names <- rownames(myData)[smp.filt]
-  #print("1");print(length(smp.filt)); print(Dim(myData))
-  if(!file.exists(imp.file)) {
-    myDataFilt <- myData[smp.filt,snp.filt]
-    myDat <- impute.missing(myDataFilt,numeric=T)
-    myDat <- randomize.missing(myDat)
-    myDatSnp <- data.frame.to.SnpMatrix(myDat)
-    save(myDat,myDatSnp,cov.dat,file=imp.file)
-    cat("wrote imputed to:",imp.file,"\n")
-  } else { 
-    cat("loaded imputed data from:",imp.file,"\n")
-    print(load(imp.file))
-    ### note this row/col check is not 100% foolproof!
-    #print("2");print(length(smp.filt)); print(Dim(myDat))
-    if(nrow(myDat)!=length(smp.filt)) { 
-      if(!all(sample.names %in% rownames(myDat))) {
-        use.exist <- FALSE
-        stop("missing samples in loaded file, suggest deleting existing imputation and re-run") 
-      } else {
-        cat("re-arranging samples in file to match smp.filt\n")
-        indxz <- match(sample.names,rownames(myDat))
-        if(length(which(is.na(indxz)))<1) {  myDat <- myDat[indxz,] } else { stop("rearranging failed") }
-        if(nrow(myDat)!=length(smp.filt)) { stop("something went wrong with sample matching") }
-        if(any(rownames(myDat)!=sample.names)) { stop("selection went wrong with sample matching") }
-      }
-    }
-    if(ncol(myDat)!=length(snp.filt) & prev.file) { 
-      ## if this has changed a bit, try to ressurrect without recalculating the whole thing
-      cat("mismatching number of snps in loaded file\n") 
-      if(!exists("bigDat")) { print(load("allImputed.RData")) }
-      targs <- colnames(myData)[snp.filt]
-      gotem <- narm(match(targs,colnames(bigDat)))
-      aintgotem <- targs[!targs %in% colnames(bigDat)]
-      if(length(aintgotem)>0) {
-        use.exist <- length(gotem)>0
-        if(use.exist) {
-          cat("combining",length(gotem),"previously imputed with",length(aintgotem),"from scratch\n")
-          myDat.part1 <- impute.missing(myData[smp.filt,match(aintgotem,colnames(myData))],numeric=T)
-          if(!exists("bigDat")) { print(load("allImputed.RData")) }
-          myDat.part2 <- bigDat[,gotem]
-          if(any(rownames(myDat.part1)!=rownames(myDat.part2))) { 
-            if(!all(rownames(myDat.part1) %in% rownames(myDat.part2))) {
-              warning("samples missing from existing dataset") 
-              cat("samples were missing from existing dataset, ")
-              use.exist <- FALSE
-            } else {
-              indzx <- match(rownames(myDat.part1),rownames(myDat.part2))
-              if(length(which(is.na(indzx)))<1) {  myDat.part2 <- myDat.part2[indzx,] } else { stop("rearranging samps failed") }
-            }
-          }
-        }
-        if(use.exist) {
-          # ie, if still true [becomes false if samples were missing]
-          myDat.cbind <- cbind(myDat.part1,myDat.part2)
-          indz <- match(targs,colnames(myDat.cbind))
-          if(any(is.na(indz))) { stop("combined data still missing target SNPs") }
-          myDat <- myDat.cbind[,indz]
-        } else { cat("no existing valid imputation, ") }
-        if(!use.exist) {
-          ## do all from scratch
-          cat("imputing from scratch\n")
-          myDataFilt <- myData[smp.filt,snp.filt]
-          myDat <- impute.missing(myDataFilt,numeric=T)
-        }
-      } else { 
-        ## have all the snps, but need to prune some
-        cat("trimming loaded data to subset needed\n")
-        indz <- match(targs,colnames(bigDat))
-        if(any(is.na(indz))) { stop("not sure why loaded data is missing target SNPs") }
-        if(length(indz)==0) { stop("no target snps in list") }
-        myDat <- bigDat[,indz]
-      }
-      #prv(myDat)
-      myDatSnp <- data.frame.to.SnpMatrix(myDat)
-      myDat <- impute.missing(myDatSnp,numeric=T)
-      myDat <- randomize.missing(myDat)
-      myDatSnp <- data.frame.to.SnpMatrix(myDat)
-      save(myDat,myDatSnp,cov.dat,file=imp.file)
-      cat("wrote imputed to:",imp.file,"\n")
-    } else { 
-      myDat <- randomize.missing(myDat)
-      myDatSnp <- data.frame.to.SnpMatrix(myDat)
-      save(myDat,myDatSnp,cov.dat,file=imp.file)
-      cat("loaded file is a good match to requested SNP-set\n")
-    }
-  }
-  return(imp.file)
+
+# internal, function generate a random MAF, then random SNP
+rsnp <- function(n,A.freq.fun=runif,cr=.95, A.freq=NA) { 
+  if(is.na(A.freq)) {  m <- A.freq.fun(1) } else { m <- A.freq }
+  x <- sample(0:3, n, replace=T, prob=c(1-cr,cr*(m^2),cr*(2*(1-m)*m),cr*((1-m)^2)))
+  return(x) 
 }
-
-
-
-
+ 
 
 # internal
-## Given a region, add window cM either side and return.
-## Everything is HapMap v2, release 22, build 36.
-
-## Options to plot the rates and window exist:
-##   do.plot=TRUE -> produce plot
-##   add.plot=TRUE -> add lines to existing plot
-##   do.lines=TRUE -> use lines to indicate positions of window
-## NB, add.plot and do.lines are ignored, unless do.plot=TRUE.
-## function from David.  Used because when running this on the queue,
-## sometimes need multiple connections to open the damn files.
-multitry <- function(expr, times=5, silent=FALSE, message=""){
-  warn <- options()$warn
-  options(warn=-1)
-  for (i in 1:times) {
-    res <- try(expr, silent=TRUE)
-    if (inherits(res, "try-error")){
-      if (i==times) {
-        options(show.error.messages = TRUE)
-        stop(geterrmessage(), " (", times, " failed attempts)", message)
-      }
-      next
-    }
-    break
-  }
-  options(warn=warn)
-  if (!silent && (i>1)) {
-    warning(geterrmessage(), " (", times-1, " failed attempts)")
-  }
-  res
+rsnpid <- function(n) { 
+  id.len <- sample(c(3:8),n,replace=T,prob=c(0.01, 0.01, 0.01, 0.10, 0.50, 0.37))
+  each.id <- function(l) { sapply(l,function(n) { paste(replicate(n,sample(1:9,1)),collapse="",sep="") }) }
+  sufz <- each.id(id.len)
+  ids <- paste0("rs",sufz)
+  return(ids)
 }
+
+# internal
+ldfun <- function(n) { x <- runif(n); r2 <- runif(n); x[x<.6 & r2>.1] <- x[x<.6 & r2>.1]+.4 ; return(x) }
+
+# internal
+rsampid <- function(n,pref="ID0") { paste0(pref,pad.left(1:n,"0")) }
+
+# internal
+snpify.cont <- function(x,call.rate=.95,A.freq.fun=runif) { 
+  if(length(x)<2) { stop("x must be longer than 1 element") }
+  if(length(x)<5) { warning("for good simulation x should be fairly large, e.g, at least 10, better >100") }
+  n <- length(x)
+  if(all(x %in% 0:3)) { return(x) } # these are already snp-coded
+  rr <- rank(x)
+  sim1 <- rsnp(n,A.freq.fun=A.freq.fun,cr=call.rate) # A.freq=NA
+  x[rr] <- sort(sim1)
+  return(x)
+}
+
+# internal
+get.biggest <- function(r2.mat) {
+  mm <- max(r2.mat,na.rm=T)
+  coord <- which(r2.mat==mm,arr.ind=T)
+  if(!is.null(dim(coord))){ coord <- coord[1,] }
+  return(coord)
+}
+
+# internal
+get.top.n <- function(mat,n=10) {
+  cr <- cor(mat,use="pairwise.complete")^2
+  diag(cr) <- 0
+  nn <- NULL
+  while(length(nn)<n) { 
+    coord <- get.biggest(r2.mat=cr)
+    nn <- unique(c(nn,coord))
+    cr[coord[1],coord[2]] <- NA
+    cr[coord[2],coord[1]] <- NA
+    #cr[,coord[1]] <- NA; cr[coord[1],] <- NA
+    #cr[,coord[2]] <- NA; cr[coord[2],] <- NA
+  }
+  nn <- nn[1:n]
+  new.mat <- mat[,nn]
+  return(new.mat)
+}
+
+#' Create a SNP matrix with simulated data
+#' 
+#' A simple function to simulation random SnpMatrix objects for
+#' testing purposes. Does not produce data with an 'LD' structure
+#' so is not very realistic. 
+#' @param nsnp number of SNPs (columns) to simulate
+#' @param nsamp number of samples (rows) to simulate
+#' @param call.rate numeric, percentage of SNPs called, e.g, .95 leaves 5% missing data,
+#' or 1.0 will produce a matrix with no missing data
+#' @param A.freq.fun function, a function to randomly generate frequencies of the 'A'
+#' allele, this must produce 'n' results 0 < x < 1 with argument n, the default is
+#' for uniform generation.
+#' @return returns a SnpMatrix object with nsnp columns and nsamp rows, with 1-call.rate% 
+#' missing data, with allele frequencies generated by 'A.freq.fun'.
+rSnpMatrix <- function(nsnp=5,nsamp=10,call.rate=.95,A.freq.fun=runif) {
+  dummy.vec <- rep(nsamp,nsnp)
+  call.rate <- force.percentage(call.rate)
+  exp.fac <- 10
+  ld <- FALSE
+  warn.mem <- 0.5 # 0.5GB
+  if(!ld) {
+    mat <- sapply(dummy.vec,rsnp,A.freq.fun=A.freq.fun,cr=call.rate)
+  } else {
+    # this didn't really work #
+    if(estimate.memory(exp.fac*nsamp*nsnp)>warn.mem) { warning("when ld=T, large simulations can take a long time") }
+    mat <- sapply(rep(nsamp,nsnp*exp.fac),rsnp,A.freq.fun=A.freq.fun,cr=call.rate)
+    mat <- get.top.n(mat,nsnp)    
+  }
+  rownames(mat) <- rsampid(nsamp); colnames(mat) <- rsnpid(nsnp)
+  #sm <- new("SnpMatrix",as.raw(mat),dimnames=list(rsampid(nsamp),rsnpid(nsnp)))
+  sm <- new("SnpMatrix", data = as.raw(mat), nrow = nrow(mat), ncol = ncol(mat), dimnames = dimnames(mat))
+  return(sm)
+}
+
+
 
 
 
 # chris' function to get a centimorgan window from intervals
 # vector input
-recwindow <- function(ranged=NULL,chr=NA,st=NA,en=st,window=0.1, # cM either side
-                      do.plot=FALSE, # if wanted to plot
-                      add.plot=FALSE,do.lines=TRUE,bp.ext=0,...) {
+# internal
+## Given a region, add window cM either side and return.
+## Everything is HapMap v2, release 22, build 36.
+#' Extend an interval or SNP by distance in centimorgans (recombination distance)
+#' 
+#' It is straightforward to extend a genomic interval or position by a number of basepairs, or
+#' a percentage, but extending by recombination units of centimorgans is more involved, requiring
+#' annotation lookup. This function streamlines this process
+recwindow <- function(ranged=NULL,chr=NA,start=NA,end=start,window=0.1,bp.ext=0, rec.map=NULL) {
+  if(!is.numeric(bp.ext)) { warning("bp.ext must be numeric, setting to zero"); bp.ext <- 0 }
+  if(!is.numeric(window)) { warning("window must be numeric, setting to 0.1 centimorgans"); window <- 0.1 }
+  if(!is.na(chr)) { if(any(!paste(chr) %in% paste(1:22))) { 
+    stop("this function only works for autosomes 1-22 [e.g, no X,Y or formatting like 'chr2', etc]") } }
   if(is(ranged)[1] %in% c("RangedData","GRanges")) { 
     if(is(ranged)[1]=="GRanges") { ranged <- as(ranged,"RangedData") }
     ranged <- toGenomeOrder2(ranged,strict=T)
     ss <- start(ranged); ee <- end(ranged); cc <- chr2(ranged)
-    out <- recwindow(chr=cc,st=ss,en=ee,window=window,bp.ext=bp.ext,...)
+   out <- recwindow(chr=cc,start=ss,end=ee,window=window,bp.ext=bp.ext)
     outData <- RangedData(ranges=IRanges(start=out[,1],end=out[,2],names=rownames(ranged)),space=cc)
     outData <- toGenomeOrder(outData,strict=TRUE)
     for (zz in 1:ncol(ranged)) { outData[[colnames(ranged)[zz]]] <- ranged[[colnames(ranged)[zz]]]  }
     if(is(ranged)[1]=="GRanges") { outData <- as(toGenomeOrder2(outData,strict=T),"GRanges") }
     return(outData)
   } else {
-    if(all(!is.na(chr)) & all(!is.na(st)) & all(!is.na(en))) {
-      if(length(chr)==length(st) & length(st)==length(en)) {
+    if(all(!is.na(chr)) & all(!is.na(start)) & all(!is.na(end))) {
+      if(length(chr)==length(start) & length(start)==length(end)) {
         if(length(chr)>1) {
           # run for a vector
           out <- matrix(ncol=2,nrow=length(chr)); colnames(out) <- c("start","end")
           for (dd in 1:length(chr)) {
-            out[dd,] <- recwindow(chr=chr[dd],st=st[dd],en=en[dd],window=window,bp.ext=bp.ext,...)
+            out[dd,] <- recwindow(chr=chr[dd],start=start[dd],end=end[dd],window=window,bp.ext=bp.ext)
           }
           return(out)
         } else {
           ## continue as normal, just a single coordinate/range to process
         }
       } else {
-        stop("invalid input, st, en and chr need to be the same length")
+        stop("invalid input, start, end and chr need to be the same length")
       }
     } else {
-      stop("invalid input, either use a RangedData object, or else chr, st and en")
+      stop("invalid input, either use a RangedData object, or else chr, start and end")
     }
   }
-  rate.fn <- sprintf("/dunwich/scratch/chrisw/HapMap/rates_rel22/genetic_map_chr%s_b36.txt.gz",chr)
+  
+  #rate.fn <- sprintf("/dunwich/scratch/chrisw/HapMap/rates_rel22/genetic_map_chr%s_b36.txt.gz",chr)
   #print(rate.fn)
-  rates <- read.table(gzfile(rate.fn),header=TRUE)
-  cm.st <- rates[which.min(abs(rates$position-st)),3]
-  cm.en <- rates[which.min(abs(rates$position-en)),3]
+  #rates <- read.table(gzfile(rate.fn),header=TRUE)
+  if(is.list(rec.map)) { if(length(rec.map)==22) { rates <- rec.map[[chr]] } } else {
+    if(is.null(rec.map)) { rates <- get.recombination.map()[[chr]] } else {
+      if(is.character(rec.map)) { rates <- get.recombination.map(dir=rec.map)[[chr]] } else {
+        stop("invalid value for rec.map entered")
+      }
+    }
+  }
+  cm.st <- rates[which.min(abs(rates$position-start)),3]
+  cm.en <- rates[which.min(abs(rates$position-end)),3]
   
   mx <- max(window,1)
   kk <- rates[which.min(abs(rates[,3]-(cm.st-window))) : which.min(abs(rates[,3]-(cm.en+window))),]
   cat("n hapmap snps in window =",nrow(kk),"\n")
   from <- min(kk[,1])
   to <- max(kk[,1])
-  if(do.plot) {
-    kk <- rates[abs(rates[,3]-cm.st)<mx | abs(rates[,3]-cm.en)<mx,]
-    if(add.plot) {
-      lines(kk[,1:2])
-    } else {
-      plot(kk[,1:2],type="l",main=paste("Recombination rates on chr",chr),
-           xlab="chromosome position (bp)",ylab="rec rate (cM/Mb)",...)
-    }
-    if(window>0 & do.lines) {
-      abline(v=c(from,to),col="red")
-      abline(v=c(st,en),col="blue")
-      legend("topleft",lty=c(1,1),col=c("red","blue"),legend=c("window","target"))
-    }
-  }
-  cat("new window size is\nleft: ",(st-from+bp.ext)/1000,"kb\tright: ",(to-en+bp.ext)/1000,"kb\ttotal: ",(to-from+(2*bp.ext))/1000,"kb\n",sep="")
+  ##
+  cat("new window size is\nleft: ",(start-from+bp.ext)/1000,"kb\tright: ",(to-end+bp.ext)/1000,"kb\ttotal: ",(to-from+(2*bp.ext))/1000,"kb\n",sep="")
   if(bp.ext>0) { cat("in addition to cM distance, window was extended by",bp.ext,"base pairs on either side\n")} 
   from <- max(c(0,(from-bp.ext)))
   to <- min(c((to+bp.ext),get.chr.lens()[chr][1]),na.rm=T)
@@ -2732,6 +2796,126 @@ plink.allele.coding <- function(hwe.fn) {
 
 
 ## SPECIFIC TO ME ##
+
+
+
+## imputation subscript ## 
+# Nick
+# used by conditional analysis and indistinguishable analyses scripts, does the imputation,
+# saving imputed results as we go so don't need to keep recalculating the same SNPs
+# will automatically proceed in the most efficient way possible
+# for my ichip analysis, prv.file="allImputed.RData"
+#' @param myData SnpMatrix object with missing data that you wish to impute
+#' @param imp.file name to give the file where the result will be saved
+#' @param smp.filt a list of sample (indexes or labels) to include
+#' @param snp.filt a list of SNPs (indexes or labels) to include
+#' @param prv.file character, if applicable the name of a previous imputation file, which
+#' means you don't need to impute the same SNPs again if you've imputed them before
+#' @param by integer, a parameter that is passed to impute.missing() to determine
+#' what sized subsets to impute by (smaller subsets makes imputation faster)
+#' @param ret.object logical, if TRUE then return the a SnpMatrix with missing values
+#' filled in, if false, return the file name this object was written to (same as imp.file)
+#' @return See ret.object. If ret.object=TRUE, then returns the same SnpMatrix with missing
+#' values replaced.
+#' @examples
+#' test.mat <- rSnpMatrix(nsnp=5,nsamp=10)
+#' ichip.imputation(test.mat, "myImp.RData")
+#' ichip.imputation(test.mat, imp.file="myImp.RData",prv.file="myImp.RData")
+#' test.mat2 <- rSnpMatrix(nsnp=500,nsamp=10)
+#' ichip.imputation(test.mat2, imp.file="myImp.RData",prv.file="myImp.RData")
+#' test.mat3 <- cbind(test.mat2[,1:200],rSnpMatrix(nsnp=500,nsamp=10))
+#' ichip.imputation(test.mat3, imp.file="myImp.RData",prv.file="myImp.RData")
+ichip.imputation <- function(myData, imp.file, smp.filt=NULL, snp.filt=NULL) {
+  if(is.null(smp.filt)) { smp.filt <- 1:nrow(myData) }
+  if(is.null(snp.filt)) { snp.filt <- 1:ncol(myData) }
+  sample.names <- rownames(myData)[smp.filt]
+  #print("1");print(length(smp.filt)); print(Dim(myData))
+  if(!file.exists(imp.file)) {
+    myDataFilt <- myData[smp.filt,snp.filt]
+    myDat <- impute.missing(myDataFilt,numeric=T)
+    myDat <- randomize.missing(myDat)
+    myDatSnp <- data.frame.to.SnpMatrix(myDat)
+    save(myDat,myDatSnp,cov.dat,file=imp.file)
+    cat("wrote imputed to:",imp.file,"\n")
+  } else { 
+    cat("loaded imputed data from:",imp.file,"\n")
+    print(load(imp.file))
+    ### note this row/col check is not 100% foolproof!
+    #print("2");print(length(smp.filt)); print(Dim(myDat))
+    if(nrow(myDat)!=length(smp.filt)) { 
+      if(!all(sample.names %in% rownames(myDat))) {
+        use.exist <- FALSE
+        stop("missing samples in loaded file, suggest deleting existing imputation and re-run") 
+      } else {
+        cat("re-arranging samples in file to match smp.filt\n")
+        indxz <- match(sample.names,rownames(myDat))
+        if(length(which(is.na(indxz)))<1) {  myDat <- myDat[indxz,] } else { stop("rearranging failed") }
+        if(nrow(myDat)!=length(smp.filt)) { stop("something went wrong with sample matching") }
+        if(any(rownames(myDat)!=sample.names)) { stop("selection went wrong with sample matching") }
+      }
+    }
+    if(ncol(myDat)!=length(snp.filt)) { 
+      ## if this has changed a bit, try to ressurrect without recalculating the whole thing
+      cat("mismatching number of snps in loaded file\n") 
+      if(!exists("bigDat")) { print(load("allImputed.RData")) }
+      targs <- colnames(myData)[snp.filt]
+      gotem <- narm(match(targs,colnames(bigDat)))
+      aintgotem <- targs[!targs %in% colnames(bigDat)]
+      if(length(aintgotem)>0) {
+        use.exist <- length(gotem)>0
+        if(use.exist) {
+          cat("combining",length(gotem),"previously imputed with",length(aintgotem),"from scratch\n")
+          myDat.part1 <- impute.missing(myData[smp.filt,match(aintgotem,colnames(myData))],numeric=T)
+          if(!exists("bigDat")) { print(load("allImputed.RData")) }
+          myDat.part2 <- bigDat[,gotem]
+          if(any(rownames(myDat.part1)!=rownames(myDat.part2))) { 
+            if(!all(rownames(myDat.part1) %in% rownames(myDat.part2))) {
+              warning("samples missing from existing dataset") 
+              cat("samples were missing from existing dataset, ")
+              use.exist <- FALSE
+            } else {
+              indzx <- match(rownames(myDat.part1),rownames(myDat.part2))
+              if(length(which(is.na(indzx)))<1) {  myDat.part2 <- myDat.part2[indzx,] } else { stop("rearranging samps failed") }
+            }
+          }
+        }
+        if(use.exist) {
+          # ie, if still true [becomes false if samples were missing]
+          myDat.cbind <- cbind(myDat.part1,myDat.part2)
+          indz <- match(targs,colnames(myDat.cbind))
+          if(any(is.na(indz))) { stop("combined data still missing target SNPs") }
+          myDat <- myDat.cbind[,indz]
+        } else { cat("no existing valid imputation, ") }
+        if(!use.exist) {
+          ## do all from scratch
+          cat("imputing from scratch\n")
+          myDataFilt <- myData[smp.filt,snp.filt]
+          myDat <- impute.missing(myDataFilt,numeric=T)
+        }
+      } else { 
+        ## have all the snps, but need to prune some
+        cat("trimming loaded data to subset needed\n")
+        indz <- match(targs,colnames(bigDat))
+        if(any(is.na(indz))) { stop("not sure why loaded data is missing target SNPs") }
+        if(length(indz)==0) { stop("no target snps in list") }
+        myDat <- bigDat[,indz]
+      }
+      #prv(myDat)
+      myDatSnp <- data.frame.to.SnpMatrix(myDat)
+      myDat <- impute.missing(myDatSnp,numeric=T)
+      myDat <- randomize.missing(myDat)
+      myDatSnp <- data.frame.to.SnpMatrix(myDat)
+      save(myDat,myDatSnp,cov.dat,file=imp.file)
+      cat("wrote imputed to:",imp.file,"\n")
+    } else { 
+      myDat <- randomize.missing(myDat)
+      myDatSnp <- data.frame.to.SnpMatrix(myDat)
+      save(myDat,myDatSnp,cov.dat,file=imp.file)
+      cat("loaded file is a good match to requested SNP-set\n")
+    }
+  }
+  return(imp.file)
+}
 
 
 
@@ -3616,4 +3800,38 @@ if(F) {
   do.the.meta.ones(p.m.reg)
   do.the.meta.ones(p.m.out)
 }
+
+
+
+
+
+# wut?
+## Options to plot the rates and window exist:
+##   do.plot=TRUE -> produce plot
+##   add.plot=TRUE -> add lines to existing plot
+##   do.lines=TRUE -> use lines to indicate positions of window
+## NB, add.plot and do.lines are ignored, unless do.plot=TRUE.
+## function from David.  Used because when running this on the queue,
+## sometimes need multiple connections to open the damn files.
+multitry <- function(expr, times=5, silent=FALSE, message=""){
+  warn <- options()$warn
+  options(warn=-1)
+  for (i in 1:times) {
+    res <- try(expr, silent=TRUE)
+    if (inherits(res, "try-error")){
+      if (i==times) {
+        options(show.error.messages = TRUE)
+        stop(geterrmessage(), " (", times, " failed attempts)", message)
+      }
+      next
+    }
+    break
+  }
+  options(warn=warn)
+  if (!silent && (i>1)) {
+    warning(geterrmessage(), " (", times-1, " failed attempts)")
+  }
+  res
+}
+
 
