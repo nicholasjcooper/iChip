@@ -51,8 +51,15 @@ setGeneric("chip", function(x) standardGeneric("chip"))
 setMethod("chip", "ChipInfo", function(x) x@chip)
 setGeneric("build", function(x) standardGeneric("build") )
 setMethod("build", "ChipInfo", function(x) x@build)
-setGeneric("rs.id", function(x) standardGeneric("rs.id") )
-setMethod("rs.id", "ChipInfo", function(x) { u <- mcols(x) ;  if("rs.id" %in% colnames(u)) { u[,"rs.id"] } else { NULL } })
+setGeneric("rs.id", function(x,b=TRUE) standardGeneric("rs.id") )
+setMethod("rs.id", "ChipInfo", function(x,b=TRUE) { 
+  u <- mcols(x) ;  
+  if("rs.id" %in% colnames(u)) { 
+    U <- u[,"rs.id"] 
+    if(!b) { U <- gsub("b","",U) }
+    return(U)
+  } else { return(NULL) } 
+})
 setGeneric("A1", function(x) standardGeneric("A1") )
 setMethod("A1", "ChipInfo", function(x) { u <- mcols(x) ;  if("A1" %in% colnames(u)) { u[,"A1"] } else { NULL } })
 setGeneric("A2", function(x) standardGeneric("A2") )
@@ -80,6 +87,7 @@ setGeneric("QCfail", function(x,type=NA) standardGeneric("QCfail") )
 setMethod("QCpass", "ChipInfo", function(x) { 
   ii <- which(QCcode(x)==0)
   if(length(ii)>0) { return(x[ii,]) } else { warning("No SNPs passed QC"); return(NULL) } })
+
 setMethod("QCfail", "ChipInfo", function(x,type=NA) { 
   ii <- which(QCcode(x)!=0)
   if(is.numeric(type)) { 
@@ -90,7 +98,6 @@ setMethod("QCfail", "ChipInfo", function(x,type=NA) {
     }
   }
   if(length(ii)>0) { return(x[ii,]) } else { warning("All SNPs passed QC"); return(NULL) } })
-
 
 setMethod("[[", "ChipInfo", function(x,i,j,...) { 
   dotArgs <- list(...)
@@ -110,11 +117,11 @@ setMethod("[[", "ChipInfo", function(x,i,j,...) {
   if (is.numeric(i) && !is.na(i) && (i < 1L || i > length(cn)))
     stop("subscript out of bounds")
   # do the selection #
-  if(i %in% paste(chr(snp.info))) {
-    out <- snp.info[chr(snp.info)==i,]
+  if(i %in% paste(chr(x))) {
+    out <- x[chr(x)==i,]
   } else {
     if(is.numeric(i)) {
-      out <- snp.info[match(chr(snp.info),chrNames(snp.info))==i,]
+      out <- x[match(chr(x),chrNames(x))==i,]
     } else {
       stop("unknown index")
     }
@@ -129,7 +136,7 @@ setGeneric("convTo37", function(x) standardGeneric("convTo37"))
           
 setMethod("convTo37", "ChipInfo", function(x) {
   if(ucsc.sanitizer(build(x))=="hg18") {
-    u <- conv.36.37(ranged=as(x,"GRanges"))
+    u <- conv.36.37(ranges=as(x,"GRanges"))
     if(length(u)==length(x)) { 
       x@ranges <- u@ranges
       all.eq <- TRUE
@@ -145,7 +152,7 @@ setMethod("convTo37", "ChipInfo", function(x) {
       if(any(xx!=uu)) { x@seqnames <- u@seqnames }
       x@build <- "hg19"
     } else { 
-      stop("conversion to build37/hg19 failed") 
+      stop("conversion to build37/hg19 failed, input had length ",length(x),"; output had length ",length(u)) 
     } 
   } else {
     if(ucsc.sanitizer(build(x))!="hg19") { 
@@ -161,7 +168,7 @@ setGeneric("convTo36", function(x) standardGeneric("convTo36"))
 
 setMethod("convTo36", "ChipInfo", function(x) {
   if(ucsc.sanitizer(build(x))=="hg19") {
-    u <- conv.37.36(ranged=as(x,"GRanges"))
+    u <- conv.37.36(ranges=as(x,"GRanges"))
     if(length(u)==length(x)) { 
       x@ranges <- u@ranges
       all.eq <- TRUE
@@ -201,7 +208,9 @@ ChipInfo <- function(GRanges=NULL, chr=NULL, pos=NULL, ids=NULL, chip="unknown c
   if(build!="") { build <- ucsc.sanitizer(build) }
   LL <- max(length(chr),length(GRanges),na.rm=T)
   if(length(A1)!=LL | length(A2)!=LL) { A1 <- A2 <- rep(NA,times=LL) }
-  if(length(rs.id)!=LL) { rs.id <- rep(NA,times=LL) }
+  if(length(rs.id)!=LL) { rs.id <- rep(NA,times=LL) } else { 
+    if(any(duplicated(rs.id))) { rs.id <- add.trail(rs.id) } # appends letters to stop duplicates
+  }
   if(length(QCcode)!=LL) { QCcode <- rep(0,LL) }
   if(is.null(GRanges)) {
     GRanges <- make.chr.pos.granges(chr=chr,pos=pos,row.names=ids)
@@ -247,7 +256,16 @@ setAs("GRanges", "ChipInfo",
         if(all(is.na(bb))) { build <- "" } else {
           if(length(unique(bb))==1) { build <- ucsc.sanitizer(bb[1]) } else { build <- "" }  
         }
-        ChipInfo("ChipInfo",GRanges=from,chip="unknown chip",build=build,rs.id=NULL,A1=NULL,A2=NULL)
+        cN <- colnames(mcols(from))
+        ii <- match(toupper("A1"), toupper(cN))
+        if(!is.na(ii)) { a1 <- mcols(from)[,ii] } else { a1 <- NULL }
+        ii <- match(toupper("A2"), toupper(cN))
+        if(!is.na(ii)) { a2 <- mcols(from)[,ii] } else { a2 <- NULL }
+        ii <- match(toupper("rs.id"), toupper(cN))
+        if(!is.na(ii)) { rss <- mcols(from)[,ii] } else { rss <- NULL }
+        ii <- match(toupper("QCcode"), toupper(cN))
+        if(!is.na(ii)) { qcc <- mcols(from)[,ii] } else { qcc <- NULL }
+        ChipInfo("ChipInfo",GRanges=from,chip="unknown chip",build=build,rs.id=rss,A1=a1,A2=a2,QCcode=qcc)
       }
 )
 

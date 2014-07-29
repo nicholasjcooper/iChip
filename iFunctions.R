@@ -1,10 +1,19 @@
 
+
+## USEFUL ONES !! HERE !!!
+
+
+options(chip.info="/chiswick/data/ncooper/iChipData/ImmunoChip_ChipInfo.RData")
+options(ucsc="hg18")
+options(save.annot.in.current=1)
+
+
 if(Sys.info()[["user"]]=="ncooper")
 {
-  source("~/github/iChip/firstscriptFunctions.R") # only needed for internal analyses
-  source("~/github/plumbCNV/geneticsFunctions.R")
-  source("~/github/iChip/ChipInfoClass.R")
-  source('~/github/iChip/specificIFunctions.R', echo=TRUE)
+  source("~/github/iChip/firstscriptFunctions.R", echo=FALSE) # only needed for internal analyses
+  source("~/github/plumbCNV/geneticsFunctions.R", echo=FALSE)
+  source("~/github/iChip/ChipInfoClass.R", echo=FALSE)
+  source('~/github/iChip/specificIFunctions.R', echo=FALSE)
 }
 
 
@@ -202,6 +211,18 @@ ucsc.sanitizer <- function(build,allow.multiple=FALSE,show.valid=FALSE) {
 }
 
 
+# ok as long as at least one non-missing snp in the summary
+#' See snpStats::col.summary. Same in every way, except for the undesirable
+#' behaviour of snpStats when a SNP has 100% missing values it is ignored
+#' in the call-rate summary (rather than given a zero). This can unintentionally
+#' mean that call-rate filters do not filter SNPs with 100% missing values.
+#' This function is simply a wrapper that cleans up this problem.
+# col.summary2 <- function(object,...) {
+#   if(!is(object)[1]=="SnpMatrix")   { stop("'object' must be a SnpMatrix (snpStats package)") } 
+#   if(any(!names(list(...)) %in% c("rules","uncertain"))) { 
+#     stop("... contained invalid arguments to snpStats::col.summary") }
+#   
+# }
 
 #internal
 pduplicated <- function(X) {
@@ -595,14 +616,6 @@ get.t1dbase.snps <- function(disease="T1D",build="hg19",show.codes=FALSE) {
 
 
 
-## USEFUL ONES !! HERE !!!
-
-
-options(chip.info="/chiswick/data/ncooper/iChipData/ImmunoChip_ChipInfo.RData")
-options(ucsc="hg18")
-options(save.annot.in.current=1)
-
-
 #internal function to retrieve all.support from the global environment or else load from file
 get.support <- function(build=NULL,refresh=FALSE,alternate.file=NULL) {
   if(is.null(build)) { build <- getOption("ucsc") }
@@ -673,20 +686,38 @@ id.to.rs <- function(ids) {
 #' annotation lookup. These can differ from the IDs used on the chip. This functions looks at the current
 #' snp support (ChipInfo object) and looks up chip IDs based on rs-ids.
 #' @param ids character, meant to be a list of rs-ids, but if chip-ids are present they will not be altered.
+#' @param multi.list logical, some rs-ids could map to multiple chip ids. It is recommended that if that is
+#' the case then a letter should be appended to duplicate rs-ids to make them unique in the ChipInfo object,
+#' e.g, rs1234, rs1234b, rs1234c, etc. If multi.list is TRUE, then the id list will be returned as a list,
+#' and any time an rs-id is entered without a letter suffix, all possible corresponding chip ids will be
+#' listed.
 #' @return A character vector of SNP chip-ids, where the input was rs-ids, chip-ids or a mixture, any text
-#' other than this will result in NA values being returned in the character vector output.
+#' other than this will result in NA values being returned in the character vector output. Or, if multi-list
+#' is true, then returns a list instead, which takes more than 1 value where there are multiple chip-ids 
+#' with the same rs-id; if there are no such rs-id duplicates the result will still be a list.
 #' @export
 #' @seealso id.to.rs, GENE.to.ENS, ENS.to.GENE
 #' @author Nicholas Cooper \email{nick.cooper@@cimr.cam.ac.uk}
 #' @examples
 #' rs.to.id(c("rs689","rs9467354","rs61733845"))  # middle one has no chip id
-rs.to.id <- function(rs.ids) {
+#' test.ids <- c("rs61733845","rs2227313","rs11577783","rs3748816","rs12131065","rs3790567","rs2270614")
+#' rs.to.id(test.ids, multi.list=TRUE) # list with duplicates
+rs.to.id <- function(rs.ids,multi.list=FALSE) {
   rs.ids <- clean.snp.ids(rs.ids)
   all.support <- get.support()
   if(!exists("all.support")) { stop("ChipInfo data object 'all.support' not found") }  ## load object: all.support [snp support for whole chip]
-  idvec <- rownames(all.support)[match(rs.ids,mcols(all.support)$rs.id)]
-  idvec2 <- rownames(all.support)[match(rs.ids,rownames(all.support))]
-  idvec[is.na(idvec)] <- idvec2[is.na(idvec)]
+  if(multi.list) {
+    X0 <- rmv.trail(rs.ids)
+    X1 <- paste0(X0,"b"); X2 <- paste0(X0,"c"); X3 <- paste0(X0,"d"); X4 <- paste0(X0,"a")
+    X <- cbind(rs.to.id(X0),rs.to.id(X1),rs.to.id(X2),rs.to.id(X3),rs.to.id(X4))
+    idvec <- apply(X,1,function(x) { unique(narm(x)) })
+    if(!is.list(idvec)) { idvec <- as.list(idvec) }
+      #warning("'multi.list' option was used, but no duplicate rs-ids found, so returning a vector, not a list") }
+  } else {
+    idvec <- rownames(all.support)[match(rs.ids,mcols(all.support)$rs.id)]
+    idvec2 <- rownames(all.support)[match(rs.ids,rownames(all.support))]
+    idvec[is.na(idvec)] <- idvec2[is.na(idvec)]
+  }
   return(idvec)
 }
 
@@ -1624,7 +1655,7 @@ make.granges <- function(chr,pos=NULL,start=NULL,end=NULL,row.names=NULL,build="
   }
   #prv(paste(row.names)); prv(dF)
   if(is.character(row.names)) { if(length(row.names)==nrow(dF)) { rownames(dF) <- row.names } else { warning("row.names had an incorrect length")} }
-  if(max(Dim(pos))!=length(chr)) { stop("chr and pos must be of the same length") }
+  if(!any(Dim(pos)==length(chr))) { stop("chr and pos must be of the same length") }
   if(length(Dim(pos))>1) { 
     if(!ncol(pos) %in% c(1,2)) { 
       stop("pos must be a vector of SNP locations, or a 2-column object with start and end coordinates") 
@@ -1756,7 +1787,9 @@ conv.37.36 <- function(ranges=NULL,chr=NULL,pos=NULL,...,ids=NULL) {
 #' which is not necessarily the case for liftOver() which does the core part of this conversion.
 #' Using vector or GRanges input will give a resulting data.frame or GRanges object respectively
 #' that has the same order of rownames as the original input. Using RangedData will result in an
-#' output that is sorted by genome order, regardless of the original order.
+#' output that is sorted by genome order, regardless of the original order. If ranges has no
+#' rownames, or if 'ids' is blank when using chr, pos, ids of the form rngXXXX will be generated
+#' in order to preserve the original ordering of locations.
 #' @export
 #' @author Nicholas Cooper \email{nick.cooper@@cimr.cam.ac.uk}
 #' @seealso conv.37.36, convTo37, convTo36
@@ -1778,17 +1811,28 @@ conv.36.37 <- function(ranges=NULL,chr=NULL,pos=NULL,...,ids=NULL,chain.file="/h
   chn <- import.chain(chain.file)
   #toranged <- F
   outType <- is(ranges)[1]
-  if(!is.null(chr) & (!is.null(pos) | all(c("start","end") %in% names(list(...))))) { 
+     
+  if(!is.null(chr) & (!is.null(pos) | all(c("start","end") %in% names(list(...))))) {
+    if(is.null(pos) & length(chr)==1) {
+      if(length(list(...)$start)>1) {
+        warning("when using start/end, 'chr' must have the same length as 'start'") 
+      }
+    }
+    if(is.null(ids)) { ids <- paste0("rng",1:(max(length(chr),length(pos)))) } 
     ranges <- make.granges(chr=chr,pos=pos,row.names=ids,...)
+    orn <- ids
+  } else {
+    if(is.null(rownames(ranges))) { rownames(ranges) <- paste0("rng",1:nrow(ranges)) }    
+    orn <- rownames(ranges)
   }
   # return(ranges)
   if(is(ranges)[1]=="RangedData") { ranges <- as(ranges, "GRanges") }
   if(is(ranges)[1] %in% c("RangedData","GRanges")) {
     wd <- width(ranges)
     if(all(wd==1)) { SNPs <- TRUE } else { SNPs <- FALSE }
-    if(is.null(rownames(ranges))) { rownames(ranges) <- paste(1:nrow(ranges)) }    
-    mcols(ranges)[["XMYINDEXX"]] <- orn <- rownames(ranges)
+    mcols(ranges)[["XMYINDEXX"]] <- rownames(ranges)
     mcols(ranges)[["XMYCHRXX"]] <- ocr <- chr2(ranges)
+    #prv(orn,ocr)
     opos <- start(ranges)
     ranges <- set.chr.to.char(ranges)
     #print(head(ranged))
@@ -1842,7 +1886,7 @@ conv.36.37 <- function(ranges=NULL,chr=NULL,pos=NULL,...,ids=NULL,chain.file="/h
       ln <- orn[!orn %in% RN]
       #return(ranges)
       newchr <- gsub("chr","",chr2(ranges[match(ln,ranges$XMYINDEXX),]))
-      noopos <- start(ranged[match(ln,ranged$XMYINDEXX),])
+      noopos <- start(ranges[match(ln,ranges$XMYINDEXX),])
       hcc <- hard.coded.conv()
       ifNAthen0 <- function(X) { X[is.na(X)] <- 0; return(X) }
       h36 <- which(noopos %in% hcc$pos36 & newchr==ifNAthen0(hcc$chr[match(noopos,hcc$pos36)])); l36 <- length(h36)
@@ -1860,7 +1904,7 @@ conv.36.37 <- function(ranges=NULL,chr=NULL,pos=NULL,...,ids=NULL,chain.file="/h
       }
       extra <- data.frame(Chr=newchr,Pos=noopos)
       rownames(extra) <- ln
-    }
+    } #else { cat("length is already the same\n") }
     Ind <- match(ranged.gr.37[["XMYINDEXX"]],orn)
     out <- data.frame(Chr=ranged.gr.37[["XMYCHRXX"]],Pos=start(ranged.gr.37),ind=Ind)
     rownames(out) <- RN
@@ -1868,14 +1912,16 @@ conv.36.37 <- function(ranges=NULL,chr=NULL,pos=NULL,...,ids=NULL,chain.file="/h
       out <- out[,-3]
       out <- rbind(out,extra)
       out <- out[orn,]
-    }
+    } #else { cat("length is now the same\n") }
     #return(out) 
   } else { warning("missing key columns for chr, snp-name")  }
   #print(outType)
   #return(out)
   #prv(out)
   ranged.rd <- toGenomeOrder2(data.frame.to.ranged(out))
+  #print(colnames(ranged.rd))
   ranged.gr.37 <- as(ranged.rd,"GRanges")
+  #print(colnames(ranged.gr.37))
   if(found.xy) {
     xy.ind <- match(xy.id,rownames(ranged.gr.37))
     lmis <- length(which(is.na(xy.ind)))
@@ -1885,24 +1931,30 @@ conv.36.37 <- function(ranges=NULL,chr=NULL,pos=NULL,...,ids=NULL,chain.file="/h
   }
   if(outType=="GRanges") { 
     #return(ranged.gr.37)
-    mind <- as.numeric(mcols(ranged.gr.37)[["ind"]])
-    #prv(ranged.gr.37,mind)
-    ranged.gr.37 <- ranged.gr.37[order(mind),]
     cn37 <- colnames(mcols(ranged.gr.37))
-    if("ind" %in% cn37) { mcols(ranged.gr.37) <- mcols(ranged.gr.37)[,-which(cn37 %in% "ind")] }
+    if("ind" %in% cn37) { 
+      mind <- as.numeric(mcols(ranged.gr.37)[["ind"]])
+      #prv(ranged.gr.37,mind)
+      ranged.gr.37 <- ranged.gr.37[order(mind),]
+      mcols(ranged.gr.37) <- mcols(ranged.gr.37)[,-which(cn37 %in% "ind")] 
+    } # else { warning("couldn't find index column, GRanges object not sorted in original order") }
+    if(all(rownames(ranged.gr.37) %in% orn)) { ranged.gr.37 <- ranged.gr.37[orn,] }
     return(ranged.gr.37)
   } else {
     if(outType=="RangedData") {
       #if("ind" %in% colnames(ranged.gr.37)) { ranged.gr.37 <- ranged.gr.37[,-which(colnames(ranged.gr.37) %in% "ind")] }
       return(toGenomeOrder2(as(ranged.gr.37,"RangedData")))
     } else {
-      mind <- as.numeric(mcols(ranged.gr.37)[["ind"]])
-      #return(ranged.gr.37)
+      #prv(ranged.gr.37)
       out <- ranged.to.data.frame(ranged.gr.37,include.cols=FALSE,use.names=TRUE)
-      out <- out[order(mind),,drop=FALSE]
+      cn37 <- colnames(mcols(ranged.gr.37))
+      if("ind" %in% cn37) { 
+        mind <- as.numeric(mcols(ranged.gr.37)[["ind"]])
+        out <- out[order(mind),,drop=FALSE]
+        if("ind" %in% colnames(out)) { out <- out[,-which(colnames(out) %in% "ind")] }
+      }
       if(is.null(dim(out))) { dim(out) <- c(length(out)/3,3) }
-      # if("ind" %in% colnames(out)) { out <- out[,-which(colnames(out) %in% "ind")] }
-      #return(out)
+      if(all(rownames(out) %in% orn)) { out <- out[orn,] }
       return(out)
     }
   }
@@ -2473,6 +2525,61 @@ impute.missing <- function (X,  strata = NULL, by=NULL, random=TRUE, data.frame 
     return(new("SnpMatrix", data = (as.raw(N+1)),
                       nrow = nrow(N), ncol = ncol(N), dimnames = dimnames(N)))
   }
+}
+
+
+
+
+# internal
+#' Remove trailing letter from non-unique rs-ids
+#'
+#' @examples
+#' snp.ids <- rsnpid(25)
+#' snp.ids[1:2] <- paste0(snp.ids[1:2],"b")
+#' snp.ids[19:20] <- paste0(snp.ids[19:20],"c")
+#' snp.ids[6:7] <- paste0(snp.ids[6:7],"d")
+#' snp.ids[11:12] <- paste0(snp.ids[11:12],"a")
+#' snp.ids
+#' rmv.trail(snp.ids)
+rmv.trail <- function(rs.ids,suffix=c("b","c","d","a")) {
+  if(!is.character(suffix)) { stop("suffix must a character vector") }
+  ind <- NULL
+  for (cc in 1:length(suffix)) {
+    ind <- c(ind,grep(suffix[cc],rs.ids))
+  }
+  ind <- unique(ind)
+  X <- rs.ids[ind]
+  nX <- nchar(X)
+  last.chars <- substr(X,nX,nX)
+  sufz <- (last.chars %in% c("a","b","c","d"))
+  X[sufz] <- substr(X[sufz],1,nX[sufz]-1)
+  rs.ids[ind] <- X
+  return(rs.ids)
+}
+
+# internal
+#' Add trailing letter(s) to non-unique rs-ids
+#'
+#' @examples
+#' snp.ids <- rsnpid(15)
+#' snp.ids
+#' add.trail(snp.ids)
+#' snp.ids <- snp.ids[sample(15,30,replace=TRUE)]
+#' snp.ids
+#' add.trail(snp.ids)
+add.trail <- function(rs.ids,suffix=c("b","c","d","a")) {
+  rs.ids <- rmv.trail(rs.ids)
+  for (txt in suffix) {
+    dupz <- duplicated(rs.ids)
+    if(length(which(dupz))>0) {
+      rs.ids[dupz] <- paste0(rmv.trail(rs.ids[dupz]),txt)
+    }
+  }
+  dupz <- duplicated(rs.ids)
+  if(length(which(dupz))>0) { warning("more than ",length(suffix),
+                                      " duplications of at least 1 individial rs-id, suffixes exhausted, duplicates remain")
+  }
+  return(rs.ids)
 }
 
 
