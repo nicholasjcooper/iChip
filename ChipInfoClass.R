@@ -18,10 +18,30 @@ require(genoset)
 # build(si36[["XY"]])
 # si37 <- convTo37(snp.info)
 # si36 <- convTo36(si37)
-#snp.info <- ChipInfo(chr=all.support[,"Chr"],pos=all.support[,"Pos37"],ids=rownames(all.support),chip="ImmunoChip",rs.id=all.support[,"dbSNP"],
+# snp.info <- ChipInfo(chr=all.support[,"Chr"],pos=all.support[,"Pos37"],ids=rownames(all.support),chip="ImmunoChip",rs.id=all.support[,"dbSNP"],
 #                     A1=all.support[,"A1"], A2=all.support[,"A2"],build=37)
 
 
+#' Class 'ChipInfo'
+#' 
+#' This class annotates a microarray SNP chip with data for each SNP including chromosome,
+#' id, position, strand, 'rs' id, allele 1, allele 2 for each SNP of a microarray chip,
+#' in either hg18 or hg19 (build 36/37) coordinates.
+#' This package makes extension use of this class of annotation object for the working
+#' microarray chip, e.g, default is ImmunoChip, but Metabochip is also built-in,
+#' and you can also load your own annotation if using a different chip. The class
+#' is basically a GRanges object, modified to always have columns for A1, A2 (alleles), 
+#' rs.id, and a quality control flag. The default display is tidier than GRanges, it has
+#' nice coersion to and frame data.frame and subsetting by chromosome using [[n]] has been
+#' added, in addition to normal [i,j] indexing native to GRanges.
+#' SLOTS
+#'  seqnames, ranges, strand, seqinfo, chip, build, and elementMetadata, containing columns:
+#'  A1, A2, QCcode and rs.id.
+#' METHODS
+#'  "[[", show, print, length, initialize
+#'  build, chip, rs.id, A1, A2, QCcode, QCcode<-, QCpass, QCfail, convTo36, convTo37
+#' COERCION
+#'  can use 'as' to convert to and from: GRanges, RangedData, data.frame
 setClass("ChipInfo",
          contains="GRanges",
          representation(
@@ -40,18 +60,41 @@ setClass("ChipInfo",
            ranges=IRanges(),
            chip=character(), 
            build=character(), 
-           elementMetadata=DataFrame(alt.pos=NULL,
-               A1=NULL, A2=NULL,  QCcode=integer(), rs.id=NULL )
+           elementMetadata=DataFrame(A1=NULL, A2=NULL,  QCcode=integer(), rs.id=NULL)
          )
 )
 
-
+#' Length for ChipInfo
+#' 
+#' Simply returns the number of SNPs (internally using 'nrow')
+#' @param x a ChipInfo object
+#' @return integer
 setMethod("length", "ChipInfo", function(x) length(x@ranges))
+
 setGeneric("chip", function(x) standardGeneric("chip"))
+
+#' Retrieve the Chip name for ChipInfo
+#' 
+#' Simply returns the name of the chip, e.g, 'ImmunoChip'
+#' @param x a ChipInfo object
+#' @return character
 setMethod("chip", "ChipInfo", function(x) x@chip)
 setGeneric("build", function(x) standardGeneric("build") )
+
+#' Retrieve the build for ChipInfo
+#' 
+#' Returns the UCSC build of the chip object, e.g, "hg18" or "hg19"
+#' @param x a ChipInfo object
+#' @return character, "hg18" or "hg19"
 setMethod("build", "ChipInfo", function(x) x@build)
 setGeneric("rs.id", function(x,b=TRUE) standardGeneric("rs.id") )
+
+#' Access rs-ids for ChipInfo
+#' 
+#' Returns the rs-ids for the chip object, e.g, "rs689", etc
+#' Only if these are annotated internally, or else a vector of NAs
+#' @param x a ChipInfo object
+#' @return character vector of IDs (or NAs)
 setMethod("rs.id", "ChipInfo", function(x,b=TRUE) { 
   u <- mcols(x) ;  
   if("rs.id" %in% colnames(u)) { 
@@ -61,14 +104,47 @@ setMethod("rs.id", "ChipInfo", function(x,b=TRUE) {
   } else { return(NULL) } 
 })
 setGeneric("A1", function(x) standardGeneric("A1") )
+
+#' Access allele 1 for ChipInfo
+#' 
+#' Returns the letter for the first alleles for the chip object, 
+#' e.g, "A","C","G","T", etc
+#' Only if these are annotated internally, or else a vector of NAs
+#' @param x a ChipInfo object
+#' @return character vector of allele codes (or NAs)
 setMethod("A1", "ChipInfo", function(x) { u <- mcols(x) ;  if("A1" %in% colnames(u)) { u[,"A1"] } else { NULL } })
 setGeneric("A2", function(x) standardGeneric("A2") )
+
+#' Access allele 2 for ChipInfo
+#' 
+#' Returns the letter for the second alleles for the chip object, 
+#' e.g, "A","C","G","T", etc
+#' Only if these are annotated internally, or else a vector of NAs
+#' @param x a ChipInfo object
+#' @return character vector of allele codes (or NAs)
 setMethod("A2", "ChipInfo", function(x) { u <- mcols(x) ;  if("A2" %in% colnames(u)) { u[,"A2"] } else { NULL } })
 
 setGeneric("QCcode", function(x) standardGeneric("QCcode") )
+
+#' Access quality control pass or fail codes for ChipInfo
+#' 
+#' Returns the pass or fail codes for each SNP of the chip object, 
+#' e.g, 0,1,..,n etc
+#' Only if these are added manually, or else all will be 'pass' (=0)
+#' @param x a ChipInfo object
+#' @return integer vector of pass/fail codes
 setMethod("QCcode", "ChipInfo", function(x) { u <- mcols(x) ;  if("QCcode" %in% colnames(u)) { u[,"QCcode"] } else { NULL } })
 setGeneric("QCcode<-", function(x,values) standardGeneric("QCcode<-") )
 
+#' Set quality control pass or fail codes for ChipInfo
+#' 
+#' Allows user to set the pass or fail codes for each SNP of the chip object, 
+#' e.g, 0,1,..,n etc. 0 is always pass, >0 is always fail, but each integer
+#' can be used to represent a different failure type, or for simplicity, stick
+#' to 0 and 1, ie, just pass and fail.
+#' @param x a ChipInfo object
+#' @param values new pass/fail codes, e.g, 0,1,...,n
+#' @return updates the object specified with new pass/fail codes for the 'QCcode' slot
 setMethod("QCcode<-", "ChipInfo", function(x,values) {
   if(length(x)==length(values)) {
     if(is.numeric(values)) {
@@ -84,10 +160,24 @@ setMethod("QCcode<-", "ChipInfo", function(x,values) {
 
 setGeneric("QCpass", function(x) standardGeneric("QCpass") )
 setGeneric("QCfail", function(x,type=NA) standardGeneric("QCfail") )
+
+
+#' Filter ChipInfo to for only SNPs passing QC
+#' 
+#' Returns the subset of the ChipInfo object for which SNPs pass quality
+#' control, according to the QCcodes() slot == 0.
+#' @param x a ChipInfo object
+#' @return ChipInfo object for which SNPs pass quality control
 setMethod("QCpass", "ChipInfo", function(x) { 
   ii <- which(QCcode(x)==0)
   if(length(ii)>0) { return(x[ii,]) } else { warning("No SNPs passed QC"); return(NULL) } })
 
+#' Filter ChipInfo to for only SNPs failing QC
+#' 
+#' Returns the subset of the ChipInfo object for which SNPs fail quality
+#' control, according to the QCcodes() slot > 0.
+#' @param x a ChipInfo object
+#' @return ChipInfo object for which SNPs fail quality control
 setMethod("QCfail", "ChipInfo", function(x,type=NA) { 
   ii <- which(QCcode(x)!=0)
   if(is.numeric(type)) { 
@@ -99,6 +189,14 @@ setMethod("QCfail", "ChipInfo", function(x,type=NA) {
   }
   if(length(ii)>0) { return(x[ii,]) } else { warning("All SNPs passed QC"); return(NULL) } })
 
+
+#' Subset ChipInfo by chromosome
+#' 
+#' Returns the subset of the ChipInfo object for which SNPs are on
+#' the chromosome specified, by either number or character.
+#' @param x a ChipInfo object
+#' @param i a chromosome number or letter, i.e, one of seqlevels(x)
+#' @return ChipInfo object for the subset of SNPs on chromosome i
 setMethod("[[", "ChipInfo", function(x,i,j,...) { 
   dotArgs <- list(...)
   if (length(dotArgs) > 0)
@@ -134,6 +232,19 @@ setMethod("[[", "ChipInfo", function(x,i,j,...) {
 
 setGeneric("convTo37", function(x) standardGeneric("convTo37"))
           
+#' Convert ChipInfo to build 37/hg19 coordinates
+#' 
+#' Returns the a ChipInfo object with positions updated to build
+#' 37 coordinates, assuming that the existing object was in build 36,
+#' or already in build 37 coordinates, and that the build() slot was
+#' entered correctly. Ensure that the value of build(x) is correct before
+#' running this function for conversion; for instance, if the coordinates 
+#' are already build 37/hg19, but build(x)=="hg18" (incorrect value), then
+#' these coordinates will be transformed in a relative manner rendering the
+#' result meaningless.
+#' @param x a ChipInfo object
+#' @return ChipInfo object with the build updated to hg19 coordinates
+#' @seealso convTo36
 setMethod("convTo37", "ChipInfo", function(x) {
   if(ucsc.sanitizer(build(x))=="hg18") {
     u <- conv.36.37(ranges=as(x,"GRanges"))
@@ -166,6 +277,19 @@ setMethod("convTo37", "ChipInfo", function(x) {
 
 setGeneric("convTo36", function(x) standardGeneric("convTo36"))
 
+#' Convert ChipInfo to build 36/hg18 coordinates
+#' 
+#' Returns the a ChipInfo object with positions updated to build
+#' 36 coordinates, assuming that the existing object was in build 37,
+#' or already in build 36 coordinates, and that the build() slot was
+#' entered correctly. Ensure that the value of build(x) is correct before
+#' running this function for conversion; for instance, if the coordinates 
+#' are already build 36/hg18, but build(x)=="hg19" (incorrect value), then
+#' these coordinates will be transformed in a relative manner rendering the
+#' result meaningless.
+#' @param x a ChipInfo object
+#' @return ChipInfo object with the build updated to hg18 coordinates
+#' @seealso convTo37
 setMethod("convTo36", "ChipInfo", function(x) {
   if(ucsc.sanitizer(build(x))=="hg19") {
     u <- conv.37.36(ranges=as(x,"GRanges"))
@@ -195,14 +319,79 @@ setMethod("convTo36", "ChipInfo", function(x) {
   return(x)
 })
 
+
+
+#' Display a ChipInfo object
+#' 
+#' Returns a preview of a ChipInfo object to the console. This
+#' is similar to a GRanges preview, but the seqlevels are hidden, the UCSC
+#' build and chip name are displayed, start and end are merged to the virtual
+#' label 'position' (as it's assume we are dealing with SNPs, not ranges), the strand
+#' by default is hidden, and the integer codes for pass/fail in QCcodes() are 
+#' displayed as 'pass' or 'fail', even though this is not how they are represented internally. 
+#' @param object a ChipInfo object
+#' @param up.to only SNPs at the start and end are generally displayed, however this
+#' parameter specifies that when there are <= 'up.to' SNPs, then all SNPs will be displayed.
+#' @param head.tail number of SNPs to display at start/end (only the head and tail are
+#' shown as these objects are generally very large with >100K SNPs)
+#' @param show.strand logical, by default the strand is hidden, particularly given that
+#' the strand can vary between different datasets of the same chip. Setting to TRUE will
+#' display the strand
+#' @return displays a preview of the object on the console
 setMethod("show", "ChipInfo", 
      function(object) { showChipInfo(object,up.to=10,head.tail=5,show.strand=FALSE) } )
 
+#' Print a ChipInfo object to the console
+#' 
+#' See 'show' as the behaviour is very similar and ... are just arguments of 'show'.
+#' The key difference with 'print' instead of 'show' is that by default the parameter
+#' 'up.to' is set to 50, so that any ChipInfo object (or subset) of less than or equal
+#' to 50 rows will be displayed in its entirety, rather than just the top/bottom 5 rows. 
+#' @param object a ChipInfo object
+#' @param ... further arguments to show()
+#' @return displays a preview of the object on the console
 setMethod("print", "ChipInfo", 
           function(x,...) { showChipInfo(x,...) } )
 
 
-#constructor
+#' Constructor for ChipInfo annotation object
+#' 
+#' This class annotates a microarray SNP chip with data for each SNP including chromosome,
+#' id, position, strand, 'rs' id, allele 1, allele 2 for each SNP of a microarray chip,
+#' in either hg18 or hg19 (build 36/37) coordinates.
+#' This package makes extension use of this class of annotation object for the working
+#' microarray chip, e.g, default is ImmunoChip, but Metabochip is also built-in,
+#' and you can also load your own annotation if using a different chip. The class
+#' is basically a GRanges object, modified to always have columns for A1, A2 (alleles), 
+#' rs.id, and a quality control flag. The default display is tidier than GRanges, it has
+#' nice coersion to and frame data.frame and subsetting by chromosome using [[n]] has been
+#' added, in addition to normal [i,j] indexing native to GRanges.
+#' @param GRanges a GRanges object containing chromosome, start/end = position, and strand
+#' information for the chip object to be created, also rownames should be used to code
+#' the chip-ids for each SNP.
+#' @param chr optional, alternative to using 'GRanges' to input SNP locations, enter here 
+#' a vector of chromosome numbers/letters for each SNP. The recommended coding is: 
+#' 1:22, X, Y, XY, MT
+#' @param pos optional, vector of positions (integers), use in conjunction with 'chr' and
+#'  'ids' as an alternative way to input SNP position information instead of GRanges.
+#' @param ids optional, vector of SNP chip-ids, use in conjunction with 'chr' and
+#'  'pos' as an alternative way to input SNP position information instead of GRanges.
+#' @param chip character, name of the chip you are making this annotation for (only used
+#' for labelling purposes)
+#' @param build character, either "hg18" or "hg19". Will also accept build number, 36 or 37.
+#' This indicates what coordinates the object is using, and will be taken into account by
+#' conversion functions, and annotation lookup functions throughout this package.
+#' @param rs.id 'rs' ids are standardized ids for SNPs, these usually differ from each chips'
+#' own IDs for each snp. If you don't know these, or can't find them, they can be left blank,
+#' but will render the functions 'rs.to.id()' and 'id.to.rs()' useless for this ChipInfo object.
+#' @param A1 the first allele letter code for each SNP, e.g, usually "A","C","G", or "T", but
+#' you can use any scheme you like. Can be left blank.
+#' @param A2, as for A1, but for allele 2.
+#' @param QCcode optional column to keep track of SNPs passing and failing QC. You can completely
+#' ignore this column. It works based on integer codes, 0,1,2, you may wish to use simple 0 and 1,
+#' for pass and fail respectively, or else 0 can be pass, and 1,2,... can indicate failure for 
+#' different criteria. 0 will always be treated as a pass and anything else as a fail, so you
+#' can code fails however you wish.
 ChipInfo <- function(GRanges=NULL, chr=NULL, pos=NULL, ids=NULL, chip="unknown chip", build="",
                      rs.id=NULL, A1=NULL, A2=NULL, QCcode=NULL) {
   if(build!="") { build <- ucsc.sanitizer(build) }
@@ -225,6 +414,9 @@ ChipInfo <- function(GRanges=NULL, chr=NULL, pos=NULL, ids=NULL, chip="unknown c
 }
 
 
+#' Initialize method for ChipInfo
+#' 
+#' Please use the 'ChipInfo' constructor
 setMethod("initialize", "ChipInfo",
               function(.Object, ...){
           		  callNextMethod(.Object, ...)
@@ -293,7 +485,7 @@ setValidity("ChipInfo",
             }
 )
 
-
+#internal
 showChipInfo <- function (x, margin = "", with.classinfo = FALSE, print.seqlengths = FALSE,...) 
 {
   lx <- length(x)
@@ -310,7 +502,7 @@ showChipInfo <- function (x, margin = "", with.classinfo = FALSE, print.seqlengt
   print(out, quote = FALSE, right = TRUE)
 }
 
-
+#internal
 .makeNakedMatFromChipInfo <- function (x,show.strand=TRUE) 
 {
   lx <- length(x)
@@ -335,6 +527,7 @@ showChipInfo <- function (x, margin = "", with.classinfo = FALSE, print.seqlengt
 }
 
 
+#internal
 makePrettyMatrixForCompactPrinting2 <- function (x, makeNakedMat.FUN,head.tail=6,up.to=50, show.strand=TRUE) 
 {
   lx <- NROW(x)
@@ -362,6 +555,7 @@ makePrettyMatrixForCompactPrinting2 <- function (x, makeNakedMat.FUN,head.tail=6
   ans
 }
 
+#internal
 .rownames3 <- function (names = NULL, len = NULL, tindex = NULL, bindex = NULL) 
 {
   if (is.null(tindex) && is.null(bindex)) {
