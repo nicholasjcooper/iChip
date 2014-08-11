@@ -1,0 +1,140 @@
+
+####INTERNALS####
+# minna 
+# maxna 
+# meanna
+# medianna 
+# sdna 
+# sumna
+# sortna
+# ucsc.sanitizer
+# l10 internal
+# Cor internal
+# pt2
+# pduplicated
+# comma
+# get.allele.counts
+# Y_2
+# X_2 Likelihood_Lj 
+# Likelihood_Lj
+# LLikelihood_L 
+# order.chr
+# sort.chr
+# clean.snp.ids
+# hard.coded.conv
+# logsum
+# make.split
+# randomize.missing
+# rmv.trail
+# add.trail
+# rsnp
+# rsnpid
+# ldfun
+# rsampid
+# snpify.cont
+# get.biggest
+# get.top.n
+# plink.allele.coding
+# clean.fn
+# make.divisor
+# chrNames2
+# toGenomeOrder2
+# chrInfo2
+# chrIndices2
+# chr2
+# has.method
+# chr.sel
+# force.chr.pos
+# plotdf # might remove
+# set.chr.to.char
+# set.chr.to.numeric
+# tidy.extra.chr
+# gene.duplicate.report
+# read.ped.file
+# validate.dir.for
+###ENDINTERNALS##
+
+## MISC? ##
+# comify - Function to add commas for large numbers
+# p.to.Z - Convert p-values to Z-scores
+# Z.to.p - Convert Z-scores to p-values
+
+####EXPORTED####
+# ppa - Posterior probability of association function
+# lambda_nm - Normalize Lambda inflation factors to specific case-control count
+# lambdas - Calculate Lambda inflation factors for SNP dataset
+# logistic.summary - Function to produce a clean table from logistic regression done via GLM
+# get.t1dbase.snps - Download GWAS hits from t1dbase.org
+# get.support - Retrieve current ChipInfo annotation object
+# id.to.rs - Convert from chip ID labels to dbSNP rs-ids
+# rs.to.id - Convert from dbSNP rs-ids to chip ID labels
+# Chr - Find chromosome for SNP ids, gene name or band
+# Pos - Find the chromosomal position for SNP ids, gene name or band
+# ids.by.pos - Order rs-ids or ichip ids by chrosome and position
+# Pos.gene - Find the chromosome, start and end position for gene names
+# Pos.band - Find the chromosome, start and end position for cytoband names
+# Band - Retrieve the cytoband(s) for snp ids, genes or locations
+# Band.gene - Retrieve the cytoband(s) for genes labels
+# Gene.pos - Find the gene(s) overlapping a chromosome location
+# Band.pos - Find the cytoband(s) overlapping a chromosome location
+# AB - Returns the A and B allele for SNP ids
+# ENS.to.GENE - Convert ensembl ids to HGNC gene ids 
+# GENE.to.ENS - Convert gene ids to ensembl ids
+# snps.in.range - Retrieve SNP ids or positions in specified range
+# nearest.snp - Retrieve 'n' closest SNP ids or positions near specified locus
+# make.granges - Wrapper to construct GRanges object from chr,pos or chr,start,end
+# conv.36.37 - Convert from build 36 to build 37 SNP coordinates
+# conv.37.36 - Convert from build 37 to build 36 SNP coordinates
+# SnpMatrix.to.data.frame - Convert a snpStats SnpMatrix object to a dataframe
+# data.frame.to.SnpMatrix - Convert a data.frame to a snpStats SnpMatrix object
+# majmin - Determine major or minor allele status for a set of SNPs
+# caseway - Find the direction of GWAS effects between cases and controls
+# abf - Calculate approximate Bayes factors from p values and MAF
+# impute.missing - Replace missing values in a SnpMatrix object with imputed values
+# rSnpMatrix - Create a SNP matrix with simulated data
+# recwindow - Extend an interval or SNP by distance in centimorgans
+# meta.me - Meta-analysis using odds ratio and standard error from 2 datasets
+# get.nearby.snp.lists - Obtain nearby SNP-lists within a recombination window
+# rranges - Simulate a GRanges or RangedData object
+# chrNums - Extract chromosome numbers from GRanges/RangedData 
+# get.GO.for.genes - Retreive GO terms from biomart for a given gene list
+# in.window - Select all ranges lying within a chromosome window
+# plot.gene.annot - Plot genes to annotate figures with genomic axes
+# plot.ranges - Plot the locations specified in a GRanges or RangedData object
+# get.immunog.locs - Retrieve locations of Immunoglobin regions across the genome
+# get.centromere.locs - Return Centromere locations across the genome
+# get.cyto - Return Cytoband/Karyotype locations across the genome
+# get.recombination.map - Get HapMap recombination rates for hg18 (build 36)
+# get.exon.annot - Get exon names and locations from biomart
+# get.gene.annot - Get gene names and locations from biomart
+# get.telomere.locs - Derive Telomere locations across the genome
+# get.chr.lens - Get chromosome lengths from build database
+# get.pedData - Import a ped file to pedData format used by snpStats
+###ENDEXPORTED##
+
+MAYBES
+convert.textpos.to.data
+Ranges.to.txt
+select.autosomes
+ranged.to.data.frame
+data.frame.to.granges
+data.frame.to.ranged
+end.snp
+range.snp
+get.adj.nsnp
+start.snp
+
+
+TDT
+t.o.p?
+
+
+CLASS ChipInfo
+#' METHODS
+#'  "[[", show, print, length, initialize
+#'  build, chip, rs.id, A1, A2, QCcode, QCcode<-, QCpass, QCfail, convTo36, convTo37
+#' COERCION
+#'  can use 'as' to convert to and from: GRanges, RangedData, data.frame
+
+
+

@@ -19,7 +19,9 @@ options(save.annot.in.current=1)
 if(Sys.info()[["user"]]=="ncooper")
 {
   #source("~/github/plumbCNV/generalCNVFunctions.R", echo=FALSE)
-  source("~/github/iChip/ChipInfoClass.R", echo=FALSE)
+  if(getwd()!= "/home/ncooper"){
+    source("~/github/iChip/ChipInfoClass.R", echo=FALSE)
+  }
   internal.analyses <- FALSE
   if(internal.analyses) {
     source("~/github/iChip/firstscriptFunctions.R", echo=FALSE) # only needed for internal analyses
@@ -27,11 +29,11 @@ if(Sys.info()[["user"]]=="ncooper")
   }
 }
 
-
-require(snpStats)
-require(reader)
-require(genoset)
-
+if(getwd()!= "/home/ncooper"){
+  require(snpStats)
+  require(reader)
+  require(genoset)
+}
 #
 
 
@@ -1061,7 +1063,7 @@ Pos.band <- function(bands,build=NULL,dir=NULL,bioC=FALSE) {
   build <- ucsc.sanitizer(build)
   char.lim <- 100
   if(is.null(dir)) { if(any(getOption("save.annot.in.current")<1)) { dir <- NULL } else { dir <- getwd() } }
-  ga <- get.cyto(build=build,bioC=bioC,dir=dir)
+  ga <- get.cyto(build=build,bioC=bioC,dir=dir,GRanges=FALSE)
   mt <- match(bands,rownames(ga))
   failz <- paste(bands[is.na(mt)],collapse=", "); if(nchar(failz)>char.lim) { failz <- paste(substr(failz,1,char.lim),",...",sep="") }
   msg <- ("format for bands is: chromosome[p/q]xx.xx ; e.g, 13q21.31, Yq11.221, 6p23, etc")
@@ -1363,7 +1365,7 @@ Band.pos <- function(chr=NA,pos=NA,start=NA,end=NA,ranges=NULL,build=NULL,dir=NU
   testData <- set.chr.to.numeric(testData)
   #return(testData)
   if(is.null(dir)) { if(any(getOption("save.annot.in.current")<1)) { dir <- NULL } else { dir <- getwd() } }
-  cyto <- get.cyto(build=build,bioC=TRUE,dir=dir)
+  cyto <- get.cyto(build=build,bioC=TRUE,dir=dir,GRanges=FALSE)
   cyto <- set.chr.to.numeric(cyto,keep=F)
   #if(any(colnames(cyto) %in% "negpos")) { cyto <- cyto[,-which(colnames(cyto) %in% "negpos")] }
   newDataList <- vector("list",nrow(testData))
@@ -3008,7 +3010,7 @@ get.nearby.snp.lists <- function(snpid.list,cM=0.1,bp.ext=0,build=NULL,excl.snps
   if(is.null(build)) { build <- build(all.support) }
   build <- ucsc.sanitizer(build)
   snpic.list <- rs.to.id(snpid.list)
-  cyto <- get.cyto(dir=getwd()); cyto[["gene"]] <- rownames(cyto)
+  cyto <- get.cyto(dir=getwd(),GRanges=FALSE); cyto[["gene"]] <- rownames(cyto)
   #which.snps <- match(snpid.list,mcols(all.support)$rs.id)
   #if(any(is.na(which.snps))) { stop(paste("NAs in dbSNP match:",paste(snpid.list[is.na(which.snps)],collapse=","))) }
   snps.locs <- Pos(snpid.list)
@@ -3536,7 +3538,8 @@ rranges <- function(n=10,SNP=FALSE,chr.range=1:26,chr.pref=FALSE,order=TRUE,equa
 #' chrNums(gg2,table.in=lookup) # make chromosome numbers using same table as above
 chrNums <- function(ranged,warn=FALSE,table.out=FALSE,table.in=NULL) {
   #must.use.package("genoset",bioC=T)
-  if(!is(ranged)[1] %in% c("RangedData","GRanges")) { warning("not a GRanges or RangedData object"); return(NULL) }
+  typ <- is(ranged)[1]
+  if(!typ %in% c("RangedData","GRanges")) { warning("not a GRanges or RangedData object"); return(NULL) }
   lookup <- c("X","Y","XY","MT")
   txt1 <- chrNames2(ranged)
   txt <- gsub("chr","",txt1,fixed=T)
@@ -3718,10 +3721,25 @@ force.chr.pos <- function(Pos,Chr,snp.info=NULL,build="hg18",dir=NULL) {
 
 
 
-# iFunctions
-# TODO10
-# retreive GO terms from biomart for a given gene list
-# can retrieve biological function, cellular component, or molecular description
+
+#' Retreive GO terms from biomart for a given gene list
+#' 
+#' Gene-ontology terms (GO-terms) are commonly used for testing for simple functional
+#' enrichment for pathways, etc. This function can retrieve biological function, 
+#' cellular component, or molecular description, depending on the parameters chosen.
+#' @param gene.list a list of gene, use HGNC names, like COMT, HLA-C, CTLA4, etc.
+#' @param bio logical, whether to return biological process GO terms
+#' @param cel logical, whether to return cellular component GO terms
+#' @param mol logical, whether to return molecular function GO terms
+#' @return data.frame containing the gene name in the first column, chromosome in the
+#' second column, and the GO terms in the third column, where one gene has multiple
+#' GO terms, this will produce multiple rows, so there will usually be more rows
+#' than genes entered. The data.frame can have 3,4 or 5 columns depending on
+#' how many GO terms are selected.
+#' @export
+#' @examples
+#' get.GO.for.genes(c("CTLA4","PTPN2","PTPN22")) # biological terms (default)
+#' get.GO.for.genes(c("CTLA4","PTPN2","PTPN22"),cel=TRUE) # add cellular GO terms
 get.GO.for.genes <- function(gene.list,bio=T,cel=F,mol=F) {
   must.use.package(c("biomaRt","genoset","gage"),T)
   ens <- useMart("ENSEMBL_MART_ENSEMBL",
@@ -3745,16 +3763,44 @@ get.GO.for.genes <- function(gene.list,bio=T,cel=F,mol=F) {
 
 
 
-# iFunctions
-# TODO9
-# select everything in a ranges format that is in a window of a chromosome; 
-unique.in.range <- function(ranged,chr,pos,full.overlap=F, unit=c("b","kb","mb","gb"), rmv.dup=T) {
+
+#' Select all ranges lying within a chromosome window
+#' 
+#' Input a ranged object (ie., GRanges or RangedData) and this function will
+#' return the subset from chromosome 'chr' and within the base-pair range specified
+#' by 'pos', in units of 'unit'. By default ranges with ANY overlap are returned, but
+#' it can be specified that it must be full overlap. Duplicates can be removed.
+#' @param ranged GRanges or RangedData object
+#' @param chr a chromosome, e.g, 1,2,3,...,22,X,Y,XY,MT or however chromosomes are 
+#' annotated in 'ranged'
+#' @param pos a numeric range (length 2), with a start (minima) and end (maxima), specifying
+#' the window on the chromosome to select ranges from, base-pair units are specified by 'unit'.
+#' @param full.overlap logical, the default is to return objects with ANY overlap with the window,
+#' whereas setting this as TRUE, will only return those that fully overlap
+#' @param unit the unit of base-pairs that 'pos' is using, eg, "b", "kb", "mb", "gb"
+#' @param rmv.dup logical, whether to remove duplicate ranges from the return result. The default
+#' is not to remove duplicates.
+#' @return an object of the same type as 'ranged', but only containing the rows that
+#' were within the specified bounds
+#' @export
+#' @examples
+#' iG <- get.immunog.locs()[2,] # select the 2nd iG region
+#' ciG <- chr(iG)  #  get the chromosome
+#' posiG <- c(start(iG),end(iG) # get the region start and end
+#' rr <- rranges(10000) # create a large random GRanges object
+#' in.window(rr,chr=ciG,pos=posiG) # set with ANY overlap of iG
+#' in.window(rr,chr=ciG,pos=posiG,TRUE) # set with FULL overlap of iG
+#' in.window(rr,chr=6,pos=c(25,35),unit="mb") # look between 25 - 35 MB on chr6 [ie, MHC]
+in.window <- function(ranged,chr,pos,full.overlap=F, unit=c("b","kb","mb","gb"), rmv.dup=FALSE) {
   if(length(pos)>2 | !is.numeric(pos)) { warning("pos should be a start and end numeric range"); return(NULL) }
   if(length(pos)==1) { pos <- rep(pos,2) }
-  if(length(chr)>1 | is.na(as.numeric(chr))) { warning("chr should be a single number"); return(NULL) }
-  if(!any(is(ranged)[1] %in% c("RangedData","IRanges","GRanges","RangesList"))) { 
+  all.chrz <- unique(chrNames2(ranged))
+  if(length(chr)>1 | (!chr %in% all.chrz)) { warning("chr must be a value in",comma(all.chrz)); return(NULL) }
+  typ <- is(ranged)[1]
+  if(!any(typ %in% c("RangedData","IRanges","GRanges","RangesList"))) { 
     warning("'ranged' should be a RangedData type or similar"); return(NULL) }
-  unit <- tolower(unit[1]) ; mult <- switch(unit,b=0,kb=3,mb=6,gb=9); pos <- pos*10^mult
+  pos <- pos*make.divisor(unit,"unit")
+  #unit <- tolower(unit[1]) ; mult <- switch(unit,b=0,kb=3,mb=6,gb=9); pos <- pos*10^mult
   # get set of genes in a position range for a chromosome
   chr.genez <- chr.sel(ranged,paste(chr)) 
   if(full.overlap) {
@@ -3771,25 +3817,77 @@ unique.in.range <- function(ranged,chr,pos,full.overlap=F, unit=c("b","kb","mb",
 }
 
 
-# iFunctions?
-# TODO8
-# add gene annotation to existing plot with y range 'ylim',
-#  in range 'sect' using 'parse.annot.file' formmated
-#  annotation data read in from dataframe 'DF'. step is a scaling
-#  factor that will adjust the gene position units based on the 
-#  the step size of the rest of the plot.
-# more args to 'rect' ...
-plot.gene.annot <- function(gs=NULL, chr=1, pos=NA, x.scl=10^6, y.ofs=0, width=1, txt=T, chr.pos.offset=0,
-                            build="hg18", dir="", box.col="green", txt.col="black", join.col="red", ...)
+
+#' Plot genes to annotate figures with genomic axes
+#' 
+#' Quite often it is helpful to visualize genomic locations in the context of Genes
+#' in the same region. This function makes it simple to overlay genes on plots
+#' where the x-axis is chromosomal location.
+#' @param chr chromosome number/name that the plot-range lies on
+#' @param pos position range on the chromosome 'chr' that the plot lies on, in base-pairs
+#' @param scl character, the scale that the x axis uses, ie, "b","kb","mb", or "gb", meaning
+#' base-pairs, kilobases, megabases or gigabase-pairs.
+#' @param y.ofs numeric, y-axis-offset, depending on what units are on your y-axis,
+#' you may need to add an offset so that the gene annotation is drawn at an appropriate
+#' level on the vertical axis, this value should be the centre of annotation
+#' @param width depending on the range of your y-axis, you might want to expand or reduce
+#' the vertical width of the gene annotation (in normal graph units)
+#' @param txt logical, TRUE to include the names of genes on top of their representation
+#' on the plot, or if FALSE, genes are drawn without labels.
+#' @param chr.pos.offset if for some reason zero on the x-axis is not equal to 'zero' on
+#' the chromsome, then this offset can correct the offset. For instance if you were using
+#' a graph of the whole genome and you were plotting genes on chromosome 10, you would
+#' set this offset to the combined lengths of chromosomes 1-9 to get the start point
+#' in the correct place.
+#' @param gs GRanges or RangedData object, this is annotation for the location of genes.
+#' This will be retrieved using get.gene.annot() if 'gs' is NULL. THere may be several reasons
+#' for passing an object directly to 'gs'; firstly speed, if making many calls then you won't
+#' need to load the annotation every time; secondly, if you want to use an alternative annotation
+#' you can create your own so long as it is a GRanges/RangedData object and contains a column
+#' called 'gene' (which doesn't strictly have to contain gene labels, it could be any feature
+#' you require, eg., transcript names, etc).
+#' @param dir character, location to store file with the gene annotation.
+#' If NULL then getOption("save.annot.in.current")>=1 will result in
+#' this file being stored in the current directory, or if <=0, then this file will not
+#' be stored.
+#' @param build string, currently 'hg18' or 'hg19' to specify which annotation version to use. 
+#'  Default is build-36/hg-18. Will also accept integers 36,37 as alternative arguments.
+#' @param bioC logical, whether to return the annotation as a ranged S4 object (GRanges or
+#' RangedData), or as a data.frame
+#' @param box.col genes are drawn as boxes, this sets the colour of the boxes
+#' @param txt.col this sets the colour of the label text (Gene names)
+#' @param join.col for exons, or multipart genes, joins are made between the sections with
+#' a central line, this sets the colour of that line.
+#' @param ... further arguments to 'rect', the graphics function used to plot the 'genes'.
+#' @export
+#' @return Returns a data.frame, GRanges or RangedData object, depending on input parameters. Contained
+#' will be HGNC gene labels, chromosome and start and end positions, other information depends on 
+#' specific parameters documented above
+#' @export
+#' @examples
+#' # EXAMPLE PLOT OF SOME SIMULATED SNPS on chr21-p11.1 #
+#' loc <- c(9.9,10.2)
+#' Band(chr=21,pos=loc*10^6)
+#' rr <- in.window(rranges(50000),chr=21,pos=loc,unit="mb") # make some random MHC ranges
+#' # create some SNPs and plot
+#' rr3 <- rr; end(rr3) <- start(rr3) 
+#' rownames(rr3) <- paste0("rs",sample(10^6,nrow(rr3)))
+#' plot.ranges(rr3,col="blue",scl="mb",xlim=loc,xlab="Chr21 position (Mb)",ylab="")
+#' # NOW add UCSC hg18 GENE annotation to the plot #
+#' ## not run ## plot.gene.annot(chr=21,pos=c(9.95,10.1),scl="mb",y.ofs=1,build=36)
+plot.gene.annot <- function(chr=1, pos=NA, scl=c("b","kb","mb","gb"), y.ofs=0, width=1, txt=T, chr.pos.offset=0,
+                            gs=NULL, build="hg18", dir=NULL, box.col="green", txt.col="black", join.col="red", ...)
 {
+  if(is.null(dir)) { if(any(getOption("save.annot.in.current")<1)) { dir <- NULL } else { dir <- getwd() } }
   dir <- validate.dir.for(dir,"ano")
   build <- ucsc.sanitizer(build)
-  if(is(gs)[1]!="RangedData") { gs <- get.gene.annot(dir=dir,build=build,GRanges=FALSE) }
+  if(!is(gs)[1] %in% c("RangedData","GRanges")) { gs <- get.gene.annot(dir=dir,build=build,GRanges=FALSE) }
+  if(is(gs)[1]=="GRanges") { gs <- as(gs,"RangedData") }
   if(!"gene" %in% colnames(gs)) { warning("didn't find 'gene' column in annotation") ; return(NULL) }
   Col <- c("green", "darkgreen")
   if(all(is.na(pos))) { pos <- c(1,Inf) } 
   # get set of genes in range of the graph section + remove duplicate genes/exons
-  rng.genez <- unique.in.range(gs,chr,pos,full.overlap=F, rmv.dup=T)
+  rng.genez <- in.window(gs,chr,pos,full.overlap=F, rmv.dup=T,unit=scl)
   if(nrow(rng.genez)<1) { warning("no genes found in range") ; return(NULL) }
   old.cc <- 1 ; tp <- 2
   # set vertical alignments for annotation
@@ -3800,6 +3898,8 @@ plot.gene.annot <- function(gs=NULL, chr=1, pos=NA, x.scl=10^6, y.ofs=0, width=1
   # text alignment
   tps <- y.bot + c(.18,.29,.46,.64,.82)[c(1,3,5)]*width
   # x position with scaling (e.g, Mb units = 10^6)
+  #unit <- tolower(unit[1]) ; mult <- switch(unit,b=0,kb=3,mb=6,gb=9); pos <- pos*10^mult
+  x.scl <- make.divisor(scl)
   cnrlo <- start(rng.genez)/x.scl+chr.pos.offset
   cnrhi <- end(rng.genez)/x.scl+chr.pos.offset
   gnnm <- (rng.genez$gene)
@@ -3831,49 +3931,125 @@ plot.gene.annot <- function(gs=NULL, chr=1, pos=NA, x.scl=10^6, y.ofs=0, width=1
 }
 
 
-# iFunctions?
-# TODO7
-# should enter a ranged object with data for only 1 chromosome
-# yadj controls offset from the default y-axis location of the plotted ranges (default is integers)
-# adjust scl if the plot is in Mb units or Kb units (ranged object should always be in base-pairs)
-# full vertical plots the ranges with abline() instead of as horizontal lines
-# plot a set of ranges from a RangedData object
-plot.ranges <- function(rangedat,labels=NULL,do.labs=T,skip.plot.new=F,lty="solid",
-                        full.vertical=FALSE,ylim=NULL,scl=c("b","Kb","Mb","Gb"),...) {
+#internal
+make.divisor <- function(unit=c("b","kb","mb","gb"), par.name="scale (scl)") {
+  valid.units <- c("k","m","g","b")
+  unit <- tolower(unit[1]);
+  unit <- substr(unit,1,1)
+  if(!unit %in% valid.units) { warning("invalid entry to ",par.name," defaulting to base-pairs") ; unit <- "b" }
+  divisor <- switch(unit,k=1000,m=10^6, g=10^9, b=1)
+  return(divisor)
+}
+
+#internal
+plotdf <- function(expr,fn="myTempPlot.pdf") {
+  pdf(fn)
+  { expr }
+  dev.off()
+  cat("wrote plot to",cat.path(getwd(),fn),"\n")
+}
+
+
+
+#' Plot the locations specified in a GRanges or RangedData object
+#' 
+#' GRanges and RangedData objects are used in bioconductor to store genomic locations and
+#' ranges, such as transcripts, genes, CNVs and SNPs. This function allows simple
+#' plotting of this data directly from the ranged object. SNPs will be plotted as dots 
+#' and ranges as lines. Either can be plotted using vertical bars at the start/end of each
+#' range. There are options for labelling and other graphical parameters.
+#' @param ranged GRanges or RangedData object with genomic ranges. Should only contain
+#' one chromosome, but if not, the first will be used
+#' @param labels by default labels for each range are taken from the rownames of 'ranged',
+#' but if you want to use another column in the ranged object, specify the column name
+#' or number to use to label these ranges on the plot.
+#' @param do.labs logical, whether or not to display these labels
+#' @param skip.plot.new logical, whether to append to an existing plot (TRUE), or start
+#' a new plot (FALSE --> default)
+#' @param lty line type to use, see '?lines()' - not used for SNP data when v.lines=FALSE
+#' @param v.lines TRUE will plot the ranges as pairs of vertical lines, occupying the full
+#' vertical extent of the plot, whereas FALSE will plot the ranges as individual horizontal lines
+#' @param ylim numeric, length 2, the y-axis limits for the plot, same a 'ylim' for ?plot()
+#' @param xlim numeric, length 2, the x-axis limits for the plot, same a 'xlim' for ?plot(),
+#' This shouldn't usually be needed as the automatic x-limits should work well,
+#'  however is here in case fine tuning is required.
+#' @param scl character, the scale that the x axis uses, ie, "b","kb","mb", or "gb", meaning
+#' base-pairs, kilobases, megabases or gigabase-pairs.
+#' @param ... further arguments to 'plot', so long as skip.plot.new==FALSE.
+#' @export
+#' @return Plots the ranges specified in 'ranged' to the current plot, or to a new plot
+#' @example
+#' rr <- in.window(rranges(5000),chr=6,pos=c(28,32),unit="mb") # make some random MHC ranges
+#' rownames(rr) <- paste0("range",1:length(rr))
+#' # plot ranges vertically #
+#' plot.ranges(rr,v.lines=TRUE)
+#' # make some labels and plot as horizontal lines #
+#' rr2 <- rr[1:5,]; mcols(rr2)[["GENE"]] <- c("CTLA9","HLA-Z","BS-1","FAKr","teST")
+#' plot.ranges(rr2,label="GENE",scl="Mb",col="black",
+#'             xlab="Chr6 position (megabases)",
+#'             yaxt="n",ylab="",bty="n")
+#' # create some SNPs and plot
+#' rr3 <- rr; end(rr3) <- start(rr3) 
+#' rownames(rr3) <- paste0("rs",sample(10^6,nrow(rr3)))
+#' plot.ranges(rr3,col="blue",yaxt="n",ylab="",bty="n")
+plot.ranges <- function(ranged,labels=NULL,do.labs=T,skip.plot.new=F,lty="solid",
+                        v.lines=FALSE,ylim=NULL,xlim=NULL,scl=c("b","Kb","Mb","Gb"),col=NULL,...) {
   #if(is(ranges)[1]!="RangedData") { warning("need RangedData object") ; return(NULL) }
-  chk <- chrNums(rangedat)
-  if(length(chk)>1) { warning(length(chk)," chromosomes in 'rangedat', only using the first, chr",chk[1]) ; rangedat <- rangedat[1] }
-  if(is.character(scl[1])) { scltxt <- tolower(scl[1]) } else { scltxt <- "b" }
-  if(scltxt %in% c("b","kb","mb","gb")) {
-    scl <- 1
-    if(scltxt=="kb") { scl <- 10^3 }
-    if(scltxt=="mb") { scl <- 10^6 }
-    if(scltxt=="gb") { scl <- 10^9 }
-  } else {
-    scl <- 1; warning("scale entered with illegal value, reverting to a base-pair scale")
+  chk <- chrNums(ranged)
+  typ <- is(ranged)[1]
+  if(length(chk)>1) { 
+    warning(length(chk)," chromosomes in 'ranged', only using the first, chr",chk[1]) 
+    ranged <- chr.sel(ranged,1) 
   }
-  xl <- range(c(start(rangedat),end(rangedat)))
+  if(all(width(ranged)<=1)) { theyAreSnps <- TRUE } else { theyAreSnps <- FALSE }
+  scl <- make.divisor(scl)
+  xl <- range(c(start(ranged),end(ranged)))
   xl <- xl + ((diff(xl)*0.1)*c(-1,1))
-  nr <- nrow(rangedat); if(is.null(nr)) { nr <- length(rangedat) }
+  xl <- xl/scl
+  nr <- nrow(ranged); if(is.null(nr)) { nr <- length(ranged) }
   yl <- c(0,(nr+2))
   if(is.numeric(ylim) & length(ylim)==2) {
     ylim <- range(ylim)
     ydif <- diff(ylim)
     yl <- ylim
   }
+  if(is.numeric(xlim) & length(xlim)==2) {
+    xlim <- range(xlim)
+    xdif <- diff(xlim)
+    xl <- xlim
+  }
   YY <- seq(from=yl[1],to=yl[2],length.out=nr+2)[-1]
   #print(YY)
-  colz <- get.distinct.cols(nr); if(nr>22) { colz <- rep("black",nr) }
-  if(is.null(labels)) { lab <- rownames(rangedat) } else { lab <- rangedat[[labels]] }
+  if(!is.null(col)) {
+    if(length(col)==1) {
+      colz <- rep(col,times=nr) 
+    } else {
+      if(length(col)!=nr) { warning("col was not the same length as ranged, using first only"); col <- rep(col[1],nr) }
+    }
+  }
+  if(is.null(col)) {
+    if(nr>22) { colz <- rep("black",nr) } else { colz <- get.distinct.cols(nr) }
+  }
+  if(is.null(labels)) { 
+    lab <- rownames(ranged) 
+  } else {
+    if(typ=="GRanges") { 
+      lab <- mcols(ranged)[[labels]] 
+    } else {
+      lab <- ranged[[labels]] 
+    }
+  }
   if(is.null(lab) & do.labs) { lab <- paste(1:nr) }
   if(!skip.plot.new) {
-    if(full.vertical) {
-      plot(x=c(start(rangedat[1,]),end(rangedat[1,]))/scl,y=YY[c(1,1)],
-           xlim=xl,ylim=yl,type="l",col="white",lty=lty,...)
-      abline(v=c(start(rangedat[1,]),end(rangedat[1,]))/scl,col=colz[1])
+    position <- c(start(ranged[1,]),end(ranged[1,]))/scl
+    Y <- YY[c(1,1)]
+    #prv(position,Y)
+    TY <- if(theyAreSnps) { "p" } else { "l" }
+    if(v.lines) {
+      plot(x=position, y=Y, xlim=xl, ylim=yl, type=TY, col="white", lty=lty,...)
+      abline(v=position,col=colz[1])
     } else {
-      plot(x=c(start(rangedat[1,]),end(rangedat[1,]))/scl,y=YY[c(1,1)],
-           xlim=xl,ylim=yl,type="l",col=colz[1],lty=lty,...)
+      plot(x=position, y=Y, xlim=xl, ylim=yl, type=TY, col=colz[1], lty=lty,...)
     }
     st <- 2
   } else {
@@ -3881,17 +4057,21 @@ plot.ranges <- function(rangedat,labels=NULL,do.labs=T,skip.plot.new=F,lty="soli
   }
   if(nr>1 | st==1) {
     for (cc in st:nr) {
-      if(full.vertical) {
-        abline(v=c(start(rangedat[cc,]),end(rangedat[cc,]))/scl,col=colz[cc],lty=lty)
+      if(v.lines) {
+        abline(v=c(start(ranged[cc,]),end(ranged[cc,]))/scl,col=colz[cc],lty=lty)
       } else {
-        lines(x=c(start(rangedat[cc,]),end(rangedat[cc,]))/scl,y=YY[c(cc,cc)],col=colz[cc],lty=lty)
+        if(theyAreSnps) { 
+          points(x=c(start(ranged[cc,]),end(ranged[cc,]))/scl,y=YY[c(cc,cc)],col=colz[cc])
+        } else { 
+          lines(x=c(start(ranged[cc,]),end(ranged[cc,]))/scl,y=YY[c(cc,cc)],col=colz[cc],lty=lty)
+        }
       }
     }
   }
   if(do.labs) {
     for (cc in 1:nr) {
-      if(full.vertical) { YY <- rep(tail(YY,1),length(YY)) }
-      text(x=start(rangedat[cc,])/scl,y=YY[cc]+(diff(YY[1:2])*0.5),labels=lab[cc],cex=0.6,pos=4,offset=0)
+      if(v.lines) { YY <- rep(tail(YY,1),length(YY)) }
+      text(x=start(ranged[cc,])/scl,y=YY[cc]+(diff(YY[1:2])*0.5),labels=lab[cc],cex=0.6,pos=4,offset=0)
     }
   }
 }
@@ -4046,10 +4226,28 @@ set.chr.to.numeric <- function(ranged,keep=T,table.in=NULL,table.out=FALSE) {
 }
 
 
-# iFunctions
-# TODO6
-## get the locations of the immunoglobin regions
-get.immunog.locs <- function(build=c("hg18","hg19"),bioC=TRUE,text=FALSE) {
+
+
+#' Retrieve locations of Immunoglobin regions across the genome
+#' 
+#' Returns the locations of immunoglobin regions in the human genome, for a given build, as
+#' a list by chromosome, text vector, or GRanges/RangedData object.
+#' For instance, for CNV research, these regions are known to be highly structurally complex
+#' and can lead to false positive CNV-calls, so are often excluded.
+#' @param build string, currently 'hg18' or 'hg19' to specify which annotation version to use. 
+#'  Default is build-36/hg-18. Will also accept integers 36,37 as alternative arguments.
+#' @param bioC logical, whether to return the annotation as a ranged S4 object (GRanges or
+#' RangedData), or as a data.frame
+#' @param text logical, whether to return locations as a text vector of the form: chrN:xxxx-xxxx
+#' @param GRanges logical, whether to return a GRanges object, or FALSE to return RangedData
+#' @export
+#' @return Returns a list, GRanges or RangedData object, depending on input parameters. Contained
+#' will be immunoglobin chromosome, start and end positions.
+#' @example
+#' get.immunog.locs()
+#' get.immunog.locs(bioC=FALSE)
+#' get.immunog.locs(text=TRUE,build=37)
+get.immunog.locs <- function(build=c("hg18","hg19"),bioC=TRUE,text=FALSE,GRanges=TRUE) {
   nchr <- 22
   build <- ucsc.sanitizer(build[1])
   if(build[1]=="hg19") {
@@ -4070,7 +4268,9 @@ get.immunog.locs <- function(build=c("hg18","hg19"),bioC=TRUE,text=FALSE) {
     outData <- RangedData(ranges=IRanges(start=stz,end=enz,names=nmz),space=chr,
                           reg=reg.dat,universe=build[1])
     outData <- toGenomeOrder2(outData,strict=T)
-    if(text) { outData <- Ranges.to.txt(outData) }
+    if(text) { outData <- Ranges.to.txt(outData) } else {
+      if(GRanges) { outData <- as(outData,"GRanges") }
+    }
   } else {
     outData <- vector("list",nchr); names(outData) <- paste("chr",1:nchr,sep="")
     for (cc in 1:nchr) {
@@ -4082,15 +4282,38 @@ get.immunog.locs <- function(build=c("hg18","hg19"),bioC=TRUE,text=FALSE) {
   return(outData)
 }
 
-# iFunctions
-# TODO5
-## get the locations of the centromeres
-get.centromere.locs <- function(dir="",build=c("hg18","hg19"),bioC=TRUE,text=FALSE,autosomes=FALSE)
+
+#' Return Centromere locations across the genome
+#' 
+#' Returns the locations of centromeres in the human genome, for a given build, as
+#' a list by chromosome, text vector, or GRanges/RangedData object.
+#' @param dir character, location to store file with the this annotation.
+#' If NULL then getOption("save.annot.in.current")>=1 will result in
+#' this file being stored in the current directory, or if <=0, then this file will not
+#' be stored.
+#' @param build string, currently 'hg18' or 'hg19' to specify which annotation version to use. 
+#'  Default is build-36/hg-18. Will also accept integers 36,37 as alternative arguments.
+#' @param bioC logical, whether to return the annotation as a ranged S4 object (GRanges or
+#' RangedData), or as a data.frame.
+#' @param GRanges logical, whether to return a GRanges object, or FALSE to return RangedData
+#' @param text logical, whether to return locations as a text vector of the form: chrN:xxxx-xxxx
+#' @param autosomes logical, if TRUE, only return results for autosomes, if FALSE, also include
+#' X and Y.
+#' @export
+#' @return Returns a list, GRanges or RangedData object, depending on input parameters. Contained
+#' will be centromere chromosome and start and end positions.
+#' @example
+#' get.centromere.locs()
+#' get.centromere.locs(bioC=FALSE,autosomes=TRUE)
+#' get.centromere.locs(text=TRUE)
+get.centromere.locs <- function(dir=NULL,build=c("hg18","hg19"),
+                                bioC=TRUE,GRanges=TRUE,text=FALSE,autosomes=FALSE)
 {
+  if(is.null(dir)) { if(any(getOption("save.annot.in.current")<1)) { dir <- NULL } else { dir <- getwd() } }
   dir <- validate.dir.for(dir,c("ano"),warn=FALSE); success <- TRUE
   build <- ucsc.sanitizer(build)
   local.file <- cat.path(dir$ano,"cyto")
-  tt <- get.cyto(build=build,bioC=FALSE,dir=dir)
+  tt <- get.cyto(build=build,bioC=FALSE,dir=dir,GRanges=FALSE)
   chrn <- paste(1:22)
   if(!autosomes) { 
     chrn <- c(chrn,c("X","Y"))
@@ -4112,7 +4335,13 @@ get.centromere.locs <- function(dir="",build=c("hg18","hg19"),bioC=TRUE,text=FAL
     outData <- RangedData(ranges=IRanges(start=stz,end=enz,names=nmz),space=gsub("chr","",chrn),
                           reg=reg.dat,universe=build[1])
     outData <- toGenomeOrder2(outData,strict=TRUE)
-    if(text) { outData <- Ranges.to.txt(outData) }
+    if(text) { 
+      outData <- Ranges.to.txt(outData) 
+    } else {
+      if(GRanges){
+        outData <- as(outData,"GRanges")
+      }
+    }
   } else {
     outData <- my.chr.range 
   }
@@ -4120,11 +4349,29 @@ get.centromere.locs <- function(dir="",build=c("hg18","hg19"),bioC=TRUE,text=FAL
 }
 
 
-# iFunctions
-# TODO4
-## get the locations of each cytoband (karotype)
-# if dir left blank won't leave a trace
-get.cyto <- function(build="hg18",dir=NULL,bioC=TRUE,refresh=FALSE) {
+#' Return Cytoband/Karyotype locations across the genome
+#' 
+#' Returns the locations of cytobands/karyotype-bands in the human genome, for a given build, as
+#' a data.frame, or GRanges/RangedData object.
+#' @param dir character, location to store file with the this annotation.
+#' If NULL then getOption("save.annot.in.current")>=1 will result in
+#' this file being stored in the current directory, or if <=0, then this file will not
+#' be stored.
+#' @param build string, currently 'hg18' or 'hg19' to specify which annotation version to use. 
+#'  Default is build-36/hg-18. Will also accept integers 36,37 as alternative arguments.
+#' @param bioC logical, whether to return the annotation as a ranged S4 object (GRanges or
+#' RangedData), or as a data.frame
+#' @param GRanges logical, whether to return a GRanges object, or FALSE to return RangedData
+#' @param refresh logical, whether to re-download the file if the existing file has become corrupted
+#' @export
+#' @return Returns a list, GRanges or RangedData object, depending on input parameters. Contained
+#' will be centromere chromosome and start and end positions.
+#' @example
+#' get.centromere.locs()
+#' get.centromere.locs(bioC=FALSE)
+#' get.centromere.locs(text=TRUE)
+get.cyto <- function(build="hg18",dir=NULL,bioC=TRUE,GRanges=TRUE,refresh=FALSE) {
+  if(is.null(dir)) { if(any(getOption("save.annot.in.current")<1)) { dir <- NULL } else { dir <- getwd() } }
   build <- ucsc.sanitizer(build)
   local.file="cyto"
   if(is.null(dir)) {
@@ -4153,7 +4400,7 @@ get.cyto <- function(build="hg18",dir=NULL,bioC=TRUE,refresh=FALSE) {
     outData <- RangedData(ranges=IRanges(start=st,end=en,names=fullbands),space=mychr,
                           negpos=tt$negpos,universe=build[1])
     outData <- toGenomeOrder2(outData,strict=T)
-    #if(text) { outData <- Ranges.to.txt(outData) }
+    if(GRanges) { outData <- as(outData,"GRanges") }
   } else {
     outData <- tt 
     if("band" %in% colnames(outData)) {
@@ -4242,19 +4489,44 @@ get.recombination.map <- function(dir=NULL,verbose=TRUE,refresh=FALSE, compress=
 }
 
 
-# iFunctions
-# TODO3
-## get list of all exons, names, starts, ends
-get.exon.annot <- function(dir=NULL,build="hg18",bioC=T,list.out=F) {
+#' Get exon names and locations from biomart
+#' 
+#' Various R packages assist in downloading exonic information but often the input required is 
+#' complex, or several lines of code are required to initiate, returning an object that
+#' might require some manipulation to be useful. This function simplifies the job 
+#' considerably, not necessarily requiring any arguments. The object returned can be
+#' a standard data.frame or a bioconductor GRanges/RangedData object. The raw annotation
+#' file downloaded will be kept in the working directory so that subsequent calls to
+#' this function run very quickly, and also allow use offline.
+#' @param dir character, location to store file with the gene annotation.
+#' If NULL then getOption("save.annot.in.current")>=1 will result in
+#' this file being stored in the current directory, or if <=0, then this file will not
+#' be stored.
+#' @param build string, currently 'hg18' or 'hg19' to specify which annotation version to use. 
+#'  Default is build-36/hg-18. Will also accept integers 36,37 as alternative arguments.
+#' @param bioC logical, whether to return the annotation as a ranged S4 object (GRanges or
+#' RangedData), or as a data.frame
+#' @param GRanges logical, if TRUE and bioC is also TRUE, then returned object will be GRanges, otherwise
+#' it will be RangedData
+#' @export
+#' @return Returns a data.frame, GRanges or RangedData object, depending on input parameters. Contained
+#' will be HGNC gene labels, chromosome, start and end positions, transcript id number and name
+#' @example
+#' ## not run as it takes too long to download for CRAN ##
+#' ## get.exon.annot()
+#' ## get.exon.annot(bioC=FALSE,build=37)
+get.exon.annot <- function(dir=NULL,build="hg18",bioC=T, GRanges=TRUE) {
+  if(is.null(dir)) { if(any(getOption("save.annot.in.current")<1)) { dir <- NULL } else { dir <- getwd() } }
   build <- ucsc.sanitizer(build)
   ## load exon annotation (store locally if not there already)
   from.scr <- T
   if(!is.null(dir)) {
-    ex.fn <- cat.path(dir$ano,"exonAnnot.RData")
+    dir <- validate.dir.for(dir,"ano")
+    ex.fn <- cat.path(dir$ano,"exonAnnot",suf=build,ext="RData")
     if(file.exists(ex.fn)) {
       ts <- get(paste(load(ex.fn)))
-      if((bioC|!list.out) & is.data.frame(ts)) { from.scr <- F }
-      if((list.out & !bioC) & is.list(ts)) { from.scr <- F }
+      if((bioC) & is.data.frame(ts)) { from.scr <- F }
+      if((!bioC) & is.list(ts)) { from.scr <- F }
     }
   } 
   must.use.package("GenomicFeatures",T)
@@ -4276,7 +4548,7 @@ get.exon.annot <- function(dir=NULL,build="hg18",bioC=T,list.out=F) {
     select <- match(names(ts),egSymb[,1])
     names(ts)[!is.na(select)] <- egSymb[,2][select[!is.na(select)]]
   }
-  if(!list.out | bioC) {
+  if(bioC) {
     if(from.scr) {
       ts <- as.data.frame(ts)
       chrs <- paste(ts$seqnames); chrs <- gsub("chr","",chrs)
@@ -4295,6 +4567,7 @@ get.exon.annot <- function(dir=NULL,build="hg18",bioC=T,list.out=F) {
                        space=ts$chr,gene=ts$gene, strand=ts$strand,
                        txid=ts$txid, txname=ts$txname,universe=build)
       ts <- toGenomeOrder2(ts,strict=T)
+      if(GRanges) { ts <- as(ts,"GRanges") }
     }
   } else {
     if(from.scr) { if(exists("ex.fn")) { save(ts,file=ex.fn) } }
@@ -4339,22 +4612,16 @@ tidy.extra.chr <- function(chr,select=FALSE) {
   }  
 }
 
-# iFunctions
-# TODO2
-## get list of all genes, names, starts, ends, optionally bands
-#' 
+
 #' Get gene names and locations from biomart
 #' 
-#' Recombination rate files can be used to calculate recombination distances
-#' for genome locations, in centimorgans. This function downloads these reference
-#' files from the hapmap NCBI website. At the time of writing they were only 
-#' availble for build 36. If using a more recent build I suggest using the
-#' conversion function conv.37.36(), then recwindow(), then conv.36.37() to 
-#' get recombination distances for other builds. If getOption("save.annot.in.current")
-#' is <=0 then no files will be kept. Otherwise an object containing this mapping data
-#' will be saved in the local directory if dir=NULL, or else in the directory specified.
-#' Allowing this reference to be saved will greatly increase the speed of this function
-#' for subsequent lookups
+#' Various R packages assist in downloading genomic information but often the input required is 
+#' complex, or several lines of code are required to initiate, returning an object that
+#' might require some manipulation to be useful. This function simplifies the job 
+#' considerably, not necessarily requiring any arguments. The object returned can be
+#' a standard data.frame or a bioconductor GRanges/RangedData object. The raw annotation
+#' file downloaded will be kept in the working directory so that subsequent calls to
+#' this function run very quickly, and also allow use offline.
 #' @param dir character, location to store file with the gene annotation.
 #' If NULL then getOption("save.annot.in.current")>=1 will result in
 #' this file being stored in the current directory, or if <=0, then this file will not
@@ -4387,6 +4654,7 @@ tidy.extra.chr <- function(chr,select=FALSE) {
 #' @example
 #' ## not run as it takes too long to download for CRAN ##
 #' ## get.gene.annot()
+#' ## get.gene.annot(bioC=FALSE,build=37)
 get.gene.annot <- function(dir=NULL,build="hg18",bioC=TRUE,duplicate.report=FALSE,
                            one.to.one=FALSE,remap.extra=FALSE,discard.extra=TRUE,only.named=FALSE,
                            ens.id=FALSE,refresh=FALSE,GRanges=TRUE) {
@@ -4397,6 +4665,7 @@ get.gene.annot <- function(dir=NULL,build="hg18",bioC=TRUE,duplicate.report=FALS
   must.use.package(c("biomaRt","genoset","gage"),T)
   build <- ucsc.sanitizer(build)
   from.scr <- T
+  if(is.null(dir)) { if(any(getOption("save.annot.in.current")<1)) { dir <- NULL } else { dir <- getwd() } }
   if(!is.null(dir)) {
     dir <- validate.dir.for(dir,"ano")
     utxt <- ""; if(one.to.one) { utxt <- "_unq" }
@@ -4490,6 +4759,7 @@ get.gene.annot <- function(dir=NULL,build="hg18",bioC=TRUE,duplicate.report=FALS
   return(outData)
 }
 
+#internal
 gene.duplicate.report <- function(ga,full.listing=F,colname="gene",silent=FALSE) {
   # for a RangedData object, report on any multiple listings for the same gene
   if(is(ga)[1]!="RangedData") { warning("not a RangedData object") ; return(NULL) }
@@ -4534,14 +4804,43 @@ gene.duplicate.report <- function(ga,full.listing=F,colname="gene",silent=FALSE)
   return(culprits)
 }
 
-# iFunctions
-## create telomere locations - artibrary number of kb at start and end of each CHR
-# TODO1
-get.telomere.locs <- function(dir="",kb=10,build=c("hg18","hg19"),bioC=TRUE,text=FALSE,autosomes=FALSE,mito.zeros=FALSE)
+
+#' Derive Telomere locations across the genome
+#' 
+#' Returns the locations of telomeres in the human genome, for a given build, as
+#' a list by chromosome, text vector, or GRanges/RangedData object.
+#' @param dir character, location to store file with the this annotation.
+#' If NULL then getOption("save.annot.in.current")>=1 will result in
+#' this file being stored in the current directory, or if <=0, then this file will not
+#' be stored.
+#' @param kb The number of base pairs at the start and end of a chromosome that are defined as
+#' belonging to the telomere can be a little arbitrary. This argument allows specification
+#' of whatever threshold is required.
+#' @param build string, currently 'hg18' or 'hg19' to specify which annotation version to use. 
+#'  Default is build-36/hg-18. Will also accept integers 36,37 as alternative arguments.
+#' @param bioC logical, whether to return the annotation as a ranged S4 object (GRanges or
+#' RangedData), or as a data.frame
+#' @param GRanges logical, whether to return a GRanges object, or FALSE to return RangedData
+#' @param text logical, whether to return locations as a text vector of the form: chrN:xxxx-xxxx
+#' @param autosomes logical, if TRUE, only return results for autosomes, if FALSE, also include
+#' X and Y.
+#' @param mito.zeros logical, Mitochondria have no telomeres (are circular) but for some purposes you
+#' might want zero values in order to match with other annotation that includes all chromosomes and MT.
+#' TRUE adds zeros for chrMT, and FALSE excludes chrMT.
+#' @export
+#' @return Returns a text vector, GRanges or RangedData object, depending on input parameters. Contained
+#' will be telomere chromosome and start and end positions.
+#' @example
+#' get.telomere.locs()
+#' get.telomere.locs(bioC=FALSE)
+#' get.telomere.locs(text=TRUE)
+get.telomere.locs <- function(dir=NULL,kb=10,build=c("hg18","hg19"),bioC=TRUE,GRanges=TRUE,
+                              text=FALSE,autosomes=FALSE,mito.zeros=FALSE)
 {
   # the actual telomeres are typically about 10kb, but
   # for cnv-QC purposes want to exclude a larger region like 500kb
   # Mt have no telomeres, are circular, but for some purposes might want zero values in there
+  if(is.null(dir)) { if(any(getOption("save.annot.in.current")<1)) { dir <- NULL } else { dir <- getwd() } }
   build <- ucsc.sanitizer(build)
   chr.lens <- get.chr.lens(dir=dir,build=build[1],autosomes=FALSE,mito=mito.zeros)
   n <- 1:22; if(!autosomes) { n <- c(n,"X","Y") } # Mt have no telomeres, are circular
@@ -4569,7 +4868,7 @@ get.telomere.locs <- function(dir="",kb=10,build=c("hg18","hg19"),bioC=TRUE,text
     outData <- RangedData(ranges=IRanges(start=stz,end=enz,names=nmz),space=chrz,
                           reg=reg.dat,universe=build[1])
     outData <- toGenomeOrder2(outData,strict=T)
-    if(text) { outData <- Ranges.to.txt(outData) }
+    if(text) { outData <- Ranges.to.txt(outData) } else { if(GRanges) { outData <- as(outData,"GRanges") } }
   } else {
     outData <- my.chr.range 
   }
@@ -4599,10 +4898,11 @@ get.telomere.locs <- function(dir="",kb=10,build=c("hg18","hg19"),bioC=TRUE,text
 #'  get.chr.lens(delete.after=TRUE) # delete.after simply deletes the downloaded txt file after reading
 #'  get.chr.lens(build=35,autosomes=TRUE,delete.after=TRUE) # only for autosomes
 #'  get.chr.lens(build="hg19",mito=TRUE,delete.after=TRUE) # include mitochondrial DNA length
-get.chr.lens <- function(dir="",build=c("hg18","hg19")[1],autosomes=FALSE,len.fn="humanChrLens.txt",
+get.chr.lens <- function(dir=NULL,build=c("hg18","hg19")[1],autosomes=FALSE,len.fn="humanChrLens.txt",
                          mito=FALSE,delete.after=FALSE, verbose=FALSE)
 {
   # retrieve chromosome lengths from local annotation file, else download from build
+  if(is.null(dir)) { if(any(getOption("save.annot.in.current")<1)) { dir <- NULL } else { dir <- getwd() } }
   if(is.null(dir)) { dir <- getwd() ; delete.after <- TRUE }
   dir <- validate.dir.for(dir,c("ano"),warn=F)
   chrlens.f <- cat.path(dir$ano,len.fn) # existing or future lengths file
@@ -4709,8 +5009,8 @@ read.ped.file <- function(fn,keepsix=TRUE) {
 #' @return return a pedData object (a data.frame)
 #' @examples
 #' # not run # fn <- "myfile.ped" # insert name of your own file
-#' # not run # myPed <- get.pedData(fn); prv(myPed)
-get.pedData <- function(file,correct.codes=TRUE,silent=FALSE) {
+#' # not run # myPed <- read.pedData(fn); prv(myPed)
+read.pedData <- function(file,correct.codes=TRUE,silent=FALSE) {
   rr <- read.ped.file(file,keepsix = TRUE)
   want <- c("familyid","individual","father","mother","sex","affected")
   have <- colnames(rr)
