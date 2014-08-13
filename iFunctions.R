@@ -1942,13 +1942,14 @@ conv.36.37 <- function(ranges=NULL,chr=NULL,pos=NULL,...,ids=NULL,chain.file="/h
           ## no matches to extras table
         }
       }
-      extra <- data.frame(Chr=newchr,Pos=noopos)
+      extra <- data.frame(Chr=newchr,Start=noopos,End=noopos)
       rownames(extra) <- ln
     } #else { cat("length is already the same\n") }
     Ind <- match(ranged.gr.37[["XMYINDEXX"]],orn)
     out <- data.frame(Chr=ranged.gr.37[["XMYCHRXX"]],Start=start(ranged.gr.37),End=end(ranged.gr.37),ind=Ind)
     rownames(out) <- RN
     if(length(orn)>length(RN)) {
+      #prv(out,extra)
       out <- out[,-4] # 4 is the 'ind' column
       out <- rbind(out,extra)
       out <- out[orn,]
