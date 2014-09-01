@@ -11,7 +11,7 @@
 
 
 ## options ##
-options(chip.info="/chiswick/data/ncooper/iChipData/ImmunoChip_ChipInfo.RData")
+options(chip.info="/chiswick/data/ncooper/iChipData/ImmunoChip_ChipInfo_New.RData")
 options(ucsc="hg18")
 options(save.annot.in.current=1)
 
@@ -30,9 +30,9 @@ if(Sys.info()[["user"]]=="ncooper")
 }
 
 if(getwd()!= "/home/ncooper"){
-  require(snpStats)
-  require(reader)
-  require(genoset)
+  must.use.package("snpStats",T)
+  must.use.package("reader")
+  must.use.package("genoset",T)
 }
 #
 
@@ -2711,7 +2711,7 @@ get.top.n <- function(mat,n=10) {
 #' @examples
 #' newMat <- rSnpMatrix(call.rate=.92) # specify target of 8% missing data
 #' print(as.data.frame(newMat)) # to see actual values
-rSnpMatrix <- function(nsnp=5,nsamp=10,call.rate=.95,A.freq.fun=runif) {
+rSnpMatrix <- function(nsamp=10, nsnp=5, call.rate=.95, A.freq.fun=runif) {
   dummy.vec <- rep(nsamp,nsnp)
   call.rate <- force.percentage(call.rate)
   exp.fac <- 10
