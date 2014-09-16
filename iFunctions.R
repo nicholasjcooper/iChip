@@ -3165,7 +3165,9 @@ Ranges.to.txt <- function(chr.list) {
 select.autosomes <- function(snp.info,deselect=FALSE) {
   #must.use.package("genoset",bioC=T)
   typ <- is(snp.info)[1]
-  if(!typ %in% c("RangedData","GRanges")) { warning("not a RangedData or GRanges object"); return(snp.info) }
+  if(!typ %in% c("RangedData","GRanges")) { 
+    warning("not a RangedData or GRanges object"); return(snp.info) 
+  }
   if(length(unique(chr2(snp.info))) < length(levels(chr2(snp.info)))) {
     # this fixes the problem when a subset of a ranges object with less 
     #  chromosomes still has empty chr slots from previous object
@@ -3225,6 +3227,7 @@ ranged.to.data.frame <- function(ranged,include.cols=FALSE,use.names=TRUE) {
 
 # internal# iFunctions
 chrNames2 <- function(X) {
+  X <- toGenomeOrder2(X)
   XX <- chrIndices2(X)
   return(rownames(XX))
 }

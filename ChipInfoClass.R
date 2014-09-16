@@ -6,7 +6,7 @@ if(getwd()!= "/home/ncooper"){
 # snp.info <- ChipInfo(chr=all.support[,"Chr"],pos=all.support[,"Pos"],ids=rownames(all.support),chip="ImmunoChip",rs.id=all.support[,"dbSNP"],
 #                      A1=all.support[,"A1"], A2=all.support[,"A2"])
 # 
-# gr.snp.info <- with(all.support,make.chr.pos.granges(chr=Chr,pos=Pos,row.names=rownames(all.support)))
+# gr.snp.info <- with(all.support,make.granges(chr=Chr,pos=Pos,row.names=rownames(all.support)))
 # 
 # snp.info <- ChipInfo(GRanges=gr.snp.info,chip="ImmunoChip",rs.id=all.support[,"dbSNP"],
 #                      A1=all.support[,"A1"], A2=all.support[,"A2"])
@@ -396,14 +396,14 @@ setMethod("print", "ChipInfo",
 ChipInfo <- function(GRanges=NULL, chr=NULL, pos=NULL, ids=NULL, chip="unknown chip", build="",
                      rs.id=NULL, A1=NULL, A2=NULL, QCcode=NULL) {
   if(build!="") { build <- ucsc.sanitizer(build) }
-  LL <- max(length(chr),length(GRanges),na.rm=T)
+  LL <- max(c(length(chr),length(GRanges)),na.rm=T)
   if(length(A1)!=LL | length(A2)!=LL) { A1 <- A2 <- rep(NA,times=LL) }
   if(length(rs.id)!=LL) { rs.id <- rep(NA,times=LL) } else { 
     if(any(duplicated(rs.id))) { rs.id <- add.trail(rs.id) } # appends letters to stop duplicates
   }
   if(length(QCcode)!=LL) { QCcode <- rep(0,LL) }
   if(is.null(GRanges)) {
-    GRanges <- make.chr.pos.granges(chr=chr,pos=pos,row.names=ids)
+    GRanges <- make.granges(chr=chr,pos=pos,row.names=ids)
   } else {
     if(is(GRanges)[1]!="GRanges") { GRanges <- as(GRanges,"GRanges") }
   }
