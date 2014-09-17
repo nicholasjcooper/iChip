@@ -3225,6 +3225,36 @@ ranged.to.data.frame <- function(ranged,include.cols=FALSE,use.names=TRUE) {
 }
 
 
+# Remove that pesky 'elementmetadata.' prefix from column names that have been converted from GRanges
+emd.rmv <- function(X, rmv.genome=TRUE) {
+  if(has.method("mcols",X)) {
+    colnames(mcols(X)) <- gsub("elementMetadata.","",colnames(mcols(X)))
+    ii <- which(colnames(mcols(X))=="genome")
+    if(length(ii)>0) {
+      gn <- mcols(X)[,ii[1]]
+      if(length(unique(gn))==1) {
+        mcols(X) <- mcols(X)[,-ii[1]]
+      }
+    }
+  } else {
+    if(has.method("colnames",X)) {
+      colnames(X) <- gsub("elementMetadata.","",colnames(X))
+      ii <- which(colnames(X)=="genome")
+      if(length(ii)>0) {
+        gn <- X[,ii[1]]
+        if(length(unique(gn))==1) {
+          X <- X[,-ii[1]]
+        }
+      }
+    } else {
+      stop("X must have column names, expecting GRanges, RangedData or data.frame")
+    }
+  }
+  return(X)
+}
+
+
+
 # internal# iFunctions
 chrNames2 <- function(X) {
   X <- toGenomeOrder2(X)

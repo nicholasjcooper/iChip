@@ -80,7 +80,9 @@ setGeneric("chip", function(x) standardGeneric("chip"))
 #' @param x a ChipInfo object
 #' @return character
 setMethod("chip", "ChipInfo", function(x) x@chip)
-setGeneric("build", function(x) standardGeneric("build") )
+if(!exists("build",mode="function")) {
+  setGeneric("build", function(x) standardGeneric("build") )
+}
 
 #' Retrieve the build for ChipInfo
 #' 
