@@ -4922,22 +4922,24 @@ get.telomere.locs <- function(dir=NULL,kb=10,build=c("hg18","hg19"),bioC=TRUE,GR
 #'  if dir is NULL then will automatically delete the annotation text file from the local directory
 #'   after downloading
 #'  @param build string, currently 'hg17','hg18' or 'hg19' to specify which annotation version to use. 
-#'  Default is build-36/hg-18. Will also accept integers 17,18,19,35,36,37 as alternative arguments.
+#'  Default is getOption("ucsc"). Will also accept integers 17,18,19,35,36,37 as alternative arguments.
 #'  @param autosomes logical, if TRUE, only load the lengths for the 22 autosomes, else load X,Y,[MT] as well
 #'  @param len.fn optional file name to keep the lengths in
-#'  @param whether to include the length of the mitochondrial DNA (will not include unless autosomes is also FALSE)
+#'  @param mito logical, whether to include the length of the mitochondrial DNA (will not include unless autosomes is also FALSE)
+#'  @param names logical, whether to name the chromosomes in the resulting vector
 #'  @param delete.after logical, if TRUE then delete the text file that these lengths were downloaded to. 
 #'  If FALSE, then the file will be kept, meaning future lookups will be faster, and available offline.
 #'  @examples
 #'  get.chr.lens(delete.after=TRUE) # delete.after simply deletes the downloaded txt file after reading
 #'  get.chr.lens(build=35,autosomes=TRUE,delete.after=TRUE) # only for autosomes
 #'  get.chr.lens(build="hg19",mito=TRUE,delete.after=TRUE) # include mitochondrial DNA length
-get.chr.lens <- function(dir=NULL,build=c("hg18","hg19")[1],autosomes=FALSE,len.fn="humanChrLens.txt",
-                         mito=FALSE,delete.after=FALSE, verbose=FALSE)
+get.chr.lens <- function(dir=NULL,build=NULL,autosomes=FALSE,len.fn="humanChrLens.txt",
+                         mito=FALSE,names=FALSE, delete.after=FALSE, verbose=FALSE)
 {
   # retrieve chromosome lengths from local annotation file, else download from build
   if(is.null(dir)) { if(any(getOption("save.annot.in.current")<1)) { dir <- NULL } else { dir <- getwd() } }
   if(is.null(dir)) { dir <- getwd() ; delete.after <- TRUE }
+  if(is.null(build)) { build <- getOption("ucsc") }
   dir <- validate.dir.for(dir,c("ano"),warn=F)
   chrlens.f <- cat.path(dir$ano,len.fn) # existing or future lengths file
   build <- ucsc.sanitizer(build)
@@ -4966,6 +4968,7 @@ get.chr.lens <- function(dir=NULL,build=c("hg18","hg19")[1],autosomes=FALSE,len.
       # we have the right length, but do we have the right version?
       if(build=="hg18" & length(which(chrLens %in% hg19.backup))>2) { notGot <- T }
       if(build=="hg19" & length(which(chrLens %in% hg18.backup))>2) { notGot <- T }
+      names(chrLens) <- paste0("chr",n)
     }
   } else { notGot <- T }
   if (notGot | (!build %in% c("hg18","hg19"))) {
@@ -4985,14 +4988,17 @@ get.chr.lens <- function(dir=NULL,build=c("hg18","hg19")[1],autosomes=FALSE,len.
       len.lst <- strsplit(chrL.f,"\t")
       nmz <- sapply(len.lst,"[",1)
       lnz <- sapply(len.lst,"[",2)
-      want.chr.names <- match(paste("chr",n,sep=""),nmz)
+      nnn <- paste0("chr",n)
+      want.chr.names <- match(nnn,nmz)
       want.chr.names <- want.chr.names[!is.na(want.chr.names)]
+      #print(want.chr.names)
       chrLens <- lnz[want.chr.names]
-      names(chrLens) <- want.chr.names
+      names(chrLens) <- nnn
     } else {
       warning("couldn't reach build website, so have used offline versions of chr lengths")
       if(!build %in% c("hg18","hg19")) { warning("no offline version for build version:",build) }
-      chrLens <- paste(offline.backup)[1:length(n)]; names(chrLens) <- n
+      chrLens <- paste(offline.backup)[1:length(n)]; names(chrLens) <- paste0("chr",n)
+      #print(n)
       delete.after <- F
     }
     if(length(dir)==1 & dir[1]=="" & delete.after) {
@@ -5002,7 +5008,11 @@ get.chr.lens <- function(dir=NULL,build=c("hg18","hg19")[1],autosomes=FALSE,len.
     }
   }
   if(!mito & length(chrLens)>22) { chrLens <- chrLens[-grep("M",n)] }
-  return(as.numeric(chrLens))
+  if(names) {
+    return(chrLens)
+  } else {
+    return(as.numeric(chrLens))
+  }
 }
 
 
