@@ -12,7 +12,7 @@
 
 ## options ##
 options(chip.info="/chiswick/data/ncooper/iChipData/ImmunoChip_ChipInfo_New.RData")
-options(ucsc="hg18")
+options(ucsc="hg19") # depends?? need to set something though
 options(save.annot.in.current=1)
 
 
@@ -40,6 +40,7 @@ if(getwd()!= "/home/ncooper"){
 ##file includes the generally useful functions: simple.date, out.of, randomize.missing
  # simple.date, out.of should now be in NCmisc
 
+'internals'
 
 minna <- function(...) {
   min(...,na.rm=TRUE)
@@ -573,7 +574,7 @@ logistic.summary <- function(glm.result,intercept=FALSE,ci=FALSE,se=TRUE,alpha=.
 #' get.t1dbase.snps(show.codes=TRUE) # show codes/diseases available to download
 #' get.t1dbase.snps(disease=27) # get SNP ids for Alopecia Areata
 #' get.t1dbase.snps("Vitiligo")
-get.t1dbase.snps <- function(disease="T1D",build="hg19",show.codes=FALSE) {
+get.t1dbase.snps <- function(disease="T1D",build=NULL,show.codes=FALSE) {
   disease.codes <- c("Type 1 Diabetes", "Crohns Disease","Rheumatoid Arthritis",
   "Systemic Scleroderma",  "Ulcerative Colitis","Inflammatory Bowel Disease",  "Multiple Sclerosis",
   "Bipolar Disorder",  "Diabetes Mellitus",  "Coronary Artery Disease",  "Hypertension",  "Celiac Disease",
@@ -602,6 +603,7 @@ get.t1dbase.snps <- function(disease="T1D",build="hg19",show.codes=FALSE) {
       }
     }
   }
+  if(is.null(build)) { build <- getOption("ucsc") }
   build <- ucsc.sanitizer(build)
   filenm <- paste(dir=getwd(),pref=tolower(abbr[disN]),"hits",suf=build,ext="tab")
   cat("attempting to download",abbr[disN],"hits from t1dbase\n")
@@ -974,7 +976,7 @@ sort.chr <- function(chr) { chr[order.chr(chr)] }
 Pos.gene <- function(genes,build=NULL,dir=NULL,bioC=FALSE,band=FALSE,one.to.one=TRUE,
                      remap.extra=FALSE,discard.extra=TRUE,warnings=TRUE) {
   if(!is.character(genes)) { stop("'genes' must be a character vector of gene names") }
-  if(is.null(build)) { build <- build(get.support()) }
+  if(is.null(build)) { build <- getOption("ucsc") }
   build <- ucsc.sanitizer(build)
   if(is.null(dir)) { if(any(getOption("save.annot.in.current")<1)) { dir <- NULL } else { dir <- getwd() } }
   char.lim <- 100
@@ -1059,7 +1061,7 @@ Pos.gene <- function(genes,build=NULL,dir=NULL,bioC=FALSE,band=FALSE,one.to.one=
 #' Pos.band("Yq11.221",build=37)
 #' Pos.band(c("13q21.31","1p13.2","2q33.2","6p23"),bioC=TRUE)
 Pos.band <- function(bands,build=NULL,dir=NULL,bioC=FALSE) {
-  if(is.null(build)) { build <- build(get.support()) }
+  if(is.null(build)) { build <- getOption("ucsc") }
   build <- ucsc.sanitizer(build)
   char.lim <- 100
   if(is.null(dir)) { if(any(getOption("save.annot.in.current")<1)) { dir <- NULL } else { dir <- getwd() } }
@@ -1072,7 +1074,7 @@ Pos.band <- function(bands,build=NULL,dir=NULL,bioC=FALSE) {
   if(any(is.na(mt))) { 
     cat("format for bands is: chromosome[p/q]xx.xx ; e.g, 13q21.31, Xq27.1, 6p23, etc")
     cnt <- length(which(is.na(mt)))
-    warning("did not find the following ",cnt," 'bands' features: ",failz,"...") ; warning(msg)
+    warning("did not find the following ",cnt," 'bands' features: ",failz) ; warning(msg)
   }
   outlist <- ga[sort(mt[!is.na(mt)]),]
   if(any(colnames(outlist) %in% "negpos")) { outlist <- outlist[,-which(colnames(outlist) %in% "negpos")] }
@@ -1124,7 +1126,7 @@ Pos.band <- function(bands,build=NULL,dir=NULL,bioC=FALSE) {
 #' Band(chr=12,start=40000000,end=50000000,build="hg19") # concatenates if range spans multiple bands
 #' Band(chr=12,start=40000000,end=50000000,build="hg18") # one extra band in the older annotation
 Band <- function(genes=NULL,chr=NULL,ranges=NULL,snps=NULL,build=NULL,dir=NULL,...) {
-  if(is.null(build)) { build <- build(get.support()) }
+  if(is.null(build)) { build <- getOption("ucsc") }
   build <- ucsc.sanitizer(build)
   if(all(is.character(genes))) { 
     Band.gene(genes=genes,build=build,dir=dir,...,warnings=FALSE)
@@ -1172,7 +1174,7 @@ Band <- function(genes=NULL,chr=NULL,ranges=NULL,snps=NULL,build=NULL,dir=NULL,.
 #' Band.gene("SLC6A4",append.chr=F)
 #' Band.gene("SLC6A4",data.frame=T)
 Band.gene <- function(genes,build=NULL,dir=getwd(),append.chr=TRUE,data.frame=FALSE,warnings=TRUE) {
-  if(is.null(build)) { build <- build(get.support()) }
+  if(is.null(build)) { build <- getOption("ucsc") }
   build <- ucsc.sanitizer(build)
   pg <- Pos.gene(genes=genes,build=build,dir=dir,bioC=F,band=TRUE,one.to.one=TRUE,warnings=warnings)
   ## a bit contradictory what i've done here with 'warnings' :
@@ -1234,7 +1236,7 @@ Band.gene <- function(genes,build=NULL,dir=getwd(),append.chr=TRUE,data.frame=FA
 #' Gene.pos(chr=1,start=114000000,end=115000000,one.to.one=FALSE) # list separately
 #' Gene.pos(Pos.gene(c("CTLA4","PTPN22"),bioC=TRUE)) # use the ranges object returned by Pos.gene()
 Gene.pos <- function(chr=NA,pos=NA,start=NA,end=NA,ranges=NULL,build=NULL,dir=NULL,bioC=FALSE,one.to.one=TRUE) {
-  if(is.null(build)) { build <- build(get.support()) }
+  if(is.null(build)) { build <- getOption("ucsc") }
   build <- ucsc.sanitizer(build)
   if(is(chr)[1] %in% c("RangedData","GRanges"))  { ranges <- chr } # in case first parameter is used
   typ <- is(ranges)[1]
@@ -1339,7 +1341,7 @@ Gene.pos <- function(chr=NA,pos=NA,start=NA,end=NA,ranges=NULL,build=NULL,dir=NU
 #' Band.pos(Pos.band(c("13q21.31","1p13.2"),bioC=TRUE)) # use the ranges object returned by Pos.band()
 #' # note that three ranges are returned for each entry as the start/end overlap the adjacent ranges
 Band.pos <- function(chr=NA,pos=NA,start=NA,end=NA,ranges=NULL,build=NULL,dir=NULL,bioC=FALSE,one.to.one=TRUE) {
-  if(is.null(build)) { build <- build(get.support()) }
+  if(is.null(build)) { build <- getOption("ucsc") }
   build <- ucsc.sanitizer(build)
   if(is(chr)[1] %in% c("RangedData","GRanges"))  { ranges <- chr } # in case first parameter is used
   typ <- is(ranges)[1]
@@ -1464,9 +1466,9 @@ AB <- function(ids) {
 #' gene.ids <- c("HLA-B","IFIH1","fake_gene!","FUT2")
 #' ENS.to.GENE(GENE.to.ENS(gene.ids)) # lookup fails for the fake id, gives warning
 ENS.to.GENE <- function(ens,...,dir=NULL,build=NULL,name.dups=FALSE,name.missing=TRUE) {
-  if(is.null(build)) { build <- build(get.support()) }
-  must.use.package(c("biomaRt","genoset","gage"),T)
+  if(is.null(build)) { build <- getOption("ucsc") }
   build <- ucsc.sanitizer(build)
+  must.use.package(c("biomaRt","genoset","gage"),T)
   if(is.null(dir)) { if(any(getOption("save.annot.in.current")<1)) { dir <- NULL } else { dir <- getwd() } }
   ga <- get.gene.annot(...,dir=dir,bioC=FALSE,ens.id=TRUE,GRanges=FALSE)
   ### now have the gene data with the ensembl ids ##
@@ -1542,6 +1544,7 @@ GENE.to.ENS <- function(genes,...,dir=NULL) {
 #' @param build integer whether to use build 36/37 parameters, 36/37 is preferred, but can enter
 #' using any form recognised by ucsc.sanitizer()
 #' @param dir string, specify the directory to store or look for annotation (defaults to current)
+#' @export
 #' @return Set of SNP ids (when ids=TRUE), or otherwise genomic positions within chromosome 'chr', that
 #' fall within the genomic range described by the chr, start, and end parameters. Alternatively, if
 #' chr is a RangedData or GRanges object then multiple SNP lists will be returned
@@ -1582,7 +1585,7 @@ snps.in.range <- function(chr, start=NA, end=start, ids=TRUE) {
 }
 
 
-#' Retrieve 'n' closest SNP ids or positions near specified locus
+#' Retrieve the 'n' closest SNP ids or positions near specified locus
 #' 
 #' @param chr integer, chromosome, should be a number from 1 to 25, where 23,24,25 are X,Y,MT
 #' @param pos integer, genomic position, should be between 1 and the length of the chromosome 'chr'
@@ -1596,6 +1599,8 @@ snps.in.range <- function(chr, start=NA, end=start, ids=TRUE) {
 #' @param build integer whether to use build 36/37 parameters, 36/37 is preferred, but can enter
 #' using any form recognised by ucsc.sanitizer()
 #' @param dir string, specify the directory to store or look for annotation (defaults to current)
+#' @export
+#' @seealso exp.window.nsnp
 #' @return Set of SNP ids (when ids=TRUE), or otherwise genomic positions within chromosome 'chr'.
 #' If the number of SNPs on the chromosome or the bounds of the 'side' and 'limit' parameters
 #' restrict the number returned to less than 'n' then the return value will be padded with NAs.
@@ -1610,7 +1615,7 @@ nearest.snp <- function(chr, pos, n=1, side=c("either","left","right"),ids=TRUE,
   # ids - whether to return ichip SNP ids or positions
   if(length(chr)>1) { warning("chr should be length 1, using only first entry"); chr <- chr[1] }
   if(length(pos)>1) { warning("pos should be length 1, using only first entry"); pos <- pos[1] }
-  if(is.null(build)) { build <- build(get.support()) }
+  if(is.null(build)) { build <- getOption("ucsc") }
   build <- ucsc.sanitizer(build)
   all.support <- get.support(build=build)
   if(!exists("all.support")) { all.support <- get.support() }  ## load object: all.support [snp support for whole chip]
@@ -1682,7 +1687,9 @@ clean.snp.ids <- function(snpid.list) {
 #' g1 <- make.granges(chr=c(1,4,"X"),pos=c(132432,434342,232222))
 #' g2 <- make.granges(chr=c(22,21,21),start=c(1,1,1),end=c(1000,10000,100000),row.names=c("1K","10K","100K"))
 #' g1 ; g2
-make.granges <- function(chr,pos=NULL,start=NULL,end=NULL,row.names=NULL,build="hg18") {
+make.granges <- function(chr,pos=NULL,start=NULL,end=NULL,row.names=NULL,build=NULL) {
+  if(is.null(build)) { build <- getOption("ucsc") }
+  build <- ucsc.sanitizer(build)
   if(is.null(start) & is.null(end) & !is.null(pos)) {
     dF <- cbind(paste(chr),round(as.numeric(pos)))
   } else {
@@ -2762,7 +2769,7 @@ rSnpMatrix <- function(nsamp=10, nsnp=5, call.rate=.95, A.freq.fun=runif) {
 #'  as otherwise the results will almost certainly be meaningless.
 #' @param info logical, whether to display the derived window size and number of hapmap SNPs within
 #' the window for each window derived
-#' @seealso get.recombination.map, get.nearby.snp.lists
+#' @seealso get.recombination.map, get.nearby.snp.lists, exp.window.nsnp
 #' @author Chris Wallace and Nicholas Cooper \email{nick.cooper@@cimr.cam.ac.uk}
 #' @export
 #' @examples
@@ -2998,7 +3005,7 @@ meta.me <- function(X,OR1="OR_CC",OR2="OR_Fam",SE1="SE_CC",SE2="SE_Fam",
 #' If name.by.bands is TRUE, then these list elements will each be named using the local
 #' karyotype/cytoband location
 #' @export
-#' @seealso snps.in.range, get.recombination.map, recwindow, conv.37.36, conv.36.37
+#' @seealso snps.in.range, get.recombination.map, recwindow, conv.37.36, conv.36.37, exp.window.nsnp
 #' @examples
 #' result <- get.nearby.snp.lists("rs900569")
 #' get.nearby.snp.lists("rs900569",cM=0.2,excl.snps=result[[1]]) # get SNPs within 0.1-0.2cM
@@ -3008,7 +3015,7 @@ meta.me <- function(X,OR1="OR_CC",OR2="OR_Fam",SE1="SE_CC",SE2="SE_Fam",
 get.nearby.snp.lists <- function(snpid.list,cM=0.1,bp.ext=0,build=NULL,excl.snps=NULL,name.by.bands=TRUE) {
   #if(!exists("all.support")) { print(load("all.support.RData")) }
   all.support <- get.support()
-  if(is.null(build)) { build <- build(all.support) }
+  if(is.null(build)) { build <- getOption("ucsc") }
   build <- ucsc.sanitizer(build)
   snpic.list <- rs.to.id(snpid.list)
   cyto <- get.cyto(dir=getwd(),GRanges=FALSE); cyto[["gene"]] <- rownames(cyto)
@@ -3096,31 +3103,6 @@ plink.allele.coding <- function(hwe.fn) {
 
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 # iFunctions
 # internal
 # allows an sapply style function to only work on valid values
@@ -3130,9 +3112,22 @@ clean.fn <- function(x,fail=NA,fn=function(x) { x }) {
   } else {  return(fail) } 
 }
 
-# convert text locations like chr5:12344-5253553 into a matrix with cols: chr, start, end
-# MAYBE10
-# iFunctions
+
+
+
+#' Convert a chr:pos1-pos2 vector to a matrix
+#' 
+#' Takes standard text positions, such as what you might see on the UCSC genome browser, such as 
+#' chr1:10,000,234-11,000,567 for a range, or chrX:234,432 for a SNP, and converts to 
+#' with cols: chr, start, end.
+#' @param text character vector, format like chr:pos1-pos2
+#' @export
+#' @return a matrix of the same length as 'ranges' with columns chr, start and end, and
+#' rownames will be the same as the original text vector.
+#' @seealso Ranges.to.txt
+#' @examples
+#' txt <- Ranges.to.txt(rranges())
+#' convert.textpos.to.data(txt)
 convert.textpos.to.data <- function(text) {
   do.one <- function(X) {
     chr.pos <- strsplit(X,":",fixed=T)[[1]]  
@@ -3141,6 +3136,7 @@ convert.textpos.to.data <- function(text) {
     pos.txt <- strsplit(chr.pos[[2]],"-",fixed=T)[[1]]
     pos12 <- as.integer(pos.txt)
     out <- c(chr,pos12[1],pos12[2])
+    if(is.na(out[3])) { out[3] <- out[2] }
     names(out) <- c("chr","start","end")
     return(out)
   }
@@ -3148,32 +3144,56 @@ convert.textpos.to.data <- function(text) {
 }
 
 
-# iFunctions
-# MAYBE9
-## takes a RangedData object from some annotation lookup functions and converts to standard text positions
-Ranges.to.txt <- function(chr.list) {
-  if(!is(chr.list)[1] %in% c("RangedData","GRanges")) { stop("Not a GRanges or RangedData object") }
-  text.out <- paste("chr",chr2(chr.list),":",format(start(chr.list),scientific=F,trim=T),"-",
-                    format(end(chr.list),scientific=F,trim=T),sep="")
+#' Convert GRanges/RangedData to chr:pos1-pos2 vector
+#' 
+#' Takes a RangedData or GRanged object from some annotation lookup functions and converts to standard text
+#' positions, such as what you might see on the UCSC genome browser, such as 
+#' chr1:10,000,234-11,000,567 for a range, or chrX:234,432 for a SNP. Useful for printing
+#' messages, concatenating positions to a single vector, or creating queries for databastes.
+#' @param ranges A RangedData or GRanges object
+#' @export
+#' @return a text vector of the same length as 'ranges' with notation as described above
+#' representing each position in the 'ranges' object
+#' @seealso convert.textpos.to.data
+#' @examples
+#' Ranges.to.txt(rranges())
+Ranges.to.txt <- function(ranges) {
+  if(!is(ranges)[1] %in% c("RangedData","GRanges")) { stop("Not a GRanges or RangedData object") }
+  text.out.a <- paste0("chr",chr2(ranges),":",format(start(ranges),scientific=F,trim=T))
+  text.out.b <- paste0("-",format(end(ranges),scientific=F,trim=T))
+  text.out.b[start(ranges)==end(ranges)] <- ""
+  text.out <- paste0(text.out.a,text.out.b)
   return(text.out)
 }
 
 
-# iFunctions
-# select autosomes only in RangedData object
-# MAYBE8
-select.autosomes <- function(snp.info,deselect=FALSE) {
+
+
+#' Select ranges only within the 22 autosomes in a ranged data object
+#' 
+#' Select only data from autosomes from a GRanges/RangedData object.
+#' Will exclude X,Y, mitochondrial chromosome rows, and can automatically
+#' detect whether chromosomes are coded as 'chr1' or just '1', etc.
+#' @param ranges A RangedData or GRanges object
+#' @export
+#' @return an object of the same format as the input (ranges), except
+#' with non-autosomal ranges removed.
+#' @examples
+#' rand.ranges <- rranges(chr.range=20:26)
+#' rand.ranges # should include some non-autosomes
+#' select.autosomes(rand.ranges) # only autosomes remain
+select.autosomes <- function(ranges,deselect=FALSE) {
   #must.use.package("genoset",bioC=T)
-  typ <- is(snp.info)[1]
+  typ <- is(ranges)[1]
   if(!typ %in% c("RangedData","GRanges")) { 
-    warning("not a RangedData or GRanges object"); return(snp.info) 
+    warning("not a RangedData or GRanges object"); return(ranges) 
   }
-  if(length(unique(chr2(snp.info))) < length(levels(chr2(snp.info)))) {
+  if(length(unique(chr2(ranges))) < length(levels(chr2(ranges)))) {
     # this fixes the problem when a subset of a ranges object with less 
     #  chromosomes still has empty chr slots from previous object
-    if(typ=="RangedData") { snp.info <- snp.info[as.numeric(unique(chr2(snp.info)))] }
+    if(typ=="RangedData") { ranges <- ranges[as.numeric(unique(chr2(ranges)))] }
   } #else { cat("ok\n") }
-  Chrz <- (rownames(chrInfo2(snp.info)))
+  Chrz <- (rownames(chrInfo2(ranges)))
   chrz <- tolower(paste(Chrz))
   if(length(grep("chr",chrz))>0) {
     select1 <- which(chrz %in% paste("chr",1:22,sep=""))
@@ -3188,43 +3208,17 @@ select.autosomes <- function(snp.info,deselect=FALSE) {
     ok.chrs <- Chrz[select]
   }
   if(typ=="RangedData") {
-    return(snp.info[ok.chrs])
+    return(ranges[ok.chrs])
   } else {
-    return(snp.info[chr2(snp.info) %in% ok.chrs,])
+    return(ranges[chr2(ranges) %in% ok.chrs,])
   }
 }
 
 
-# iFunctions
-# MAYBE8
-# note that this will preserve only chr,start,end, nothing else including rownames
-ranged.to.data.frame <- function(ranged,include.cols=FALSE,use.names=TRUE) {
-  if(!include.cols) {
-    u <- Ranges.to.txt(ranged)
-    v <- convert.textpos.to.data(u)
-    if(!is.null(rownames(ranged)) & nrow(ranged)==nrow(v) & use.names) { rownames(v) <- rownames(ranged) }
-    return(v)
-  } else {
-    u <- as(ranged,"data.frame")
-    cn <- tolower(colnames(u))
-    if(is(ranged)[1]=="RangedData") {
-      if("names" %in% cn) { 
-        rownames(u) <- u[["names"]]
-        u <- u[,-which(cn=="names")]
-      } 
-      if("space" %in% cn) { colnames(u)[which(cn=="space")] <- "chr" }
-    } else {
-      if(is(ranged)[1]=="GRanges") {
-        if("seqnames" %in% cn) { colnames(u)[which(cn=="seqnames")] <- "chr" }
-      } else {
-        warning("'ranged' should be RangedData or GRanges, coercion could fail")
-      }
-    }
-    return(u)
-  }
-}
 
 
+
+# internal
 # Remove that pesky 'elementmetadata.' prefix from column names that have been converted from GRanges
 emd.rmv <- function(X, rmv.genome=TRUE) {
   if(has.method("mcols",X)) {
@@ -3316,9 +3310,24 @@ chr2 <- function(X) {
 }
 
 
-#internal # iFunctions
-# enter a function as a character or function
-# if class is a string, will look for that name, else if an object, will search the class() of that object
+
+#' Determine whether a function can be applied to a class/object
+#' 
+#' Wrapper for 'showMethods', allows easy testing whether a function
+#' (can be specified as a string, or the actual function itself (FUN)) can be
+#' applied to a specific object or class of objects (CLASS)
+#' @param FUN the function to test, can be specified as a string, or the actual function itself
+#' @param CLASS  a specific object or a class of objects specified by a string, e.g, "GRanges"
+#' @export
+#' @return returns logical (TRUE/FALSE), or if the function is not S4 will return an error,
+#' although this could potentially be because the function's package has not been loaded.
+#' @examples
+#' has.method(chr,"GRanges")
+#' has.method("chr","GRanges")
+#' g.example <- rranges()
+#' has.method(start, g.example)
+#' has.method(duplicated, g.example) # no such method
+#' ## not run # has.method("notAFunction","GRanges") # should return error
 has.method <- function(FUN,CLASS) {
   if(!is.character(CLASS)) { CLASS <- class(CLASS) }
   if(!is.character(FUN) & !is.function(FUN)) { stop("FUN must be an R function, as a string or function") }
@@ -3330,18 +3339,176 @@ has.method <- function(FUN,CLASS) {
 }
 
 
-# iFunctions internal?
-# convenience function to use GRanges
-# MAYBE7
+#' Convert RangedData/GRanges to a data.frame
+#' 
+#' Convert a RangedData/GRanges object to a data.frame with columns
+#' chr, start and end. Default is to only translate the chromosome and
+#' position information, which is faster. Using 'include.cols'=TRUE
+#' allows all the columns from 'ranged' to be taken across to the resulting
+#' data.frame.
+#' @param ranged A RangedData or GRanges object
+#' @param include.cols logical, whether to also bring across non-positional
+#' columns to the resulting data.frame
+#' @param use.names logical, whether to keep the rownames from the
+#' original object for the output. Only has an effect when include.cols=FALSE,
+#' otherwise original rownames are always kept.
+#' @export
+#' @seealso data.frame.to.ranged, data.frame.to.granges
+#' @return A data.frame with columns chr, start and end, and depending on
+#' chosen parameters, the same rownames as the input, and optionally the
+#' same additional columns.
+#' @examples
+#' rd <- rranges(9,GRanges=FALSE, fakeids=TRUE)
+#' rd[["fakecol"]] <- sample(nrow(rd))
+#' rd[["rs.id"]] <- paste0("rs",sample(10000,9))
+#' ranged.to.data.frame(rd)
+#' ranged.to.data.frame(rd,,FALSE)
+#' ranged.to.data.frame(rd,TRUE) # keep all the columns
+#' data.frame.to.granges(ranged.to.data.frame(rd,TRUE)) # inverse returns original
+ranged.to.data.frame <- function(ranged,include.cols=FALSE,use.names=TRUE) {
+  if(!include.cols) {
+    u <- Ranges.to.txt(ranged)
+    v <- convert.textpos.to.data(u)
+    if(!is.null(rownames(ranged)) & nrow(ranged)==nrow(v) & use.names) { rownames(v) <- rownames(ranged) }
+    return(v)
+  } else {
+    u <- as(ranged,"data.frame")
+    cn <- tolower(colnames(u))
+    if(is(ranged)[1]=="RangedData") {
+      if("names" %in% cn) { 
+        rownames(u) <- u[["names"]]
+        u <- u[,-which(cn=="names")]
+      } 
+      if("space" %in% cn) { colnames(u)[which(cn=="space")] <- "chr" }
+    } else {
+      if(is(ranged)[1]=="GRanges") {
+        if("seqnames" %in% cn) { colnames(u)[which(cn=="seqnames")] <- "chr" }
+      } else {
+        warning("'ranged' should be RangedData or GRanges, coercion could fail")
+      }
+    }
+    return(u)
+  }
+}
+
+#' Convert a data.frame with positional information to GRanges
+#' 
+#' Convert a data.frame containing chromosome and position information
+#' to a GRanges object. Assumes the position information is contained in
+#' columns named 'chr', 'start' and 'end' respectively (not case sensitive) 
+#' although you can enter alternative column names for each as parameters. 
+#' 'seqnames' will be automatically detected as an alternative to 'chr' if 
+#' present. Column names that are default GRanges slot names such as 'seqnames',
+#' 'ranges', 'strand', 'seqlevels', etc, will be removed during conversion, so
+#' rename these if you want them to be translated into the resulting GRanges
+#' objects' column metadata. If there is a column 'pos' but no columns 'start'
+#'  and 'end' this will be detected automatically without needing to change
+#'  the default parameters and start will equal end equals pos (ie., SNPs).
+#' @param dat a data.frame with chromosome and position information 
+#' @param ... additional arguments to data.frame.to.ranged(), namely:
+#' ids, start, end, width, chr, exclude and build
+#' @export
+#' @seealso ranged.to.data.frame, data.frame.to.ranged
+#' @return A RangedData or GRanges object. If 'dat' doesn't
+#' use the default column names, specify these using parameters
+#' ids, start, and end or width. Exclude will remove prevent any 
+#' column names of 'dat' specified not to be translated to the 
+#' returned GRanges object. 'build' specifies the 'genome'
+#' slot of the resulting object. 'ids' allows specification of
+#' a column to be converted to the rownames of the new object.
+#' @examples
+#' chr <- sample(1:22,10)
+#' start <- end <- sample(1000000,10)
+#' df1 <- cbind(chr,start,end)
+#' data.frame.to.granges(df1) # basic conversion
+#' width <- rep(0,10)
+#' df2 <- cbind(chr,start,width)
+#' data.frame.to.granges(df2,end=NULL,width="width") # define ranges with start and width
+#' id.col <- paste0("ID",1:10)
+#' rs.id <- paste0("rs",sample(10000,10))
+#' df3 <- cbind(chr,start,end,id.col,rs.id)
+#' data.frame.to.granges(df3) # additional columns kept
+#' df4 <- cbind(chr,start,end,id.col,rs.id, ranges=1:10)
+#' data.frame.to.granges(df4) # 'ranges' column excluded as illegal name
+#' data.frame.to.granges(df4, exclude="rs.id") # manually exclude column
+#' df5 <- cbind(chr,start,end,rs.id)
+#' rownames(df5) <- paste0("ID",1:10)
+#' data.frame.to.granges(df5) # rownames are kept
+#' data.frame.to.granges(df4,ids="id.col") # use column of 'dat' for rownames
 data.frame.to.granges <- function(dat,...) {
   return(data.frame.to.ranged(dat=dat,...,GRanges=TRUE))
 }
 
-# iFunctions
-# MAYBE6
-## convert any data frame with chr,start,end, or pos data into a RangedData object
-# not case sensitive
-data.frame.to.ranged <- function(dat,ids=NULL,start="start",end="end",width=NULL,
+
+#' Convert a data.frame with positional information to RangedData/GRanges
+#' 
+#' Convert a data.frame containing chromosome and position information
+#' to a RangedData or GRanges object. Assumes the position information is contained in
+#' columns named 'chr', 'start' and 'end' respectively (not case sensitive) 
+#' although you can enter alternative column names for each as parameters. 
+#' 'seqnames' will be automatically detected as an alternative to 'chr' if 
+#' present. If there is a column 'pos' but no columns 'start' and 'end' this
+#' will be detected automatically without needing to change the default parameters
+#' and start will equal end equals pos (ie., SNPs). Column names that are default 
+#' GRanges slot names such as 'seqnames', 'ranges', 'strand', 'seqlevels', etc, will
+#' be removed during conversion, so rename these if you want them to be translated 
+#' into the resulting object.
+#' @param dat a data.frame with chromosome and position information 
+#' @param ids character string, an optional column name containing ids which
+#' will be used for rownames in the new object, as long as the ids are unique.
+#' If not, this option is overridden and the ids will simply be a normal column
+#' in the new object.
+#' @param start character, the name of a column in the data.frame contain
+#' the start point of each range. Not case sensitive. In the case of SNP
+#' data, a column called 'pos' will also be automatically detected without
+#' modifying 'start' or 'end', and will be used for both start and end.
+#' @param end character, the name of a column in the data.frame containing the
+#' end point of each range, can also use 'width' as an alternative specifier,
+#' in which case 'end' should be set to NULL. Not case sensitive. In the case of SNP
+#' data, a column called 'pos' will also be automatically detected without
+#' modifying 'start' or 'end', and will be used for both start and end.
+#' @param width the name of a column in the data.frame containing 'width' of
+#' ranges, e.g, SNPs would be width=0. This is optional, with 'start' and 'end'
+#' being the default way to specify an interval. If using 'width' you must
+#' also set 'end' to NULL.  Not case sensitive.
+#' @param chr character, the name of the column in the data.frame containing
+#' chromosome values. The default is 'chr' but 'seqnames' will also be
+#' detected automatically even when chr='chr'. Not case sensitive.
+#' @param exclude character string, and column names from the data.frame to 
+#' NOT include in the resulting S4 object.
+#' @param build the ucsc build for the result object which will apply to the
+#' 'universe' (RangedData) or 'genome' slot (GRanges) of the new object.
+#' @param GRanges logical, whether the resulting object should be GRanges (TRUE),
+#' or RangedData (FALSE)
+#' @export
+#' @seealso ranged.to.data.frame, data.frame.to.ranged
+#' @return A RangedData or GRanges object. If 'dat' doesn't use the default 
+#' column names 'chr', 'start'/'end' or 'pos', specify these using parameters 
+#' 'ids', 'start', and 'end' or 'width'. Exclude will remove prevent any 
+#' column names of 'dat' specified not to be translated to the returned GRanges
+#' object. 'build' specifies the 'genome' slot of the resulting object. 'ids' 
+#' allows specification of a column to be converted to the rownames of the new object.
+#' @examples
+#' chr <- sample(1:22,10)
+#' start <- end <- sample(1000000,10)
+#' df1 <- cbind(CHR=chr,Start=start,enD=end)
+#' print(df1)
+#' data.frame.to.granges(df1) # not case sensitive!
+#' width <- rep(0,10)
+#' df2 <- cbind(chr,start,width)
+#' data.frame.to.granges(df2,end=NULL,width="width") # define ranges with start and width
+#' id.col <- paste0("ID",1:10)
+#' rs.id <- paste0("rs",sample(10000,10))
+#' df3 <- cbind(chr,start,end,id.col,rs.id)
+#' data.frame.to.granges(df3) # additional columns kept
+#' df4 <- cbind(chr,start,end,id.col,rs.id, ranges=1:10)
+#' data.frame.to.granges(df4) # 'ranges' column excluded as illegal name
+#' data.frame.to.granges(df4, exclude="rs.id") # manually exclude column
+#' df5 <- cbind(chr,start,end,rs.id)
+#' rownames(df5) <- paste0("ID",1:10)
+#' data.frame.to.granges(df5) # rownames are kept
+#' data.frame.to.granges(df4,ids="id.col") # use column of 'dat' for rownames
+data.frame.to.ranged <- function(dat, ids=NULL,start="start",end="end",width=NULL,
                                  chr="chr",exclude=NULL,build=NULL,GRanges=FALSE) 
 {
   ## abandon longer names as they clash with function names
@@ -3350,7 +3517,8 @@ data.frame.to.ranged <- function(dat,ids=NULL,start="start",end="end",width=NULL
   if(is.null(build)) { build <- getOption("ucsc") }
   build <- ucsc.sanitizer(build)
   must.use.package(c("genoset","IRanges"),T)
-  g.illegal <- tolower(c("seqnames", "ranges", "strand", "seqlevels", "seqlengths", "isCircular", "start", "end", "width", "element"))
+  g.illegal <- tolower(c("seqnames", "ranges", "strand", "seqlevels", "seqlengths",
+                         "isCircular", "start", "end", "width", "element"))
   if(is.matrix(dat)) { dat <- as.data.frame(dat,stringsAsFactors=FALSE) }
   if(!is.data.frame(dat)) { stop("Error: not a dataframe")}
   key.nms <- c(ids,st,en,ch,wd)
@@ -3428,16 +3596,28 @@ data.frame.to.ranged <- function(dat,ids=NULL,start="start",end="end",width=NULL
 }
 
 
-#internal # iFunctions?
+#' Select chromosome subset of GRanges or RangedData object
+#' 
+#' One of the main differences between RangedData and GRanges is the way
+#' of selecting the subset for a chromosome. RangedData just uses [n] where
+#' 'n' is the chromosome name or number. Whereas GRanges, does not have a
+#' method like this, so need to select using [chr(X)==chr.num,]
+#' This wrapper allows selection of a chromosome or chromosomes regardless of
+#' whether the object is RangedData or GRanges type.
+#' @param X A GRanges or RangedData object
+#' @param chr Vector, the chromosome(s) (number(s) or name(s)) to select
+#' @export
+#' @return returns an object of the same type as X, with only the chromosome
+#' subset specified.
+#' @examples
+#' some.ranges <- rranges(100,chr.range=1:10)
+#' chr.sel(some.ranges,6)
+#' more.ranges <- rranges(10, chr.range=21:25)
+#' chr.sel(more.ranges,1:22) # gives warning
+#' select.autosomes(more.ranges)
 chr.sel <- function(X,chr) {
-  # One of the main differences between RangedData and GRanges is the way
-  # of selecting the subset for a chromosome. RangedData just uses [n] where
-  # 'n' is the chromosome name or number. Whereas GRanges, does not have a
-  # method like this, so need to select using [chr(X)==chr.num,]
-  # This wrapper allows selection of a chromosome or chromosomes regardless of
-  # whether the object is RangedData or GRanges type
   typ <- is(X)[1]
-  if(!typ %in% c("RangedData","GRanges")) { stop("not a GRanges or RangedData object") }
+  if(!typ %in% c("RangedData","GRanges","ChipInfo")) { stop("not a ChipInfo, GRanges or RangedData object") }
   if(!(is.character(chr) | is.numeric(chr))) { stop("chr must be character or numeric type") }
   if(is.numeric(chr)) { if(!all(chr %in% 1:99)) { 
     stop("illegal chromosome index, valid range 1-99 [although 1-28 typical for human]") } }
@@ -3453,6 +3633,7 @@ chr.sel <- function(X,chr) {
   }
   return(X[all.chr %in% chr,])
 }
+
 
 #' Simulate a GRanges or RangedData object
 #' 
@@ -3485,19 +3666,25 @@ chr.sel <- function(X,chr) {
 #' @param build character, to specify the UCSC version to use, which has a small
 #' effect on the chromosome lengths. Use either "hg18" or "hg19". Will also 
 #' accept build number, e.g, 36 or 37.
+#' @param fakeids logical, whether to add rownames with random IDs (TRUE) or 
+#' leave rownames blank (FALSE). If SNP=TRUE, then ids will be fake rs-ids.
+#' @export
 #' @return returns a ranged object (GRanges or RangedData) containing data
 #' for 'n' simulated genomic ranges, such as SNPs or CNVs across chromosomes in
 #' 'chr.range', using UCSC 'build'.
 #' @examples
 #' rranges()
-#' rr <- rranges(SNP=TRUE,chr.pref=TRUE)
+#' rr <- rranges(SNP=TRUE,chr.pref=TRUE,fakeids=TRUE)
 #' width(rr) # note all have width 1
 #' rr
 #' tt <- table(chr(rranges(1000)))
 #' print(tt/sum(tt)) # shows frequencies at which the chr's were sampled
 #' tt <- table(chr(rranges(1000,equal.prob=TRUE)))
 #' print(tt/sum(tt)) # shows frequencies at which the chr's were sampled
-rranges <- function(n=10,SNP=FALSE,chr.range=1:26,chr.pref=FALSE,order=TRUE,equal.prob=FALSE,GRanges=TRUE,build=36) {
+rranges <- function(n=10,SNP=FALSE,chr.range=1:26,chr.pref=FALSE,order=TRUE,equal.prob=FALSE,
+                    GRanges=TRUE,build=NULL, fakeids=FALSE) {
+  if(is.null(build)) { build <- getOption("ucsc") }
+  build <- ucsc.sanitizer(build)
   if(!is.numeric(chr.range)) { stop("chr.range must be a numeric integer vector rangeing from 1 to 26") }
   chr.range <- unique(chr.range[chr.range<=26 & chr.range>=1]) 
   cL <- get.chr.lens(mito=TRUE,build=build)[c(1:24,24,25)]
@@ -3538,6 +3725,10 @@ rranges <- function(n=10,SNP=FALSE,chr.range=1:26,chr.pref=FALSE,order=TRUE,equa
     gg <- toGenomeOrder(gg,strict=TRUE)
   }
   if(!GRanges) { gg <- as(gg,"RangedData"); gg <- gg[,-1] }
+  if(n==0) { return(gg[-1,])} # returns empty ranges if that's what you really want
+  if(fakeids) {
+    if(SNP) { rownames(gg) <- rsnpid(nrow(gg)) } else { rownames(gg)  <- rsampid(nrow(gg)) }
+  }
   return(gg)
 }
 
@@ -3615,31 +3806,42 @@ chrNums <- function(ranged,warn=FALSE,table.out=FALSE,table.in=NULL) {
 }
 
 
-# iFunctions
-# MAYBE4
-# for given genome ranges will try to find the closest snps to the end of the ranges
-end.snp <- function(snp.info,ranged=NULL,chr=NULL,pos=NULL,nearest=T) {
-  return(start.snp(snp.info=snp.info,chr=chr,pos=pos,ranged=ranged,start=F,end=T,nearest=nearest))
-}
 
-# iFunctions
-# MAYBE3
-# for given genome ranges will try to find the closest snps to the start and end of the ranges
-range.snp <- function(snp.info,ranged=NULL,chr=NULL,pos=NULL,nearest=T) {
-  return(start.snp(snp.info=snp.info,chr=chr,pos=pos,ranged=ranged,start=T,end=T,nearest=nearest))
-}
-
-
-# MAYBE2
-# iFunctions - already in?
-# get nearby number of snps?? also defined again below????
-get.adj.nsnp <- function(snp.info,ranged,nsnp=10) {
+#' Expand genomic locations to the ranges covering the 'n' closest SNPs
+#' 
+#' Sometimes for chip data we want to create windows around some locus, and
+#' fixed distance [see flank()], recombination distance [see recwindow()] or a number of SNPs 
+#' might be used. This function allows expansion of regions according to a set number of SNPs.
+#' The result gives two regions for each row of a GRanges or RangedData object describing
+#' the start and end of the left flanking 'nsnp' region, and right flanking 'nsnp' region
+#' respectively.
+#' @param ranged a GRanges or RangedData object describing the locations for
+#' which we want to find regions encompassing 'nsnps' closest SNPs.
+#' @param snp.info An object of type: ChipInfo, RangedData or GRanges, describing the set of SNPs
+#' you are using (e.g, chip annotation). If left as null the ChipInfo object from get.support() 
+#' with default options() will be used
+#' @param nsnp Number of nearest SNPs to return for each location
+#' @param add.chr logical, whether to add a chromosome column for the output object
+#' @seealso nearest.snp, get.support, recwindow
+#' @export
+#' @return Two regions for each row of a the 'ranged' object describing
+#' the start and end of the left flanking 'nsnp' region, and right flanking 'nsnp' region
+#' respectively. If 'ranged' has rownames these should stay in the same order in the resulting
+#' object. Chromosome will be the final column if you set add.chr=TRUE.
+#' @examples
+#' rngs <- rranges()
+#' # not run - slow ~5 seconds # exp.window.nsnp(rngs)
+#' # not run - slow ~5 seconds # exp.window.nsnp(rngs,add.chr=TRUE)
+exp.window.nsnp <- function(ranged,snp.info=NULL,nsnp=10, add.chr=FALSE) {
+  if(is.null(snp.info)) { snp.info <- get.support() }
+  if(!is(snp.info)[1] %in% c("ChipInfo","RangedData","GRanges")) { 
+    stop("snp.info must be of type: ChipInfo, RangedData or GRanges") }
   snp.info <- toGenomeOrder2(snp.info,strict=TRUE); rw.cnt <- 1
-  all.fl <- matrix(ncol=4, nrow=0)
+  all.fl <- matrix(ncol=4+(as.numeric(add.chr)), nrow=0)
   for(cc in chrNums(ranged)) {
     nxt.nm <- rownames(snp.info[paste(cc)]); pos <- start(snp.info[paste(cc)])
     rng <- chr.sel(ranged,paste(cc)) # ranged[paste(cc)]
-    st.en.snp <- range.snp(snp.info,ranged=rng)
+    st.en.snp <- range.snp(ranged=rng,snp.info=snp.info)
     fl <- matrix(ncol=4, nrow=nrow(st.en.snp))
     fl[,2] <- start(rng); fl[,3] <- end(rng);
     for(dd in 1:nrow(st.en.snp)) {
@@ -3649,19 +3851,106 @@ get.adj.nsnp <- function(snp.info,ranged,nsnp=10) {
       fl[dd,1] <- x1[1]
       fl[dd,4] <- x2[1]
     }
+    if(add.chr) { 
+      chrz <- cc
+      fl <- cbind(fl,chrz)
+    }
     all.fl <- rbind(all.fl,fl)
   }
   fl <- (all.fl)
   fl[fl[,1]>fl[,2],1] <- fl[fl[,1]>fl[,2],2]
   fl[fl[,3]>fl[,4],1] <- fl[fl[,3]>fl[,4],4]
+  cN <- c("left.start","left.end","right.start","right.end")
+  if(add.chr) { cN <- c(cN,"chr") }
+  colnames(fl) <- cN
+  if(nrow(fl)==nrow(ranged) & !is.null(rownames(ranged))) { rownames(fl) <- rownames(ranged) }
   return(fl)
 }
 
 
-# MAYBE1
-# iFunctions - already in? internal?
-# for given genome ranges will try to find the closest snps to the start of the ranges
-start.snp <- function(snp.info,ranged=NULL,chr=NULL,pos=NULL,start=T,end=F,nearest=T) {
+
+
+#' Find closest SNPs to the ends of ranges
+#' 
+#' For given genome ranges (GRanges/RangedData) will try to find the closest snps to the end of the ranges.
+#' @param ranged A GRanges or RangedData object specifying the range(s) you wish to find SNPs near the
+#' ends of. Alternatively leave this parameter as NULL and specify ranges using chr, pos
+#' @param snp.info ChipInfo/GRanges/Ranged data object describing the SNPs relevant to your query, e.g, 
+#' SNPs on the chip you are using. If left NULL, the SNP set used will be that retrieved by get.support()
+#' which will depend on your options() settings, see ?get.support for more info
+#' @param chr optional alternative to 'ranged' input, use in conjunction with 'pos' to specify the ranges
+#' to find the SNPs near the ends of.
+#' @param pos matrix with 2 columns for start, end positions, or a single column if all ranges are SNPs.
+#' An optional alternative to 'ranged' input, use in conjunction with 'chr' to specify the ranges
+#' to find the SNPs near the ends of.
+#' @param nearest will preferably find an exact match but if nearest=T, will fall-back on nearest match, 
+#' even if slightly outside the range.
+#' @export
+#' @return a list of SNP-ids (rownames of 'snp.info') fulfilling the criteria, the output vector (character)
+#' should be the same length as the number of ranges entered.
+#' @examples
+#' end.snp(chr=c(1:3),pos=cbind(c(100000,200000,300000),c(30000000,4000000,10000000)))
+#' end.snp(rranges())
+end.snp <- function(ranged=NULL,snp.info=NULL,chr=NULL,pos=NULL,nearest=T) {
+  return(start.snp(ranged=ranged,snp.info=snp.info,chr=chr,pos=pos,start=F,end=T,nearest=nearest))
+}
+
+
+#' Find closest SNPs to the starts and ends of ranges
+#' 
+#' For given genome ranges (GRanges/RangedData) will try to find the closest snps to the starts and ends
+#' of the ranges.
+#' @param ranged A GRanges or RangedData object specifying the range(s) you wish to find SNPs near the
+#' starts/ends of. Alternatively leave this parameter as NULL and specify ranges using chr, pos
+#' @param snp.info ChipInfo/GRanges/Ranged data object describing the SNPs relevant to your query, e.g, 
+#' SNPs on the chip you are using. If left NULL, the SNP set used will be that retrieved by get.support()
+#' which will depend on your options() settings, see ?get.support for more info
+#' @param chr optional alternative to 'ranged' input, use in conjunction with 'pos' to specify the ranges
+#' to find the SNPs near the starts/ends of.
+#' @param pos matrix with 2 columns for start, end positions, or a single column if all ranges are SNPs.
+#' An optional alternative to 'ranged' input, use in conjunction with 'chr' to specify the ranges
+#' to find the SNPs near the starts/ends of.
+#' @param nearest will preferably find an exact match but if nearest=T, will fall-back on nearest match, 
+#' even if slightly outside the range.
+#' @export
+#' @return a list of SNP-ids (rownames of 'snp.info') fulfilling the criteria, the output will be a matrix
+#' which should have the same number of rows as the number of ranges entered.
+#' @examples
+#' range.snp(chr=c(1:3),pos=cbind(c(100000,200000,300000),c(30000000,4000000,10000000)))
+#' range.snp(rranges())
+range.snp <- function(ranged=NULL,snp.info=NULL,chr=NULL,pos=NULL,nearest=T) {
+  return(start.snp(ranged=ranged,snp.info=snp.info,chr=chr,pos=pos,start=T,end=T,nearest=nearest))
+}
+
+
+#' Find closest SNPs to the starts of ranges
+#' 
+#' For given genome ranges (GRanges/RangedData) will try to find the closest snps to the starts 
+#' of the ranges.
+#' @param ranged A GRanges or RangedData object specifying the range(s) you wish to find SNPs near the
+#' starts of. Alternatively leave this parameter as NULL and specify ranges using chr, pos
+#' @param snp.info ChipInfo/GRanges/Ranged data object describing the SNPs relevant to your query, e.g, 
+#' SNPs on the chip you are using. If left NULL, the SNP set used will be that retrieved by get.support()
+#' which will depend on your options() settings, see ?get.support for more info
+#' @param chr optional alternative to 'ranged' input, use in conjunction with 'pos' to specify the ranges
+#' to find the SNPs near the starts of.
+#' @param pos matrix with 2 columns for start, end positions, or a single column if all ranges are SNPs.
+#' An optional alternative to 'ranged' input, use in conjunction with 'chr' to specify the ranges
+#' to find the SNPs near the starts of.
+#' @param start logical whether to return the SNP nearest the range starts
+#' @param end logical whether to return the SNP nearest the range ends
+#' @param nearest will preferably find an exact match but if nearest=T, will fall-back on nearest match, 
+#' even if slightly outside the range.
+#' @export
+#' @return a list of SNP-ids (rownames of 'snp.info') fulfilling the criteria, the output will be a vector
+#' which will have the same length as the input. Unless start=TRUE and end=TRUE, then will return a matrix
+#' which should have the same number of rows as the number of ranges entered. Note that end.snp() is 
+#' equivalent to using this function when end=TRUE and start=FALSE, and range.snp() is the same as setting
+#' start=TRUE and end=TRUE.
+#' @examples
+#' start.snp(chr=c(1:3),pos=cbind(c(100000,200000,300000),c(30000000,4000000,10000000)))
+#' start.snp(rranges())
+start.snp <- function(ranged=NULL,snp.info=NULL,chr=NULL,pos=NULL,start=T,end=F,nearest=T) {
   # will preferably find an exact match but if nearest=T, will fall-back on nearest match
   #must.use.package("genoset",T)
   nmz <- NULL
@@ -3678,8 +3967,9 @@ start.snp <- function(snp.info,ranged=NULL,chr=NULL,pos=NULL,start=T,end=F,neare
     st <- start(ranged); en <- end(ranged); chr <- chr2(ranged)
     nmz <- rownames(ranged)
   }
-  if(!is(ranged)[1] %in% c("RangedData","GRanges")) {
-    stop("snp.info must be of type RangedData or GRanges")
+  if(is.null(snp.info)) { snp.info <- get.support() }  # load default chip
+  if(!is(snp.info)[1] %in% c("ChipInfo","RangedData","GRanges")) {
+    stop("snp.info must be of type ChipInfo, RangedData or GRanges")
   } else {
     if(is.null(rownames(snp.info))) {  rownames(snp.info) <- paste(1:nrow(snp.info)) }
   }
@@ -3726,9 +4016,30 @@ start.snp <- function(snp.info,ranged=NULL,chr=NULL,pos=NULL,start=T,end=F,neare
 }
 
 
-# iFunctions? internal ?
-# force a valid pair of positions, given the inputted chromosome
-force.chr.pos <- function(Pos,Chr,snp.info=NULL,build="hg18",dir=NULL) {
+#' Force a valid genomic range, given the inputted coordinates
+#'
+#' Enter a pair of genomic locations representing a range for a given chromosome and this
+#' function will ensure that no position is less than 1 or greater than the relevant chromosome
+#'  lengths. Anything below will be coerced to 1, and anything above to the chromosome length.
+#' @param Pos must be numeric, length 2, e.g, c(20321,30123)
+#' @param Chr chromosome label
+#' @param snp.info optional object to take boundaries from, the maxima and minima for each
+#' chromosome within this object will take the place of the chromsome lengths / 1.
+#' @build ucsc build, only need to enter if this differs from getOption("ucsc")
+#' @dir directory to use for download of chromosome lengths (only if you wish to
+#' keep the chromosome length file)
+#' @export
+#' @examples
+#' pss <- ps <- c(345035,345035); ch <- 1
+#' force.chr.pos(ps,ch)
+#' pss[1] <- 0
+#' force.chr.pos(pss,ch) # won't allow zero
+#' pss[1] <- -1
+#' force.chr.pos(pss,ch) # won't allow negative
+#' pss[1] <- 645035012
+#' force.chr.pos(pss,ch) # won't allow pos > chromosome length
+force.chr.pos <- function(Pos,Chr,snp.info=NULL,build=NULL,dir=NULL) {
+  if(is.null(build)) { build <- getOption("ucsc") }
   build <- ucsc.sanitizer(build)
   # convert any non autosomes to numbers:
   Chr[grep("c6",Chr,ignore.case=T)] <- 6  # prevent issues with c6_COX, c6_QBL  
@@ -3910,10 +4221,11 @@ in.window <- function(ranged,chr,pos,full.overlap=F, unit=c("b","kb","mb","gb"),
 #' # NOW add UCSC hg18 GENE annotation to the plot #
 #' ## not run ## plot.gene.annot(chr=21,pos=c(9.95,10.1),scl="mb",y.ofs=1,build=36)
 plot.gene.annot <- function(chr=1, pos=NA, scl=c("b","kb","mb","gb"), y.ofs=0, width=1, txt=T, chr.pos.offset=0,
-                            gs=NULL, build="hg18", dir=NULL, box.col="green", txt.col="black", join.col="red", ...)
+                            gs=NULL, build=NULL, dir=NULL, box.col="green", txt.col="black", join.col="red", ...)
 {
   if(is.null(dir)) { if(any(getOption("save.annot.in.current")<1)) { dir <- NULL } else { dir <- getwd() } }
   dir <- validate.dir.for(dir,"ano")
+  if(is.null(build)) { build <- getOption("ucsc") }
   build <- ucsc.sanitizer(build)
   if(!is(gs)[1] %in% c("RangedData","GRanges")) { gs <- get.gene.annot(dir=dir,build=build,GRanges=FALSE) }
   if(is(gs)[1]=="GRanges") { gs <- as(gs,"RangedData") }
@@ -3996,11 +4308,15 @@ plotdf <- function(expr,fn="myTempPlot.pdf") {
 #' one chromosome, but if not, the first will be used
 #' @param labels by default labels for each range are taken from the rownames of 'ranged',
 #' but if you want to use another column in the ranged object, specify the column name
-#' or number to use to label these ranges on the plot.
+#' or number to use to label these ranges on the plot. Or else input a character
+#' vector the same length as ranged for custom labels.
 #' @param do.labs logical, whether or not to display these labels
 #' @param skip.plot.new logical, whether to append to an existing plot (TRUE), or start
 #' a new plot (FALSE --> default)
 #' @param lty line type to use, see '?lines()' - not used for SNP data when v.lines=FALSE
+#' @param alt.y alternative y-axis values (other than the default ordering from the input)
+#' This can be a vector of length 1 or length(ranged), or else a column name in ranged to 
+#' take the values from
 #' @param v.lines TRUE will plot the ranges as pairs of vertical lines, occupying the full
 #' vertical extent of the plot, whereas FALSE will plot the ranges as individual horizontal lines
 #' @param ylim numeric, length 2, the y-axis limits for the plot, same a 'ylim' for ?plot()
@@ -4009,6 +4325,13 @@ plotdf <- function(expr,fn="myTempPlot.pdf") {
 #'  however is here in case fine tuning is required.
 #' @param scl character, the scale that the x axis uses, ie, "b","kb","mb", or "gb", meaning
 #' base-pairs, kilobases, megabases or gigabase-pairs.
+#' @param col character, colour, same as 'col' argument for plot(), etc.
+#' @param srt integer, text rotation in degrees (see par) for labels
+#' @param pos integer, values of ‘1’, ‘2’, ‘3’ and ‘4’, respectively indicate positions below, 
+#' to the left of, above and to the right of the specified coordinates. See 'pos' in graphics:text()
+#' @param lwd line width, see '?lines()' - not used for SNP data when v.lines=FALSE
+#' @param pch point type, see '?points()' - not used for ranged data
+#' @param cex font/symbol size, see '?plot()' - passed to plot, points if using SNP data 
 #' @param ... further arguments to 'plot', so long as skip.plot.new==FALSE.
 #' @export
 #' @return Plots the ranges specified in 'ranged' to the current plot, or to a new plot
@@ -4026,11 +4349,57 @@ plotdf <- function(expr,fn="myTempPlot.pdf") {
 #' rr3 <- rr; end(rr3) <- start(rr3) 
 #' rownames(rr3) <- paste0("rs",sample(10^6,nrow(rr3)))
 #' plot.ranges(rr3,col="blue",yaxt="n",ylab="",bty="n")
-plot.ranges <- function(ranged,labels=NULL,do.labs=T,skip.plot.new=F,lty="solid",
-                        v.lines=FALSE,ylim=NULL,xlim=NULL,scl=c("b","Kb","Mb","Gb"),col=NULL,...) {
+plot.ranges <- function(ranged,labels=NULL,do.labs=T,skip.plot.new=F,lty="solid", alt.y=NULL,
+                        v.lines=FALSE,ylim=NULL,xlim=NULL,scl=c("b","Kb","Mb","Gb"),
+                        col=NULL,srt=0,pos=4,pch=1,lwd=1,cex=1,...) {
   #if(is(ranges)[1]!="RangedData") { warning("need RangedData object") ; return(NULL) }
   chk <- chrNums(ranged)
   typ <- is(ranged)[1]
+  if(!is.null(alt.y)) {
+    if(is.numeric(alt.y)) {
+      if(length(alt.y)==1 | length(alt.y)==length(ranged)) {
+        yy <- alt.y
+      } else {
+        warning("alt.y ignored, must be same length as ranged, or else length 1"); alt.y <- NULL
+      }
+    } else {
+      if(is.character(alt.y)) {
+        if(typ=="GRanges") { 
+          cn <- colnames(mcols(ranged)); df <- mcols(ranged)
+        } else {
+          cn <- colnames(ranged); df <- ranged
+        }
+        if(!alt.y %in% cn) { stop("alternative y.axis column name ",alt.y," not found in 'ranged'") }
+        yy <- df[,alt.y]; rm(df)
+      } else { 
+        warning("invalid value for alt.y, ignoring"); alt.y <- NULL
+      }
+    }
+  }
+  if(!is.null(labels)) {
+    labels <- paste(labels)
+    if(is.character(labels)) {
+      if(length(labels)==1 | length(labels)==length(ranged)) {
+        if(length(labels)==1) {
+          if(typ=="GRanges") { 
+            cn <- colnames(mcols(ranged)); df <- mcols(ranged)
+          } else {
+            cn <- colnames(ranged); df <- ranged
+          }
+          if(!labels %in% cn) { stop("labels column name ",labels," not found in 'ranged'") }
+          lab <- df[,labels]; rm(df)
+        } else {
+          lab <- labels
+        }
+      } else {
+        warning("labels ignored, must be same length as ranged, or else length 1"); labels <- NULL
+      }
+    } else {
+      warning("invalid value for labels, ignoring"); labels <- NULL
+    }
+  } else {
+    lab <- rownames(ranged) 
+  } 
   if(length(chk)>1) { 
     warning(length(chk)," chromosomes in 'ranged', only using the first, chr",chk[1]) 
     ranged <- chr.sel(ranged,1) 
@@ -4041,7 +4410,11 @@ plot.ranges <- function(ranged,labels=NULL,do.labs=T,skip.plot.new=F,lty="solid"
   xl <- xl + ((diff(xl)*0.1)*c(-1,1))
   xl <- xl/scl
   nr <- nrow(ranged); if(is.null(nr)) { nr <- length(ranged) }
-  yl <- c(0,(nr+2))
+  if(is.null(alt.y)) {
+    yl <- c(0,(nr+2))
+  } else {
+    yl <- range(yy)
+  }
   if(is.numeric(ylim) & length(ylim)==2) {
     ylim <- range(ylim)
     ydif <- diff(ylim)
@@ -4052,38 +4425,33 @@ plot.ranges <- function(ranged,labels=NULL,do.labs=T,skip.plot.new=F,lty="solid"
     xdif <- diff(xlim)
     xl <- xlim
   }
-  YY <- seq(from=yl[1],to=yl[2],length.out=nr+2)[-1]
+  if(is.null(alt.y)) {
+    YY <- seq(from=yl[1],to=yl[2],length.out=nr+2)[-1]
+  } else {
+    if(length(yy)==1) { YY <- rep(yy,length(nr)) } else { YY <- yy }
+  }
   #print(YY)
   if(!is.null(col)) {
     if(length(col)==1) {
-      colz <- rep(col,times=nr) 
+      col <- rep(col,times=nr) 
     } else {
       if(length(col)!=nr) { warning("col was not the same length as ranged, using first only"); col <- rep(col[1],nr) }
     }
   }
   if(is.null(col)) {
     if(nr>22) { colz <- rep("black",nr) } else { colz <- get.distinct.cols(nr) }
-  }
-  if(is.null(labels)) { 
-    lab <- rownames(ranged) 
-  } else {
-    if(typ=="GRanges") { 
-      lab <- mcols(ranged)[[labels]] 
-    } else {
-      lab <- ranged[[labels]] 
-    }
-  }
-  if(is.null(lab) & do.labs) { lab <- paste(1:nr) }
+  } else { colz <- col[1:nr] }
+  if(is.null(lab) & do.labs) { lab <- paste(1:nr) } # last resort
   if(!skip.plot.new) {
     position <- c(start(ranged[1,]),end(ranged[1,]))/scl
     Y <- YY[c(1,1)]
     #prv(position,Y)
     TY <- if(theyAreSnps) { "p" } else { "l" }
     if(v.lines) {
-      plot(x=position, y=Y, xlim=xl, ylim=yl, type=TY, col="white", lty=lty,...)
+      plot(x=position, y=Y, xlim=xl, ylim=yl, type=TY, col="white", lty=lty, ...)
       abline(v=position,col=colz[1])
     } else {
-      plot(x=position, y=Y, xlim=xl, ylim=yl, type=TY, col=colz[1], lty=lty,...)
+      plot(x=position, y=Y, xlim=xl, ylim=yl, type=TY, col=colz[1], lty=lty, lwd=lwd, cex=cex, ...)
     }
     st <- 2
   } else {
@@ -4095,9 +4463,9 @@ plot.ranges <- function(ranged,labels=NULL,do.labs=T,skip.plot.new=F,lty="solid"
         abline(v=c(start(ranged[cc,]),end(ranged[cc,]))/scl,col=colz[cc],lty=lty)
       } else {
         if(theyAreSnps) { 
-          points(x=c(start(ranged[cc,]),end(ranged[cc,]))/scl,y=YY[c(cc,cc)],col=colz[cc])
+          points(x=c(start(ranged[cc,]),end(ranged[cc,]))/scl,y=YY[c(cc,cc)],col=colz[cc], pch=pch, cex=cex)
         } else { 
-          lines(x=c(start(ranged[cc,]),end(ranged[cc,]))/scl,y=YY[c(cc,cc)],col=colz[cc],lty=lty)
+          lines(x=c(start(ranged[cc,]),end(ranged[cc,]))/scl,y=YY[c(cc,cc)],col=colz[cc], lty=lty, lwd=lwd)
         }
       }
     }
@@ -4105,15 +4473,38 @@ plot.ranges <- function(ranged,labels=NULL,do.labs=T,skip.plot.new=F,lty="solid"
   if(do.labs) {
     for (cc in 1:nr) {
       if(v.lines) { YY <- rep(tail(YY,1),length(YY)) }
-      text(x=start(ranged[cc,])/scl,y=YY[cc]+(diff(YY[1:2])*0.5),labels=lab[cc],cex=0.6,pos=4,offset=0)
+      V.scale <- (diff(head(YY,2))*0.5)
+      if(length(V.scale)<1) { V.scale <- 0 }
+      text(x=start(ranged[cc,])/scl,y=YY[cc]+V.scale,labels=lab[cc],cex=0.6,pos=pos,offset=0,srt=srt)
     }
   }
 }
 
 
 
-# iFunctions - internal?
-#' @param keep whether to keep as object or just return the chr
+#' Change the chromosome labels in a RangedData or GRanges object to string codes
+#' 
+#' @param ranged A GRanges or RangedData object
+#' @param do.x.y logical, if TRUE then the usual numbers allocated to chromosomes, X,Y,XY, MT will
+#' be allocated as 23,24,25,26 respectively. If false, these will just have 'chr' appended as a
+#' prefix
+#' @param keep logical, whether to keep additional metadata columns in the new object 
+#' @seealso set.chr.to.numeric
+#' @export
+#' @return returns the 'ranged' object, but wherever a chromosome number was previously, a character
+#' label, e.g, 'chr1', or 'X', will returned to replace the number, e.g, 1 or 23 respectively. 
+#' If table.out is TRUE will return a list where the first element is the resulting object, and the second 
+#' element is a table showing which numbers were converted to what label This table
+#' can then be used for future conversions via the parameter 'table.in' to ensure consistency of
+#' coding.
+#' @examples
+#' x <- rranges()
+#' x
+#' x <- set.chr.to.numeric(x) # make entirely numeric
+#' x <- rranges(chr.range=20:26)
+#' # next two will give warning about X, Y, etc
+#' set.chr.to.char(x) # 23 = chrX, etc
+#' set.chr.to.char(x,do.x.y=FALSE) # 23=chr23, etc
 set.chr.to.char <- function(ranged,do.x.y=T,keep=T) {
   #must.use.package("genoset",bioC=T)
   typ <- is(ranged)[1]
@@ -4143,11 +4534,15 @@ set.chr.to.char <- function(ranged,do.x.y=T,keep=T) {
       mychr2 <- gsub("Y","chrY",mychr2)
       mychr2 <- gsub("23","chrX",mychr2)
       mychr2 <- gsub("24","chrY",mychr2)
+      mychr2 <- gsub("25","chrXY",mychr2)
+      mychr2 <- gsub("26","chrM",mychr2)
       mychr2 <- gsub("chrXchrY","XY",mychr2)
       mychr2 <- gsub("chrYchrX","YX",mychr2) 
       mychr2 <- gsub("MT","chrM",mychr2)
       mychr2 <- gsub("XY","chrXY",mychr2)
       mychr2 <- gsub("chrchr","chr",mychr2)
+    } else {
+      mychr2[mychr2 %in% paste(23:100)] <- paste0("chr",mychr2[mychr2 %in% paste(23:100)])
     }
     #print(tail(mychr2)); print((all.nums))
     #prv(mychr2)
@@ -4183,8 +4578,40 @@ set.chr.to.char <- function(ranged,do.x.y=T,keep=T) {
 }
 
 
-# iFunctions - internal?
-#' @param table.in, table.out extra parameters for chrNums (e.g, how to convert weird regions)
+
+
+#' Change the chromosome labels in a RangedData or GRanges object to numbers
+#' 
+#' @param ranged A GRanges or RangedData object
+#' @param keep logical, whether to keep additional metadata columns in the new object 
+#' @param table.in matrix/data.frame object, usually a result of a prior run of 
+#' set.chr.to.numeric(table.out=TRUE), which shows for each label (column 1), what
+#' chromosome number should correspond. A way of ensuring consistent coding in different
+#' sets.
+#' @param table.out logical, if FALSE, the output will just be the object with updated 
+#' chromosome labels. If TRUE, then the output will be a list, where the first element
+#' is the updated object and the second object is a table describing the coding
+#' scheme used to convert from labels to numeric indices.
+#' @seealso set.chr.to.char
+#' @export
+#' @return returns the 'ranged' object, but wherever a chromosome label was previously a character
+#' label, e.g, 'chr1', or 'X', will return as a number, e.g, 1 or 23 respectively. If table.out
+#' is TRUE will return a list where the first element is the resulting object, and the second 
+#' element is a table showing which labels were converted to what number. This table
+#' can then be used for future conversions via the parameter 'table.in' to ensure consistency of
+#' coding.
+#' @examples
+#' char <- rranges(chr.pref=T)
+#' char
+#' set.chr.to.numeric(char)
+#' # behaviour with X, Y, etc
+#' char <- rranges(chr.range=c(20:26))
+#' #' char
+#' set.chr.to.numeric(char)
+#' tab <- set.chr.to.numeric(char,table.out=TRUE)[[2]]
+#' tab # codes used in conversion #
+#' char <- rranges(chr.range=c(20:26))
+#' set.chr.to.numeric(char, table.in=tab) # code using codes from 'tab'
 set.chr.to.numeric <- function(ranged,keep=T,table.in=NULL,table.out=FALSE) {
   typ <- is(ranged)[1]
   if(!typ %in% c("GRanges","RangedData")) { warning("not a GRanges or RangedData object"); return(NULL) }
@@ -4281,9 +4708,10 @@ set.chr.to.numeric <- function(ranged,keep=T,table.in=NULL,table.out=FALSE) {
 #' get.immunog.locs()
 #' get.immunog.locs(bioC=FALSE)
 #' get.immunog.locs(text=TRUE,build=37)
-get.immunog.locs <- function(build=c("hg18","hg19"),bioC=TRUE,text=FALSE,GRanges=TRUE) {
+get.immunog.locs <- function(build=NULL,bioC=TRUE,text=FALSE,GRanges=TRUE) {
   nchr <- 22
-  build <- ucsc.sanitizer(build[1])
+  if(is.null(build)) { build <- getOption("ucsc") }
+  build <- ucsc.sanitizer(build)
   if(build[1]=="hg19") {
     #hg19
     chr <- c(22,14,2,14)
@@ -4340,11 +4768,12 @@ get.immunog.locs <- function(build=c("hg18","hg19"),bioC=TRUE,text=FALSE,GRanges
 #' get.centromere.locs()
 #' get.centromere.locs(bioC=FALSE,autosomes=TRUE)
 #' get.centromere.locs(text=TRUE)
-get.centromere.locs <- function(dir=NULL,build=c("hg18","hg19"),
+get.centromere.locs <- function(dir=NULL,build=NULL,
                                 bioC=TRUE,GRanges=TRUE,text=FALSE,autosomes=FALSE)
 {
   if(is.null(dir)) { if(any(getOption("save.annot.in.current")<1)) { dir <- NULL } else { dir <- getwd() } }
   dir <- validate.dir.for(dir,c("ano"),warn=FALSE); success <- TRUE
+  if(is.null(build)) { build <- getOption("ucsc") }
   build <- ucsc.sanitizer(build)
   local.file <- cat.path(dir$ano,"cyto")
   tt <- get.cyto(build=build,bioC=FALSE,dir=dir,GRanges=FALSE)
@@ -4404,8 +4833,9 @@ get.centromere.locs <- function(dir=NULL,build=c("hg18","hg19"),
 #' get.centromere.locs()
 #' get.centromere.locs(bioC=FALSE)
 #' get.centromere.locs(text=TRUE)
-get.cyto <- function(build="hg18",dir=NULL,bioC=TRUE,GRanges=TRUE,refresh=FALSE) {
+get.cyto <- function(build=NULL,dir=NULL,bioC=TRUE,GRanges=TRUE,refresh=FALSE) {
   if(is.null(dir)) { if(any(getOption("save.annot.in.current")<1)) { dir <- NULL } else { dir <- getwd() } }
+  if(is.null(build)) { build <- getOption("ucsc") }
   build <- ucsc.sanitizer(build)
   local.file="cyto"
   if(is.null(dir)) {
@@ -4549,8 +4979,9 @@ get.recombination.map <- function(dir=NULL,verbose=TRUE,refresh=FALSE, compress=
 #' ## not run as it takes too long to download for CRAN ##
 #' ## get.exon.annot()
 #' ## get.exon.annot(bioC=FALSE,build=37)
-get.exon.annot <- function(dir=NULL,build="hg18",bioC=T, GRanges=TRUE) {
+get.exon.annot <- function(dir=NULL,build=NULL,bioC=T, GRanges=TRUE) {
   if(is.null(dir)) { if(any(getOption("save.annot.in.current")<1)) { dir <- NULL } else { dir <- getwd() } }
+  if(is.null(build)) { build <- getOption("ucsc") }
   build <- ucsc.sanitizer(build)
   ## load exon annotation (store locally if not there already)
   from.scr <- T
@@ -4689,7 +5120,7 @@ tidy.extra.chr <- function(chr,select=FALSE) {
 #' ## not run as it takes too long to download for CRAN ##
 #' ## get.gene.annot()
 #' ## get.gene.annot(bioC=FALSE,build=37)
-get.gene.annot <- function(dir=NULL,build="hg18",bioC=TRUE,duplicate.report=FALSE,
+get.gene.annot <- function(dir=NULL,build=NULL,bioC=TRUE,duplicate.report=FALSE,
                            one.to.one=FALSE,remap.extra=FALSE,discard.extra=TRUE,only.named=FALSE,
                            ens.id=FALSE,refresh=FALSE,GRanges=TRUE) {
   # faster than exon, but only contains whole gene ranges, not transcripts
@@ -4697,6 +5128,7 @@ get.gene.annot <- function(dir=NULL,build="hg18",bioC=TRUE,duplicate.report=FALS
   # have more than one row in the listing (split across ranges usually)
   # run with dir as NULL to refresh changes in COX
   must.use.package(c("biomaRt","genoset","gage"),T)
+  if(is.null(build)) { build <- getOption("ucsc") }
   build <- ucsc.sanitizer(build)
   from.scr <- T
   if(is.null(dir)) { if(any(getOption("save.annot.in.current")<1)) { dir <- NULL } else { dir <- getwd() } }
@@ -4868,13 +5300,14 @@ gene.duplicate.report <- function(ga,full.listing=F,colname="gene",silent=FALSE)
 #' get.telomere.locs()
 #' get.telomere.locs(bioC=FALSE)
 #' get.telomere.locs(text=TRUE)
-get.telomere.locs <- function(dir=NULL,kb=10,build=c("hg18","hg19"),bioC=TRUE,GRanges=TRUE,
+get.telomere.locs <- function(dir=NULL,kb=10,build=NULL,bioC=TRUE,GRanges=TRUE,
                               text=FALSE,autosomes=FALSE,mito.zeros=FALSE)
 {
   # the actual telomeres are typically about 10kb, but
   # for cnv-QC purposes want to exclude a larger region like 500kb
   # Mt have no telomeres, are circular, but for some purposes might want zero values in there
   if(is.null(dir)) { if(any(getOption("save.annot.in.current")<1)) { dir <- NULL } else { dir <- getwd() } }
+  if(is.null(build)) { build <- getOption("ucsc") }
   build <- ucsc.sanitizer(build)
   chr.lens <- get.chr.lens(dir=dir,build=build[1],autosomes=FALSE,mito=mito.zeros)
   n <- 1:22; if(!autosomes) { n <- c(n,"X","Y") } # Mt have no telomeres, are circular
@@ -4929,6 +5362,7 @@ get.telomere.locs <- function(dir=NULL,kb=10,build=c("hg18","hg19"),bioC=TRUE,GR
 #'  @param names logical, whether to name the chromosomes in the resulting vector
 #'  @param delete.after logical, if TRUE then delete the text file that these lengths were downloaded to. 
 #'  If FALSE, then the file will be kept, meaning future lookups will be faster, and available offline.
+#'  @export
 #'  @examples
 #'  get.chr.lens(delete.after=TRUE) # delete.after simply deletes the downloaded txt file after reading
 #'  get.chr.lens(build=35,autosomes=TRUE,delete.after=TRUE) # only for autosomes
