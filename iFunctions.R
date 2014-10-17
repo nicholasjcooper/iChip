@@ -11,9 +11,9 @@
 
 
 ## options ##
-options(chip.info="/chiswick/data/ncooper/iChipData/ImmunoChip_ChipInfo_New.RData")
-options(ucsc="hg19") # depends?? need to set something though
-options(save.annot.in.current=1)
+options(chip.info="/chiswick/data/ncooper/iChipData/ImmunoChip_ChipInfo_New.RData") # if you can access the file, you won't need to change this path
+options(ucsc="hg19") # depends on which analysis, need to set something though
+options(save.annot.in.current=1)  # 1 = TRUE, stores annotation in current folder to speed up subsequent lookups
 
 
 if(Sys.info()[["user"]]=="ncooper")
@@ -21,6 +21,8 @@ if(Sys.info()[["user"]]=="ncooper")
   #source("~/github/plumbCNV/generalCNVFunctions.R", echo=FALSE)
   if(getwd()!= "/home/ncooper"){
     source("~/github/iChip/ChipInfoClass.R", echo=FALSE)
+  } else {
+    warning("You need to source the file 'ChipInfoClass.R to get some of these functions to work properly")
   }
   internal.analyses <- FALSE
   if(internal.analyses) {
@@ -42,23 +44,51 @@ if(getwd()!= "/home/ncooper"){
 
 'internals'
 
+finitize <- function(X) {
+  return(X[is.finite(X)])
+}
+
 minna <- function(...) {
-  min(...,na.rm=TRUE)
+  if(length(list(...))==1) { 
+    min(finitize(...),na.rm=TRUE)
+  } else {
+    min(...,na.rm=TRUE)
+  }
 }
 maxna <- function(...) {
-  max(...,na.rm=TRUE)
+  if(length(list(...))==1) { 
+    max(finitize(...),na.rm=TRUE)
+  } else {
+    max(...,na.rm=TRUE)
+  }
 }
 meanna <- function(...) {
-  mean(...,na.rm=TRUE)
+  if(length(list(...))==1) { 
+    mean(finitize(...),na.rm=TRUE)
+  } else {
+    mean(...,na.rm=TRUE)
+  }
 }
 medianna <- function(...) {
-  median(...,na.rm=TRUE)
+  if(length(list(...))==1) { 
+    median(finitize(...),na.rm=TRUE)
+  } else {
+    median(...,na.rm=TRUE)
+  }
 }
 sdna <- function(...) {
-  sd(...,na.rm=TRUE)
+  if(length(list(...))==1) { 
+    sd(finitize(...),na.rm=TRUE)
+  } else {
+    sd(...,na.rm=TRUE)
+  }
 }
 sumna <- function(...) {
-  sum(...,na.rm=TRUE)
+  if(length(list(...))==1) { 
+    sum(finitize(...),na.rm=TRUE)
+  } else {
+    sum(...,na.rm=TRUE)
+  }
 }
 sortna <- function(...) {
   sort(..., na.last=TRUE)
@@ -4474,7 +4504,7 @@ plot.ranges <- function(ranged,labels=NULL,do.labs=T,skip.plot.new=F,lty="solid"
     for (cc in 1:nr) {
       if(v.lines) { YY <- rep(tail(YY,1),length(YY)) }
       V.scale <- (diff(head(YY,2))*0.5)
-      if(length(V.scale)<1) { V.scale <- 0 }
+      if(length(V.scale)<1 | srt!=90) { V.scale <- 0 }
       text(x=start(ranged[cc,])/scl,y=YY[cc]+V.scale,labels=lab[cc],cex=0.6,pos=pos,offset=0,srt=srt)
     }
   }
