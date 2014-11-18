@@ -45,6 +45,7 @@ if(getwd()!= "/home/ncooper"){
 'internals'
 
 finitize <- function(X) {
+  if(is.data.frame(X)) { X <- as.matrix(X) }
   return(X[is.finite(X)])
 }
 
@@ -941,7 +942,7 @@ ids.by.pos <- function(ids) {
 }
 
 
-#internal function to propoerly sort chromosome labels as text
+#internal function to properly sort chromosome labels as text
 order.chr <- function(chrs) {
   # sort chr nms
   if(is.numeric(chrs)) { chrs <- paste(chrs) }
@@ -2045,6 +2046,7 @@ conv.36.37 <- function(ranges=NULL,chr=NULL,pos=NULL,...,ids=NULL,chain.file="/h
 #' Converts a snpStats::SnpMatrix object to a dataframe where coding becomes 0,1,2,NA,
 #' which represents genotypes as the number of copies of the reference allele.
 #' @param SnpMat a snpStats::SnpMatrix object
+#' @param matrix logical, whether to convert to a normal matrix (TRUE), or a data.frame (default, FALSE)
 #' @export
 #' @return data.frame object with genotype coding where 0,1,2 are the number of copies
 #' of the reference allele (by default the letter latest in the alphabet), and NA is
@@ -2062,7 +2064,7 @@ conv.36.37 <- function(ranges=NULL,chr=NULL,pos=NULL,...,ids=NULL,chain.file="/h
 #' is(as.data.frame(test.mat)[[1]]) # note that using 'as.data.frame' the type is 'raw'
 #' SnpMatrix.to.data.frame(test.mat) 
 #' # ^ now missing cells are NA, and genotypes are coded as number of copies of reference
-SnpMatrix.to.data.frame <- function(SnpMat) {
+SnpMatrix.to.data.frame <- function(SnpMat,matrix=FALSE) {
   #if(is(SnpMat)[1]=="snp.matrix") { SnpMat <- as(SnpMat,"SnpMatrix") }
   if(is(SnpMat)[1]!="SnpMatrix") { stop("SnpMat must be a SnpMatrix object") }
   cov.data <- as.data.frame(SnpMat)
@@ -2072,6 +2074,7 @@ SnpMatrix.to.data.frame <- function(SnpMat) {
     cov.data[,jj] <- nuxt
     # assign(colnames(cov.data)[jj], nuxt)
   }
+  if(matrix) { cov.data <- as.matrix(cov.data) }
   return(cov.data)
 }
 
@@ -2436,6 +2439,57 @@ abf <- function(p,maf, n0=1000, n1=1000, scale0=n0, scale1=n1) {
   return(abf)
 }
 
+
+
+
+# internal
+# snpStats imputation only works if there are correlated SNPs with non-missing values
+# that can be used to interpolate missing SNPs. If any correlated SNPs are missing
+# 'impute.missing' will leave these blank. This function mops up the remainder
+# by randomly inserting values consistent with the minor allele frequency of each SNP
+# (Nick)
+randomize.missing2 <- function(X,verbose=FALSE) {
+  miss1 <- function(x) { 
+    x <- as.numeric(x)
+    TX <- table(c(round(x),0,1,2,3))-c(1,1,1,1) # to force zero counts to be in the table
+    naz <- which(x==0)
+    if(length(naz)>0 & length(TX)>0) {
+      x[naz] <- sample(as.numeric(names(TX)),size=length(naz),
+                       replace=T,prob=as.numeric(TX))
+    }
+    return(as.raw(x))
+  }
+  miss2 <- function(sel,aa,ab,bb) { 
+    x <- X@.Data[,sel]
+    naz <- which(x==0)
+    p.vec <- c(aa,ab,bb)
+    if(any(is.na(p.vec))) {
+      if(all(is.na(p.vec))) {
+        x[naz] <- as.raw(rsnp(length(naz),cr=1))
+        return(x)
+      } else {
+        stop(p.vec)
+        #Pleft <- 1-sum(p.vec,na.rm=T)  
+      }
+    }
+    x[naz] <- sample(as.raw(1:3),size=length(naz),replace=T,prob=p.vec)
+    return(x)
+  }
+  # randomly generate replacements for missing values using current distribution for each column of X
+  typ <- is(X)[1]
+  if(!typ %in% c("SnpMatrix","XSnpMatrix","aSnpMatrix","aXSnpMatrix")) { stop("X must be a SnpMatrix object or similar") }
+  cs <- col.summary(X)
+  FF <- nrow(X)
+  nmiss <- FF - cs$Calls
+  select <- nmiss>0
+  if(length(which(select))<1) { return(X) }
+  if(verbose) { cat(sum(nmiss),"missing values replaced with random alleles\n") }
+  if(length(which(select))==1) { X[,select] <- miss2(select,cs$P.AA[select],cs$P.AB[select],cs$P.BB[select]); return(X) }
+
+  ii <- mapply(miss2,which(select),cs$P.AA[select],cs$P.AB[select],cs$P.BB[select])
+  X@.Data[,select] <- ii
+  return(X)
+}
 
 
 # internal
@@ -3333,7 +3387,8 @@ chr2 <- function(X) {
     if(is(X)[1]=="RangedData") {
       return(space(X))
     } else {
-      warning("chr2() function applies only to RangedData objects, attempting to pass to chr()")
+      if(is.null(X)) { warning("X was NULL, expecting RangedData/GRanges"); return(NULL) }
+      warning("chr2() function applies only to RangedData objects, attempting to pass ",is(X)[1]," to chr()")
       return(chr(X))
     }
   }
@@ -4072,6 +4127,7 @@ force.chr.pos <- function(Pos,Chr,snp.info=NULL,build=NULL,dir=NULL) {
   if(is.null(build)) { build <- getOption("ucsc") }
   build <- ucsc.sanitizer(build)
   # convert any non autosomes to numbers:
+  Chr <- paste(Chr)
   Chr[grep("c6",Chr,ignore.case=T)] <- 6  # prevent issues with c6_COX, c6_QBL  
   Chr[grep("X",Chr,ignore.case=T)] <- 23
   Chr[grep("Y",Chr,ignore.case=T)] <- 24
@@ -4281,8 +4337,10 @@ plot.gene.annot <- function(chr=1, pos=NA, scl=c("b","kb","mb","gb"), y.ofs=0, w
   gnnm <- (rng.genez$gene)
   n.genes <- length(cnrlo)
   txt.cex <- .75; if(n.genes>10) { txt.cex <- .5 } ; if(n.genes>100) { txt.cex <- .35 } # more genes = smaller labels
+  #print(n.genes)
   for (cc in 1:n.genes) {
     # draw rectangle and label for each gene
+    #prv(cnrlo[cc],y.top,cnrhi[cc], y.bot)
     rect(cnrlo[cc],y.top,cnrhi[cc], y.bot,border=box.col,...)
   }
   for (cc in 1:n.genes) {
@@ -4510,6 +4568,47 @@ plot.ranges <- function(ranged,labels=NULL,do.labs=T,skip.plot.new=F,lty="solid"
   }
 }
 
+#internal function
+chrnums.to.txt <- function(X,do.x.y=TRUE) {
+  cond <- paste(X) %in% paste(1:22)
+  if(any(cond)) { X[cond] <-  paste0("chr",X[cond]) }
+  if(do.x.y) {
+    X <- gsub("X","chrX",X)
+    X <- gsub("Y","chrY",X)
+    X <- gsub("23","chrX",X)
+    X <- gsub("24","chrY",X)
+    X <- gsub("25","chrXY",X)
+    X <- gsub("26","chrM",X)
+    X <- gsub("chrXchrY","XY",X)
+    X <- gsub("chrYchrX","YX",X) 
+    X <- gsub("M","chrM",X)
+    X <- gsub("XY","chrXY",X)
+    X <- gsub("chrchr","chr",X)
+  } else {
+    X[X %in% paste(23:100)] <- paste0("chr",X[X %in% paste(23:100)])
+  }
+  return(X)
+}
+
+#internal function
+chrnames.to.num <- function(X,keep.let=TRUE) {
+  X <- tolower(X)
+    if(!keep.let) {
+      X <- gsub("chrM","26",X)
+      X <- gsub("chrXY","25",X) 
+      X <- gsub("chrY","24",X)
+      X <- gsub("chrX","23",X)
+    } else {
+      X <- gsub("chrM","M",X)
+      X <- gsub("chrXY","XY",X) 
+      X <- gsub("chrY","Y",X)
+      X <- gsub("chrX","X",X)
+    }
+  X <- gsub("chrchr","",X) 
+  X <- gsub("chr","",X)
+  X <- toupper(X)
+  return(X)
+}
 
 
 #' Change the chromosome labels in a RangedData or GRanges object to string codes
@@ -5074,6 +5173,7 @@ get.exon.annot <- function(dir=NULL,build=NULL,bioC=T, GRanges=TRUE) {
 # internal, tidy chromosome names using extra chromosomal annotation into rough chromosomes
 tidy.extra.chr <- function(chr,select=FALSE) {
   # most relevant to hg18
+  chr <- paste(chr)
   SEL_c6 <- grep("c6",chr,ignore.case=T)
   SEL_c5 <- grep("c5",chr,ignore.case=T)
   SEL_NT <- grep("NT",chr,ignore.case=T)
@@ -5560,3 +5660,19 @@ validate.dir.for <- function(dir,elements,warn=F) {
   return(dir)
 }
 
+
+#where x is a vector of gene labels, where multiple hits
+# are delimited by sep, then this will convert to the form
+# gene1, gene2, ..., genen, + length(genen>1) others
+compact.gene.list <- function(x,n=3,sep=";",others=TRUE) {
+  XX <- strsplit(x,sep,fixed=T)
+  #prv(XX)
+  XX <- lapply(XX,function(x) { x[x %in% c(""," ")] <- "unnamed gene"; if(length(x)==0) { x <- "unnamed gene" };return(x) })
+ # prv(XX)
+  lens <- sapply(XX,length)
+  sel <- which(lens>n)
+  all <- sapply(XX,function(x) { sel <- FALSE; if(length(x)>0) { sel <- 1:(min(length(x),n)) }; paste(x[sel],collapse=sep) })
+  extrz <- lens[sel]-n
+  all[sel] <- paste(all[sel],"+",extrz,if(others) { "others" } else { "" } )
+  return(all)  
+}
