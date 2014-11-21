@@ -1333,6 +1333,7 @@ Gene.pos <- function(chr=NA,pos=NA,start=NA,end=NA,ranges=NULL,build=NULL,dir=NU
 
 
 
+
 #' Find the cytoband(s) overlapping a chromosome location
 #' 
 #' Allows retrieval of cytobands/karyotypes intersected by a chromosome and position, which can be 
@@ -1631,7 +1632,7 @@ snps.in.range <- function(chr, start=NA, end=start, ids=TRUE) {
 #' using any form recognised by ucsc.sanitizer()
 #' @param dir string, specify the directory to store or look for annotation (defaults to current)
 #' @export
-#' @seealso exp.window.nsnp
+#' @seealso exp.window.nsnp, nearest.gene
 #' @return Set of SNP ids (when ids=TRUE), or otherwise genomic positions within chromosome 'chr'.
 #' If the number of SNPs on the chromosome or the bounds of the 'side' and 'limit' parameters
 #' restrict the number returned to less than 'n' then the return value will be padded with NAs.
@@ -1674,6 +1675,83 @@ nearest.snp <- function(chr, pos, n=1, side=c("either","left","right"),ids=TRUE,
   return(out)
 }
 
+
+#' Retrieve the 'n' closest GENE labels or positions near specified locus
+#' 
+#' @param chr integer, chromosome, should be a number from 1 to 25, where 23,24,25 are X,Y,MT
+#' @param pos integer, genomic position, should be between 1 and the length of the chromosome 'chr'
+#' @param n integer, the number of nearest GENEs to seek, if there aren't enough in the annotation
+#' then NAs will fill the gaps to force the return value length to equal 'n'
+#' @param side character, can be 'either', 'left' or 'right' and specifies which side of the 'pos'
+#' to look for nearest genes (where left is decreasing genomic position and right is increasing)
+#' @param ids logical, if TRUE will return GENE labels, 
+#' or if FALSE will return the chromosome positions of the genes
+#' @param limit integer, a limit on the maximum distance from the position 'pos' can be specified
+#' @param build integer whether to use build 36/37 parameters, 36/37 is preferred, but can enter
+#' using any form recognised by ucsc.sanitizer()
+#' @param dir string, specify the directory to store or look for annotation (defaults to current)
+#' @param ga RangedData object, e.g, result of get.gene.annot(); gene annotation to save download
+#' time if repeatedly calling this function
+#' @export
+#' @seealso exp.window.nsnp, nearest.snp, get.gene.annot
+#' @return Set of GENE ids (when ids=TRUE), or otherwise genomic positions within chromosome 'chr'.
+#' If the number of gemes on the chromosome or the bounds of the 'side' and 'limit' parameters
+#' restrict the number returned to less than 'n' then the return value will be padded with NAs.
+#' @examples
+#' nearest.gene(1,159000000,n=10) # return ids
+#' nearest.gene(1,159000000,n=10,build=37)
+#' nearest.gene(1,159000000,n=10,build=36,ids=F) # return positions
+#' nearest.gene(1,159000000,n=10,build=37,ids=F)
+#' nearest.gene(6,25000000,n=10,build=37,ids=F,side="left")  # only genes to the left of the locus
+#' nearest.gene(6,25000000,n=10,build=37,ids=F,side="right") # only genes to the right of the locus
+nearest.gene <- function(chr, pos, n=1, side=c("either","left","right"),ids=TRUE,limit=NULL,build=NULL, ga=NULL) { 
+  # ids - whether to return ichip SNP ids or positions
+  if(length(chr)>1) { warning("chr should be length 1, using only first entry"); chr <- chr[1] }
+  if(length(pos)>1) { warning("pos should be length 1, using only first entry"); pos <- pos[1] }
+  if(is.null(build)) { build <- getOption("ucsc") }
+  chrom <- paste(chr)
+  build <- ucsc.sanitizer(build)
+  if(is(get.gene.annot)[1]=="RangedData") { 
+    if(!"gene" %in% colnames(ga)) { ga <- NULL }
+  } else { ga <- NULL }
+  if(is.null(ga)) {  
+    ga <- get.gene.annot(build=build,GRanges=F) 
+    if(!exists("ga")) { stop("couldn't find gene annotation") }  ## load object: ga [gene database]
+    ga <- ga[ga$gene!="",]
+  }
+  side <- tolower(side[1]); 
+  if(!side %in% c("either","left","right")) {
+    side <- "either"; warning("invalid side argument, defaulting to 'either'") }
+  if(!is.null(limit)) { if(!is.numeric(limit)) { limit <- NULL; warning("invalid limit argument, defaulting to NULL") } }
+  all.chr <- paste(chr2(ga))
+  all.st <- start(ga)[all.chr %in% chrom]
+  all.en <- end(ga)[all.chr %in% chrom]
+  #prv(all.st,all.en)
+  if(length(all.st)<1) { warning("no positions found for 'chr' specified"); return(NULL) }
+  difzS <- pos-all.st
+  difzE <- pos-all.en
+  all.true <- difzS==difzS
+  if(is.null(limit)) { lfilt <- all.true } else { lfilt <- abs(difzS)<=limit | abs(difzE)<=limit }
+  within <- difzS>0 & difzE<0
+  if(side=="left") { filt <- ( difzE>0 & lfilt ) | within }
+  if(side=="right") { filt <- ( difzS<0 & lfilt ) | within }
+  if(side=="either") { filt <- ( all.true & lfilt ) | within }
+  #print(length(which(filt)))
+  tab <- rbind(abs(difzS),abs(difzE))
+  minz <- apply(tab,2,min,na.rm=T)
+  Difz <- abs(minz[filt])
+  if(length(Difz)<n)  { warning("fewer than ",n," genes found for 'chr' specified (within 'limit'), NAs returned") }
+  indx <- order(Difz)[1:n]
+ # prv(minz,Difz,filt,indx)
+  subi <- ga[["gene"]][all.chr %in% chrom][filt]
+  #prv(ga,subi,all.chr,chrom)
+  if(ids) {
+    out <- ga[["gene"]][all.chr %in% chrom][filt][indx]
+  } else {
+    out <- start(ga)[(all.chr %in% chrom)][filt][indx]
+  }
+  return(out)
+}
 
 
 #internal
