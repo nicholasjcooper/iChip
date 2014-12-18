@@ -1,6 +1,7 @@
 if(getwd()!= "/home/ncooper"){
   require(genoset)
 }
+
 # examples
 # 
 # snp.info <- ChipInfo(chr=all.support[,"Chr"],pos=all.support[,"Pos"],ids=rownames(all.support),chip="ImmunoChip",rs.id=all.support[,"dbSNP"],

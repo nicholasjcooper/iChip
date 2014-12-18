@@ -20,14 +20,14 @@ if(Sys.info()[["user"]]=="ncooper")
 {
   #source("~/github/plumbCNV/generalCNVFunctions.R", echo=FALSE)
   if(getwd()!= "/home/ncooper"){
-    source("~/github/iChip/ChipInfoClass.R", echo=FALSE)
+    source("/home/ncooper/github/iChip/ChipInfoClass.R", echo=FALSE)
   } else {
     warning("You need to source the file 'ChipInfoClass.R to get some of these functions to work properly")
   }
   internal.analyses <- FALSE
   if(internal.analyses) {
-    source("~/github/iChip/firstscriptFunctions.R", echo=FALSE) # only needed for internal analyses
-    source('~/github/iChip/specificIFunctions.R', echo=FALSE) # only needed for internal analyses
+    source("/home/ncooper/github/iChip/firstscriptFunctions.R", echo=FALSE) # only needed for internal analyses
+    source('/home/ncooper/github/iChip/specificIFunctions.R', echo=FALSE) # only needed for internal analyses
   }
 }
 
@@ -2526,7 +2526,7 @@ abf <- function(p,maf, n0=1000, n1=1000, scale0=n0, scale1=n1) {
 # 'impute.missing' will leave these blank. This function mops up the remainder
 # by randomly inserting values consistent with the minor allele frequency of each SNP
 # (Nick)
-randomize.missing2 <- function(X,verbose=FALSE) {
+randomize.missing2 <- function(X,verbose=FALSE,n.cores=1) {
   miss1 <- function(x) { 
     x <- as.numeric(x)
     TX <- table(c(round(x),0,1,2,3))-c(1,1,1,1) # to force zero counts to be in the table
@@ -2563,9 +2563,32 @@ randomize.missing2 <- function(X,verbose=FALSE) {
   if(length(which(select))<1) { return(X) }
   if(verbose) { cat(sum(nmiss),"missing values replaced with random alleles\n") }
   if(length(which(select))==1) { X[,select] <- miss2(select,cs$P.AA[select],cs$P.AB[select],cs$P.BB[select]); return(X) }
-
-  ii <- mapply(miss2,which(select),cs$P.AA[select],cs$P.AB[select],cs$P.BB[select])
-  X@.Data[,select] <- ii
+  if(n.cores>1) {
+    do.chunk <- function(SEL) {
+      ii <- mapply(miss2,SEL,cs$P.AA[SEL],cs$P.AB[SEL],cs$P.BB[SEL])
+      return(ii)
+    }
+    posz <- which(select)
+    Ls <- length(posz)
+    split.to <- min(c(round(Ls/100),n.cores),na.rm=T)
+    #if(n.cores>4) { split.to <- split.to * 4 } # divide more if using multicores
+    stepz <- round(seq(from=1,to=Ls+1,length.out=round((split.to+1))))
+    if((tail(stepz,1)) != Ls+1) { stepz <- c(stepz,Ls+1) }
+    split.to <- length(stepz)-1
+    outlist <- sel.range <- vector("list",split.to)
+    for (cc in 1:split.to) {
+      c1 <- stepz[cc]; c2 <- stepz[cc+1]-1  # check this in FN!
+      sel.range[[cc]] <- posz[c(c1:c2)]
+    }
+    #prv(split.to,stepz,select,Ls,sel.range)
+    outlist <- mclapply(sel.range,do.chunk)
+    for (cc in 1:split.to) {
+      X@.Data[,sel.range[[cc]]] <- outlist[[cc]]
+    }
+  } else {
+    ii <- mapply(miss2,which(select),cs$P.AA[select],cs$P.AB[select],cs$P.BB[select])
+    X@.Data[,select] <- ii
+  }
   return(X)
 }
 
@@ -4262,9 +4285,9 @@ get.GO.for.genes <- function(gene.list,bio=T,cel=F,mol=F) {
   if(bio) { base.attr <- c(base.attr,"go_biological_process_description") }
   if(cel) { base.attr <- c(base.attr,"go_cellular_component_description") }
   if(mol) { base.attr <- c(base.attr,"go_molecular_function_description") }
-  dat <- getBM(attributes = c("hgnc_symbol", "chromosome_name",
-                              "start_position", "end_position", "band"), filters = "hgnc_symbol",
-               values = egSymb[,2], mart = ens)
+#  dat <- getBM(attributes = c("hgnc_symbol", "chromosome_name",
+#                              "start_position", "end_position", "band"), filters = "hgnc_symbol",
+#               values = egSymb[,2], mart = ens)
   results <- getBM(attributes = base.attr, filters = "hgnc_symbol",
                    values = c(gene.list), mart = ens)
   return(results)
@@ -5160,7 +5183,7 @@ get.recombination.map <- function(dir=NULL,verbose=TRUE,refresh=FALSE, compress=
 }
 
 
-#' Get exon names and locations from biomart
+#' Get exon names and locations from UCSC
 #' 
 #' Various R packages assist in downloading exonic information but often the input required is 
 #' complex, or several lines of code are required to initiate, returning an object that
@@ -5177,6 +5200,7 @@ get.recombination.map <- function(dir=NULL,verbose=TRUE,refresh=FALSE, compress=
 #'  Default is build-36/hg-18. Will also accept integers 36,37 as alternative arguments.
 #' @param bioC logical, whether to return the annotation as a ranged S4 object (GRanges or
 #' RangedData), or as a data.frame
+#' @param transcripts logical, if TRUE, return transcripts rather than exons
 #' @param GRanges logical, if TRUE and bioC is also TRUE, then returned object will be GRanges, otherwise
 #' it will be RangedData
 #' @export
@@ -5186,21 +5210,25 @@ get.recombination.map <- function(dir=NULL,verbose=TRUE,refresh=FALSE, compress=
 #' ## not run as it takes too long to download for CRAN ##
 #' ## get.exon.annot()
 #' ## get.exon.annot(bioC=FALSE,build=37)
-get.exon.annot <- function(dir=NULL,build=NULL,bioC=T, GRanges=TRUE) {
+get.exon.annot <- function(dir=NULL,build=NULL,bioC=T, transcripts=FALSE, GRanges=TRUE) {
   if(is.null(dir)) { if(any(getOption("save.annot.in.current")<1)) { dir <- NULL } else { dir <- getwd() } }
   if(is.null(build)) { build <- getOption("ucsc") }
   build <- ucsc.sanitizer(build)
   ## load exon annotation (store locally if not there already)
   from.scr <- T
+  txt <- if(transcripts) { "trans" } else { "exon" }
   if(!is.null(dir)) {
     dir <- validate.dir.for(dir,"ano")
-    ex.fn <- cat.path(dir$ano,"exonAnnot",suf=build,ext="RData")
+    ex.fn <- cat.path(dir$ano,pref=txt,"Annot",suf=build,ext="RData")
     if(file.exists(ex.fn)) {
-      ts <- get(paste(load(ex.fn)))
-      if((bioC) & is.data.frame(ts)) { from.scr <- F }
-      if((!bioC) & is.list(ts)) { from.scr <- F }
+      tS <- reader(ex.fn)
+      if(transcripts) {
+        if(is(tS)[1]=="data.frame") { from.scr <- F }
+      } else {
+        if(is(tS)[1]=="GRanges") { from.scr <- F }
+      }
     }
-  } 
+  }
   must.use.package("GenomicFeatures",T)
   if(from.scr) {
     must.use.package("gage",T)
@@ -5215,36 +5243,51 @@ get.exon.annot <- function(dir=NULL,build=NULL,bioC=T, GRanges=TRUE) {
                 "and running biocLite('rtracklayer'), should fix this")
         return(NULL) }
     }
-    ts = transcriptsBy(txdb, by="gene")
-    data(egSymb)
-    select <- match(names(ts),egSymb[,1])
-    names(ts)[!is.na(select)] <- egSymb[,2][select[!is.na(select)]]
+    if(!transcripts) {
+      ex = exonsBy(txdb, by="gene")
+      tS <- toGenomeOrder(unlist(ex),strict=T)
+    } else {  
+      tS = transcriptsBy(txdb, by="gene")
+      data(egSymb)
+      select <- match(names(tS),egSymb[,1])
+      names(tS)[!is.na(select)] <- egSymb[,2][select[!is.na(select)]]
+      tS <- as.data.frame(tS)
+    }
   }
-  if(bioC) {
-    if(from.scr) {
-      ts <- as.data.frame(ts)
-      chrs <- paste(ts$seqnames); chrs <- gsub("chr","",chrs)
-      ts$seqnames <- chrs
-      if(all(colnames(ts)==c("element","seqnames","start","end","width","strand","tx_id","tx_name"))) {
-        colnames(ts) <- c("gene","chr","start","end","width","strand","txid","txname")
-      } else {
-        cat(" unexpected colnames found using makeTranscriptDbFrombuild()\n")
-        if(bioC) { cat(" therefore returning data.frame instead of RangedData object\n") ;
-                   bioC <- F }
-      }
-      if(exists("ex.fn")) { save(ts,file=ex.fn) }
+  if(exists("ex.fn")) { save(tS,file=ex.fn) }
+  if(transcripts) {
+    chrs <- paste(tS$seqnames); chrs <- gsub("chr","",chrs)
+    tS$seqnames <- chrs
+    if(all(colnames(tS)==c("element","seqnames","start","end","width","strand","tx_id","tx_name"))) {
+      colnames(tS) <- c("gene","chr","start","end","width","strand","txid","txname")
+    } else {
+      cat(" unexpected colnames found using makeTranscriptDbFrombuild()\n")
+      if(bioC) { cat(" therefore returning data.frame instead of RangedData object\n") ;
+                 bioC <- F }
     }
     if(bioC) {
-      ts <- RangedData(ranges=IRanges(start=ts$start,end=ts$end),
-                       space=ts$chr,gene=ts$gene, strand=ts$strand,
-                       txid=ts$txid, txname=ts$txname,universe=build)
-      ts <- toGenomeOrder2(ts,strict=T)
-      if(GRanges) { ts <- as(ts,"GRanges") }
+      tS <- RangedData(ranges=IRanges(start=tS$start,end=tS$end),
+                       space=tS$chr,gene=tS$gene, strand=tS$strand,
+                       txid=tS$txid, txname=tS$txname,universe=build)
+      tS <- toGenomeOrder2(tS,strict=T)
+      if(GRanges) { tS <- as(tS,"GRanges") }
     }
+    return(tS)
   } else {
-    if(from.scr) { if(exists("ex.fn")) { save(ts,file=ex.fn) } }
+    rownames(tS) <- paste(1:nrow(tS))
+    ei <- mcols(tS)[["exon_id"]]
+    ei2 <- add.trail(ei,suffix=strsplit("abcdefghijklmnopqrstuvwxyz","")[[1]])
+    mcols(tS)[["exon_name"]] <- ei2
+    if(bioC) {
+      if(GRanges) {
+        return(tS)
+      } else {
+        return(as(tS,"RangedData"))
+      }
+    } else {
+      return(ranged.to.data.frame(tS))
+    }
   }
-  return(ts)
 }
 
 # iFunctions
