@@ -222,7 +222,7 @@ Chr <- function(ids,dir=NULL,snps.only=FALSE) {
 #'  columns 'chr' [chromosome], 'start' [starting position of feature], 'end' [end position of feature], 
 #'  and the band without the chromosome prefix, if ids are bands. Note that this function cannot
 #'  retrieve multiple ranges for a single gene (e.g, OR2A1), which means you'd need to use Pos.gene().
-#'  The coordinates used will be of version getOption(ucsc="hg18"), or build(get.support()), which
+#'  The coordinates used will be of version getOption(ucsc="hg18"), or ucsc(get.support()), which
 #'  should be equivalent.
 #' @export
 #' @author Nicholas Cooper \email{nick.cooper@@cimr.cam.ac.uk}

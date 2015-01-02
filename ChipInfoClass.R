@@ -2,8 +2,9 @@ if(getwd()!= "/home/ncooper"){
   require(genoset)
 }
 
-# examples
+# examples for package
 # 
+# all.support <- get.support()
 # snp.info <- ChipInfo(chr=all.support[,"Chr"],pos=all.support[,"Pos"],ids=rownames(all.support),chip="ImmunoChip",rs.id=all.support[,"dbSNP"],
 #                      A1=all.support[,"A1"], A2=all.support[,"A2"])
 # 
@@ -17,33 +18,46 @@ if(getwd()!= "/home/ncooper"){
 # snp.info[["MT"]] # revisit and see it now registers as 'fail'
 # QCfail(snp.info)
 # xx <- conv.36.37(chr=all.support[,"Chr"],pos=all.support[,"Pos"],ids=rownames(all.support))
-# build(si36[["XY"]])
+# ucsc(si36[["XY"]])
 # si37 <- convTo37(snp.info)
 # si36 <- convTo36(si37)
 # snp.info <- ChipInfo(chr=all.support[,"Chr"],pos=all.support[,"Pos37"],ids=rownames(all.support),chip="ImmunoChip",rs.id=all.support[,"dbSNP"],
 #                     A1=all.support[,"A1"], A2=all.support[,"A2"],build=37)
 
 
-#' Class 'ChipInfo'
+#' Class to represent SNP annotation for a microarray
 #' 
 #' This class annotates a microarray SNP chip with data for each SNP including chromosome,
 #' id, position, strand, 'rs' id, allele 1, allele 2 for each SNP of a microarray chip,
 #' in either hg18 or hg19 (build 36/37) coordinates.
 #' This package makes extension use of this class of annotation object for the working
-#' microarray chip, e.g, default is ImmunoChip, but Metabochip is also built-in,
+#' microarray chip, e.g, default is ImmunoChip, 
 #' and you can also load your own annotation if using a different chip. The class
 #' is basically a GRanges object, modified to always have columns for A1, A2 (alleles), 
 #' rs.id, and a quality control flag. The default display is tidier than GRanges, it has
 #' nice coersion to and frame data.frame and subsetting by chromosome using [[n]] has been
 #' added, in addition to normal [i,j] indexing native to GRanges.
-#' SLOTS
-#'  seqnames, ranges, strand, seqinfo, chip, build, and elementMetadata, containing columns:
-#'  A1, A2, QCcode and rs.id.
 #' METHODS
 #'  "[[", show, print, length, initialize
 #'  build, chip, rs.id, A1, A2, QCcode, QCcode<-, QCpass, QCfail, convTo36, convTo37
 #' COERCION
 #'  can use 'as' to convert to and from: GRanges, RangedData, data.frame
+#' SLOTS
+#'@section Slots: 
+#'  \describe{
+#'    \item{\code{seqnames}:}{Object of class \code{"Rle"}, containing chromosomes for each range, see GRanges.}
+#'    \item{\code{ranges}:}{Object of class \code{"IRanges"}, containing genomic start and end, see GRanges.}
+#'    \item{\code{strand}:}{Object of class \code{"Rle"}, containing plus or minus coding for forward or reverse strand, see GRanges.}
+#'    \item{\code{seqinfo}:}{Object of class \code{"Seqinfo"}, containing chromosome listing, see GRanges.}
+#'    \item{\code{chip}:}{Name, class \code{"character"}, containing user description of the chip, e.g, 'immunoChip'.}
+#'    \item{\code{build}:}{Object of class \code{"character"}, annotation version, e.g, hg18, hg19, etc.}
+#'    \item{\code{elementMetaData}:}{Object of class \code{"DataFrame"}, see GRanges, but with specific column names:
+#'  A1, A2, QCcode and rs.id.}
+#'  }
+#' @name ChipInfo
+#' @rdname ChipInfo
+#' @exportClass ChipInfo
+#' @author Nick Cooper
 setClass("ChipInfo",
          contains="GRanges",
          representation(
@@ -66,32 +80,43 @@ setClass("ChipInfo",
          )
 )
 
-#' Length for ChipInfo
-#' 
-#' Simply returns the number of SNPs (internally using 'nrow')
-#' @param x a ChipInfo object
-#' @return integer
+
+
+#' @rdname length-methods
+#' @aliases length,ChipInfo,ChipInfo-method
 setMethod("length", "ChipInfo", function(x) length(x@ranges))
 
-setGeneric("chip", function(x) standardGeneric("chip"))
 
 #' Retrieve the Chip name for ChipInfo
 #' 
 #' Simply returns the name of the chip, e.g, 'ImmunoChip'
 #' @param x a ChipInfo object
-#' @return character
-setMethod("chip", "ChipInfo", function(x) x@chip)
-if(!exists("build",mode="function")) {
-  setGeneric("build", function(x) standardGeneric("build") )
-}
+#' @return character string
+#' @export
+#' @docType methods
+#' @rdname chip-methods
+setGeneric("chip", function(x) standardGeneric("chip"))
 
-#' Retrieve the build for ChipInfo
+
+#' @rdname chip-methods
+#' @aliases chip,ChipInfo,ChipInfo-method
+setMethod("chip", "ChipInfo", function(x) x@chip)
+
+
+#' Retrieve the UCSC build for a ChipInfo object
 #' 
 #' Returns the UCSC build of the chip object, e.g, "hg18" or "hg19"
 #' @param x a ChipInfo object
 #' @return character, "hg18" or "hg19"
-setMethod("build", "ChipInfo", function(x) x@build)
-setGeneric("rs.id", function(x,b=TRUE) standardGeneric("rs.id") )
+#' @export
+#' @docType methods
+#' @rdname ucsc-methods
+setGeneric("ucsc", function(x) standardGeneric("ucsc") )
+
+#' @rdname ucsc-methods
+#' @aliases ucsc,ChipInfo,ChipInfo-method
+setMethod("ucsc", "ChipInfo", function(x) x@build)
+
 
 #' Access rs-ids for ChipInfo
 #' 
@@ -99,6 +124,14 @@ setGeneric("rs.id", function(x,b=TRUE) standardGeneric("rs.id") )
 #' Only if these are annotated internally, or else a vector of NAs
 #' @param x a ChipInfo object
 #' @return character vector of IDs (or NAs)
+#' @export
+#' @docType methods
+#' @rdname rs.id-methods
+setGeneric("rs.id", function(x,b=TRUE) standardGeneric("rs.id") )
+
+
+#' @rdname rs.id-methods
+#' @aliases rs.id,ChipInfo,ChipInfo-method
 setMethod("rs.id", "ChipInfo", function(x,b=TRUE) { 
   u <- mcols(x) ;  
   if("rs.id" %in% colnames(u)) { 
@@ -107,7 +140,7 @@ setMethod("rs.id", "ChipInfo", function(x,b=TRUE) {
     return(U)
   } else { return(NULL) } 
 })
-setGeneric("A1", function(x) standardGeneric("A1") )
+
 
 #' Access allele 1 for ChipInfo
 #' 
@@ -116,8 +149,14 @@ setGeneric("A1", function(x) standardGeneric("A1") )
 #' Only if these are annotated internally, or else a vector of NAs
 #' @param x a ChipInfo object
 #' @return character vector of allele codes (or NAs)
+#' @export
+#' @docType methods
+#' @rdname A1-methods
+setGeneric("A1", function(x) standardGeneric("A1") )
+
+#' @rdname A1-methods
+#' @aliases A1,ChipInfo,ChipInfo-method
 setMethod("A1", "ChipInfo", function(x) { u <- mcols(x) ;  if("A1" %in% colnames(u)) { u[,"A1"] } else { NULL } })
-setGeneric("A2", function(x) standardGeneric("A2") )
 
 #' Access allele 2 for ChipInfo
 #' 
@@ -126,9 +165,15 @@ setGeneric("A2", function(x) standardGeneric("A2") )
 #' Only if these are annotated internally, or else a vector of NAs
 #' @param x a ChipInfo object
 #' @return character vector of allele codes (or NAs)
+#' @export
+#' @docType methods
+#' @rdname A2-methods
+setGeneric("A2", function(x) standardGeneric("A2") )
+
+#' @rdname A2-methods
+#' @aliases A2,ChipInfo,ChipInfo-method
 setMethod("A2", "ChipInfo", function(x) { u <- mcols(x) ;  if("A2" %in% colnames(u)) { u[,"A2"] } else { NULL } })
 
-setGeneric("QCcode", function(x) standardGeneric("QCcode") )
 
 #' Access quality control pass or fail codes for ChipInfo
 #' 
@@ -137,8 +182,17 @@ setGeneric("QCcode", function(x) standardGeneric("QCcode") )
 #' Only if these are added manually, or else all will be 'pass' (=0)
 #' @param x a ChipInfo object
 #' @return integer vector of pass/fail codes
-setMethod("QCcode", "ChipInfo", function(x) { u <- mcols(x) ;  if("QCcode" %in% colnames(u)) { u[,"QCcode"] } else { NULL } })
-setGeneric("QCcode<-", function(x,values) standardGeneric("QCcode<-") )
+#' @export
+#' @docType methods
+#' @rdname QCcode-methods
+setGeneric("QCcode", function(x) standardGeneric("QCcode") )
+
+#' @rdname QCcode-methods
+#' @aliases QCcode,ChipInfo,ChipInfo-method
+setMethod("QCcode", "ChipInfo", function(x) { 
+  u <- mcols(x) ;  if("QCcode" %in% colnames(u)) { u[,"QCcode"] } else { NULL } 
+})
+
 
 #' Set quality control pass or fail codes for ChipInfo
 #' 
@@ -149,6 +203,14 @@ setGeneric("QCcode<-", function(x,values) standardGeneric("QCcode<-") )
 #' @param x a ChipInfo object
 #' @param values new pass/fail codes, e.g, 0,1,...,n
 #' @return updates the object specified with new pass/fail codes for the 'QCcode' slot
+#' @export
+#' @docType methods
+#' @rdname QCcode-methods
+setGeneric("QCcode<-", function(x,values) standardGeneric("QCcode<-") )
+
+
+#' @rdname QCcode-methods
+#' @aliases QCcode,ChipInfo,ChipInfo-method
 setMethod("QCcode<-", "ChipInfo", function(x,values) {
   if(length(x)==length(values)) {
     if(is.numeric(values)) {
@@ -162,19 +224,17 @@ setMethod("QCcode<-", "ChipInfo", function(x,values) {
   return(x)
 } )
 
-setGeneric("QCpass", function(x) standardGeneric("QCpass") )
-setGeneric("QCfail", function(x,type=NA) standardGeneric("QCfail") )
-
-
 #' Filter ChipInfo to for only SNPs passing QC
 #' 
 #' Returns the subset of the ChipInfo object for which SNPs pass quality
 #' control, according to the QCcodes() slot == 0.
 #' @param x a ChipInfo object
 #' @return ChipInfo object for which SNPs pass quality control
-setMethod("QCpass", "ChipInfo", function(x) { 
-  ii <- which(QCcode(x)==0)
-  if(length(ii)>0) { return(x[ii,]) } else { warning("No SNPs passed QC"); return(NULL) } })
+#' @export
+#' @docType methods
+#' @rdname QCpass-methods
+setGeneric("QCpass", function(x) standardGeneric("QCpass") )
+
 
 #' Filter ChipInfo to for only SNPs failing QC
 #' 
@@ -182,6 +242,20 @@ setMethod("QCpass", "ChipInfo", function(x) {
 #' control, according to the QCcodes() slot > 0.
 #' @param x a ChipInfo object
 #' @return ChipInfo object for which SNPs fail quality control
+#' @export
+#' @docType methods
+#' @rdname QCfail-methods
+setGeneric("QCfail", function(x,type=NA) standardGeneric("QCfail") )
+
+
+#' @rdname QCpass-methods
+#' @aliases QCpass,ChipInfo,ChipInfo-method
+setMethod("QCpass", "ChipInfo", function(x) { 
+  ii <- which(QCcode(x)==0)
+  if(length(ii)>0) { return(x[ii,]) } else { warning("No SNPs passed QC"); return(NULL) } })
+
+#' @rdname QCfail-methods
+#' @aliases QCfail,ChipInfo,ChipInfo-method
 setMethod("QCfail", "ChipInfo", function(x,type=NA) { 
   ii <- which(QCcode(x)!=0)
   if(is.numeric(type)) { 
@@ -193,6 +267,8 @@ setMethod("QCfail", "ChipInfo", function(x,type=NA) {
   }
   if(length(ii)>0) { return(x[ii,]) } else { warning("All SNPs passed QC"); return(NULL) } })
 
+
+#### UP TO HERE #######
 
 #' Subset ChipInfo by chromosome
 #' 
@@ -285,17 +361,17 @@ setGeneric("convTo36", function(x) standardGeneric("convTo36"))
 #' 
 #' Returns the a ChipInfo object with positions updated to build
 #' 36 coordinates, assuming that the existing object was in build 37,
-#' or already in build 36 coordinates, and that the build() slot was
-#' entered correctly. Ensure that the value of build(x) is correct before
+#' or already in build 36 coordinates, and that the @build slot was
+#' entered correctly. Ensure that the value of ucsc(x) is correct before
 #' running this function for conversion; for instance, if the coordinates 
-#' are already build 36/hg18, but build(x)=="hg19" (incorrect value), then
+#' are already build 36/hg18, but ucsc(x)=="hg19" (incorrect value), then
 #' these coordinates will be transformed in a relative manner rendering the
 #' result meaningless.
 #' @param x a ChipInfo object
 #' @return ChipInfo object with the build updated to hg18 coordinates
 #' @seealso convTo37
 setMethod("convTo36", "ChipInfo", function(x) {
-  if(ucsc.sanitizer(build(x))=="hg19") {
+  if(ucsc.sanitizer(ucsc(x))=="hg19") {
     u <- conv.37.36(ranges=as(x,"GRanges"))
     if(length(u)==length(x)) { 
       x@ranges <- u@ranges
@@ -314,7 +390,7 @@ setMethod("convTo36", "ChipInfo", function(x) {
       stop("conversion to build36/hg18 failed") 
     } 
   } else {
-    if(ucsc.sanitizer(build(x))!="hg18") { 
+    if(ucsc.sanitizer(ucsc(x))!="hg18") { 
       warning("input object was not tagged as hg19/build37 [@build], left unchanged") 
     } else {
       warning("object is already using hg18/build36, no change")
@@ -431,7 +507,7 @@ setAs("ChipInfo", "GRanges",
       function(from) { 
         #print(is(from)); print(from@seqnames)
         out <- GRanges(from@seqnames,ranges=from@ranges,strand=from@strand,
-                       seqinfo=from@seqinfo,elementMetadata=from@elementMetadata,genome=build(from))
+                       seqinfo=from@seqinfo,elementMetadata=from@elementMetadata,genome=ucsc(from))
         return(out)
       }
 )
@@ -479,10 +555,10 @@ setValidity("ChipInfo",
               if (!is.character(chip(object)) || length(chip(object)) != 1 || is.na(chip(object))) {
                 return("'chip' slot must be a single string") 
               }
-              if (!is.character(build(object)) || length(build(object)) != 1 || is.na(build(object))) {
+              if (!is.character(ucsc(object)) || length(ucsc(object)) != 1 || is.na(ucsc(object))) {
                 return("'build' slot must be a single string") 
               } else {
-                if(!build(object) %in% c("",ucsc.sanitizer(show.valid=T)[,1])) {
+                if(!ucsc(object) %in% c("",ucsc.sanitizer(show.valid=T)[,1])) {
                   return("'build' must be a string, 36/37 or hg18/hg19") 
                 }
               }
@@ -495,7 +571,7 @@ showChipInfo <- function (x, margin = "", with.classinfo = FALSE, print.seqlengt
   lx <- length(x)
   nc <- ncol(mcols(x))
   qc <- QCcode(x)
-  bb <- build(x)
+  bb <- ucsc(x)
   if(bb=="") { bb <- "unknown" }
   if(length(qc)==lx) { QC <- rep("pass",lx); QC[qc>0] <- paste0("fail",QC[qc>0]) ; x$QCcode <- QC }
   cat("ChipInfo for ",chip(x)," with ", lx, " ", ifelse(lx == 1L, "SNP", 
