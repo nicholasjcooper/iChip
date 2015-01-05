@@ -55,7 +55,7 @@ if(getwd()!= "/home/ncooper"){
 #'  A1, A2, QCcode and rs.id.}
 #'  }
 #' @name ChipInfo
-#' @rdname ChipInfo
+#' @rdname ChipInfo-class
 #' @exportClass ChipInfo
 #' @author Nick Cooper
 setClass("ChipInfo",
@@ -254,6 +254,7 @@ setMethod("QCpass", "ChipInfo", function(x) {
   ii <- which(QCcode(x)==0)
   if(length(ii)>0) { return(x[ii,]) } else { warning("No SNPs passed QC"); return(NULL) } })
 
+
 #' @rdname QCfail-methods
 #' @aliases QCfail,ChipInfo,ChipInfo-method
 setMethod("QCfail", "ChipInfo", function(x,type=NA) { 
@@ -277,6 +278,8 @@ setMethod("QCfail", "ChipInfo", function(x,type=NA) {
 #' @param x a ChipInfo object
 #' @param i a chromosome number or letter, i.e, one of seqlevels(x)
 #' @return ChipInfo object for the subset of SNPs on chromosome i
+#' @rdname ChipInfo
+#' @usage ChipInfo[[x,i]]
 setMethod("[[", "ChipInfo", function(x,i,j,...) { 
   dotArgs <- list(...)
   if (length(dotArgs) > 0)
@@ -310,8 +313,6 @@ setMethod("[[", "ChipInfo", function(x,i,j,...) {
 } )
 
 
-setGeneric("convTo37", function(x) standardGeneric("convTo37"))
-          
 #' Convert ChipInfo to build 37/hg19 coordinates
 #' 
 #' Returns the a ChipInfo object with positions updated to build
@@ -325,6 +326,13 @@ setGeneric("convTo37", function(x) standardGeneric("convTo37"))
 #' @param x a ChipInfo object
 #' @return ChipInfo object with the build updated to hg19 coordinates
 #' @seealso convTo36
+#' @export
+#' @docType methods
+#' @rdname convTo37-methods
+setGeneric("convTo37", function(x) standardGeneric("convTo37"))
+          
+#' @rdname convTo37-methods
+#' @aliases convTo37,ChipInfo,ChipInfo-method
 setMethod("convTo37", "ChipInfo", function(x) {
   if(ucsc.sanitizer(build(x))=="hg18") {
     u <- conv.36.37(ranges=as(x,"GRanges"))
@@ -355,8 +363,6 @@ setMethod("convTo37", "ChipInfo", function(x) {
   return(x)
 })
 
-setGeneric("convTo36", function(x) standardGeneric("convTo36"))
-
 #' Convert ChipInfo to build 36/hg18 coordinates
 #' 
 #' Returns the a ChipInfo object with positions updated to build
@@ -370,6 +376,14 @@ setGeneric("convTo36", function(x) standardGeneric("convTo36"))
 #' @param x a ChipInfo object
 #' @return ChipInfo object with the build updated to hg18 coordinates
 #' @seealso convTo37
+#' @export
+#' @docType methods
+#' @rdname convTo36-methods
+setGeneric("convTo36", function(x) standardGeneric("convTo36"))
+
+
+#' @rdname convTo36-methods
+#' @aliases convTo36,ChipInfo,ChipInfo-method
 setMethod("convTo36", "ChipInfo", function(x) {
   if(ucsc.sanitizer(ucsc(x))=="hg19") {
     u <- conv.37.36(ranges=as(x,"GRanges"))
@@ -401,23 +415,8 @@ setMethod("convTo36", "ChipInfo", function(x) {
 
 
 
-#' Display a ChipInfo object
-#' 
-#' Returns a preview of a ChipInfo object to the console. This
-#' is similar to a GRanges preview, but the seqlevels are hidden, the UCSC
-#' build and chip name are displayed, start and end are merged to the virtual
-#' label 'position' (as it's assume we are dealing with SNPs, not ranges), the strand
-#' by default is hidden, and the integer codes for pass/fail in QCcodes() are 
-#' displayed as 'pass' or 'fail', even though this is not how they are represented internally. 
-#' @param object a ChipInfo object
-#' @param up.to only SNPs at the start and end are generally displayed, however this
-#' parameter specifies that when there are <= 'up.to' SNPs, then all SNPs will be displayed.
-#' @param head.tail number of SNPs to display at start/end (only the head and tail are
-#' shown as these objects are generally very large with >100K SNPs)
-#' @param show.strand logical, by default the strand is hidden, particularly given that
-#' the strand can vary between different datasets of the same chip. Setting to TRUE will
-#' display the strand
-#' @return displays a preview of the object on the console
+#' @rdname show-methods
+#' @aliases show,ChipInfo,ChipInfo-method
 setMethod("show", "ChipInfo", 
      function(object) { showChipInfo(object,up.to=10,head.tail=5,show.strand=FALSE) } )
 
@@ -434,7 +433,7 @@ setMethod("print", "ChipInfo",
           function(x,...) { showChipInfo(x,...) } )
 
 
-#' Constructor for ChipInfo annotation object
+#' Constructor (wrapper) for ChipInfo annotation object
 #' 
 #' This class annotates a microarray SNP chip with data for each SNP including chromosome,
 #' id, position, strand, 'rs' id, allele 1, allele 2 for each SNP of a microarray chip,
@@ -446,6 +445,8 @@ setMethod("print", "ChipInfo",
 #' rs.id, and a quality control flag. The default display is tidier than GRanges, it has
 #' nice coersion to and frame data.frame and subsetting by chromosome using [[n]] has been
 #' added, in addition to normal [i,j] indexing native to GRanges.
+#' @name ChipInfo
+#' @rdname ChipInfo-class
 #' @param GRanges a GRanges object containing chromosome, start/end = position, and strand
 #' information for the chip object to be created, also rownames should be used to code
 #' the chip-ids for each SNP.
@@ -494,15 +495,22 @@ ChipInfo <- function(GRanges=NULL, chr=NULL, pos=NULL, ids=NULL, chip="unknown c
 }
 
 
-#' Initialize method for ChipInfo
+#' Initialize (constructor) method for ChipInfo
 #' 
-#' Please use the 'ChipInfo' constructor
+#' Please use the 'ChipInfo()' wrapper
+#' @name ChipInfo
+#' @rdname ChipInfo-class
 setMethod("initialize", "ChipInfo",
               function(.Object, ...){
           		  callNextMethod(.Object, ...)
           	  })
 
 
+#' As("ChipInfo", "GRanges")
+#'
+#' @name as
+#' @family ChipInfo
+#' @importClassesFrom genoset GRanges
 setAs("ChipInfo", "GRanges",
       function(from) { 
         #print(is(from)); print(from@seqnames)
@@ -512,6 +520,11 @@ setAs("ChipInfo", "GRanges",
       }
 )
 
+#' As("ChipInfo", "GRanges")
+#'
+#' @name as
+#' @family ChipInfo
+#' @importClassesFrom IRanges RangedData
 setAs("ChipInfo", "RangedData",
       function(from) { 
         out <- as(as(from,"GRanges"),"RangedData")
@@ -520,8 +533,17 @@ setAs("ChipInfo", "RangedData",
       }
 )
 
+
+#' As("ChipInfo", "GRanges")
+#'
+#' @name as
 setAs("ChipInfo", "data.frame", function(from) { ranged.to.data.frame(as(from,"GRanges"),include.cols=TRUE) })
 
+
+#' As("GRanges", "ChipInfo")
+#'
+#' @name as
+#' @family ChipInfo
 setAs("GRanges", "ChipInfo", 
       function(from) { 
         bb <- genome(from)
@@ -541,8 +563,16 @@ setAs("GRanges", "ChipInfo",
       }
 )
 
+#' As("RangedData", "ChipInfo")
+#'
+#' @name as
+#' @family ChipInfo
 setAs("RangedData", "ChipInfo", function(from) { as(as(from,"GRanges"),"ChipInfo") } )
 
+#' As("data.frame", "ChipInfo")
+#'
+#' @name as
+#' @family ChipInfo
 setAs("data.frame", "ChipInfo", 
       function(from) { 
         rr <- data.frame.to.granges(from,chr="seqnames") 
@@ -550,6 +580,7 @@ setAs("data.frame", "ChipInfo",
       } 
 )
 
+# No roxygen required i think?
 setValidity("ChipInfo",
             function(object) {
               if (!is.character(chip(object)) || length(chip(object)) != 1 || is.na(chip(object))) {
@@ -565,7 +596,23 @@ setValidity("ChipInfo",
             }
 )
 
-#internal
+#' Display a ChipInfo object
+#' 
+#' Returns a preview of a ChipInfo object to the console. This
+#' is similar to a GRanges preview, but the seqlevels are hidden, the UCSC
+#' build and chip name are displayed, start and end are merged to the virtual
+#' label 'position' (as it's assume we are dealing with SNPs, not ranges), the strand
+#' by default is hidden, and the integer codes for pass/fail in QCcodes() are 
+#' displayed as 'pass' or 'fail', even though this is not how they are represented internally. 
+#' @param object a ChipInfo object
+#' @param up.to only SNPs at the start and end are generally displayed, however this
+#' parameter specifies that when there are <= 'up.to' SNPs, then all SNPs will be displayed.
+#' @param head.tail number of SNPs to display at start/end (only the head and tail are
+#' shown as these objects are generally very large with >100K SNPs)
+#' @param show.strand logical, by default the strand is hidden, particularly given that
+#' the strand can vary between different datasets of the same chip. Setting to TRUE will
+#' display the strand
+#' @export
 showChipInfo <- function (x, margin = "", with.classinfo = FALSE, print.seqlengths = FALSE,...) 
 {
   lx <- length(x)
