@@ -1,0 +1,518 @@
+<p></p><b>finitize</b> 
+<p></p><b>minna</b> 
+<p></p><b>maxna</b> 
+<p></p><b>meanna</b> 
+<p></p><b>medianna</b> 
+<p></p><b>sdna</b> 
+<p></p><b>sumna</b> 
+<p></p><b>sortna</b> 
+<p></p><b>l10</b> internal
+<p></p><b>Cor</b> internal
+<p></p><b>pt2</b> internal
+<p></p><b>ucsc.sanitizer</b> internal function to allow flexible input for the build parameter
+<p></p><b>pduplicated</b> internal
+<p></p><b>comma</b> internal
+<p></p><b>get.allele.counts</b> internal function for the 'lambdas' function below
+<p></p><b>Y_2</b> internal functions for lambdas
+<p></p><b>X_2</b> 
+<p></p><b>Likelihood_Lj</b> 
+<p></p><b>LLikelihood_L</b> Likelihood_Lj <- function(c,Lnm) { rchisq(c/Lnm,df=1)/Lnm }  likelihood for one marker
+<p></p><b>order.chr</b> internal function to properly sort chromosome labels as text
+<p></p><b>sort.chr</b> internal
+<p></p><b>clean.snp.ids</b> internal
+standardize snp ids so they would always appear the same, all _,.;, etc replaced with _
+all names leading with a number preceeded with X. mainly 'make.names' standard R-conventions
+<p></p><b>hard.coded.conv</b> internal function with extra mapping hits for immunochip that aren't in the chain file for 36-37
+<p></p><b>logsum</b> 
+<p></p><b>make.split</b> internal
+create a factor that can split a group of 'size' entries into categories size 'by'
+merge last two groups if final group size is less than min.pc of 'by'
+if fac.out is false, return start/end ranges rather than a grouping factor
+(Nick)
+<p></p><b>randomize.missing2</b> internal
+snpStats imputation only works if there are correlated SNPs with non-missing values
+that can be used to interpolate missing SNPs. If any correlated SNPs are missing
+'impute.missing' will leave these blank. This function mops up the remainder
+by randomly inserting values consistent with the minor allele frequency of each SNP
+(Nick)
+<p></p><b>rmv.trail</b> internal
+Remove trailing letter from non-unique rs-ids
+
+<p></p><b>add.trail</b> internal
+Add trailing letter(s) to non-unique rs-ids
+<p></p><b>rsnp</b> internal, function generate a random MAF, then random SNP
+<p></p><b>rsnpid</b> internal
+<p></p><b>ldfun</b> internal
+<p></p><b>rsampid</b> internal
+<p></p><b>snpify.cont</b> internal
+<p></p><b>get.biggest</b> internal
+<p></p><b>get.top.n</b> internal
+<p></p><b>clean.fn</b> iFunctions
+internal
+allows an sapply style function to only work on valid values
+<p></p><b>emd.rmv</b> internal
+Remove that pesky 'elementmetadata.' prefix from column names that have been converted from GRanges
+<p></p><b>chrNames2</b> internal iFunctions
+<p></p><b>toGenomeOrder2</b> internal  iFunctions
+version of toGenomeOrder() that is guaranteed to work for IRanges or GRanges
+<p></p><b>chrInfo2</b> internal  iFunctions
+version of chrInfo() that is guaranteed to work for IRanges or GRanges
+<p></p><b>chrIndices2</b> internal  iFunctions
+version of chrIndices() that is guaranteed to work for IRanges or GRanges
+<p></p><b>chr2</b> internal  iFunctions
+version of chr() that is guaranteed to work for IRanges or GRanges
+<p></p><b>make.divisor</b> internal
+<p></p><b>plotdf</b> internal
+<p></p><b>chrnums.to.txt</b> internal function
+<p></p><b>chrnames.to.num</b> internal function
+<p></p><b>tidy.extra.chr</b> iFunctions
+internal, tidy chromosome names using extra chromosomal annotation into rough chromosomes
+<p></p><b>gene.duplicate.report</b> internal
+<p></p><b>read.ped.file</b> Internal: Read in a plink formatted pedigree/family file
+This function will import a PLINK style
+ped file and return a data.frame object in the same form
+<p></p><b>validate.dir.for</b> internal function
+<p></p><b>get.t1dbase.snps</b> Download GWAS hits from t1dbase.org
+
+Retrieve human disease top GWAS hits from t1dbase in either build hg18 or hg19 coords (b36/37).
+28 Diseases currently available
+<p></p><b>get.GO.for.genes</b> Retreive GO terms from biomart for a given gene list
+
+Gene-ontology terms (GO-terms) are commonly used for testing for simple functional
+enrichment for pathways, etc. This function can retrieve biological function,
+cellular component, or molecular description, depending on the parameters chosen.
+<p></p><b>ENS.to.GENE</b> Convert ensembl ids to HGNC gene ids
+
+Retrieve the gene IDs (HGNC) corresponding to a list of ensembl gene ids.
+Note that this will not find all IDs found on ensembl.org, as it uses bioMart which
+seems to be incomplete, but this only pertains to a small minority of genes, so this
+function should have general utility for most applications. This is of course the case
+at the time of writing - bioMart is likely to be updated at some point.
+<p></p><b>GENE.to.ENS</b> Convert gene ids to ensembl ids
+
+Retrieve the ensembl IDs corresponding to a list of common gene names (HGNC format).
+<p></p><b>nearest.gene</b> Retrieve the 'n' closest GENE labels or positions near specified locus
+
+<p></p><b>plot.gene.annot</b> Plot genes to annotate figures with genomic axes
+
+Quite often it is helpful to visualize genomic locations in the context of Genes
+in the same region. This function makes it simple to overlay genes on plots
+where the x-axis is chromosomal location.
+<p></p><b>get.immunog.locs</b> Retrieve locations of Immunoglobin regions across the genome
+
+Returns the locations of immunoglobin regions in the human genome, for a given build, as
+a list by chromosome, text vector, or GRanges/RangedData object.
+For instance, for CNV research, these regions are known to be highly structurally complex
+and can lead to false positive CNV-calls, so are often excluded.
+<p></p><b>get.centromere.locs</b> Return Centromere locations across the genome
+
+Returns the locations of centromeres in the human genome, for a given build, as
+a list by chromosome, text vector, or GRanges/RangedData object.
+<p></p><b>get.cyto</b> Return Cytoband/Karyotype locations across the genome
+
+Returns the locations of cytobands/karyotype-bands in the human genome, for a given build, as
+a data.frame, or GRanges/RangedData object.
+<p></p><b>get.recombination.map</b> Get HapMap recombination rates for hg18 (build 36)
+
+Recombination rate files can be used to calculate recombination distances
+for genome locations, in centimorgans. This function downloads these reference
+files from the hapmap NCBI website. At the time of writing they were only
+availble for build 36. If using a more recent build I suggest using the
+conversion function conv.37.36(), then recwindow(), then conv.36.37() to
+get recombination distances for other builds. If getOption("save.annot.in.current")
+is <=0 then no files will be kept. Otherwise an object containing this mapping data
+will be saved in the local directory if dir=NULL, or else in the directory specified.
+Allowing this reference to be saved will greatly increase the speed of this function
+for subsequent lookups
+<p></p><b>get.exon.annot</b> Get exon names and locations from UCSC
+
+Various R packages assist in downloading exonic information but often the input required is
+complex, or several lines of code are required to initiate, returning an object that
+might require some manipulation to be useful. This function simplifies the job
+considerably, not necessarily requiring any arguments. The object returned can be
+a standard data.frame or a bioconductor GRanges/RangedData object. The raw annotation
+file downloaded will be kept in the working directory so that subsequent calls to
+this function run very quickly, and also allow use offline.
+<p></p><b>get.gene.annot</b> Get human gene names and locations from biomart
+
+Various R packages assist in downloading genomic information but often the input required is
+complex, or several lines of code are required to initiate, returning an object that
+might require some manipulation to be useful. This function simplifies the job
+considerably, not necessarily requiring any arguments. The object returned can be
+a standard data.frame or a bioconductor GRanges/RangedData object. The raw annotation
+file downloaded will be kept in the working directory so that subsequent calls to
+this function run very quickly, and also allow use offline.
+<p></p><b>get.telomere.locs</b> Derive Telomere locations across the genome
+
+Returns the locations of telomeres in the human genome, for a given build, as
+a list by chromosome, text vector, or GRanges/RangedData object.
+<p></p><b>get.chr.lens</b> Get chromosome lengths from build database
+
+Quick and easy way to retrieve human chromosome lengths. Can select from hg18/hg19 (ie,
+build 36/37), or any future builds (hg20, etc) stored in the same location on the build website.
+Default is to return lengths for 22 autosomes, but can also retrieve X,Y
+and Mitochondrial DNA lengths by 'autosomes=FALSE' or n=1:25. Even if not connected to
+the internet can retrieve hard coded lengths for hg18/hg19.
+<p></p><b>get.t1d.regions</b> Obtain a listing of known T1D associated genomic regions
+
+This function uses a full list of ichip dense regions combined with a list of t1d
+SNPs to get the t1d regions. For type 1 diabetes researchers.
+<p></p><b>get.t1d.subset</b> return subset of a ranged object that overlaps ichip dense mapped regions
+<p></p><b>get.genic.subset</b> return subset of a ranged object that overlaps genes
+<p></p><b>logistic.summary</b> Function to produce a clean table from logistic regression done via GLM
+
+With input as a glm model result object, returns a clean dataframe with
+coefficients, p values, confidence intervals and standard errors. Multiple
+options for which columns to return and digits to display
+
+<p></p><b>meta.me</b> Meta-analysis using odds ratio and standard error from 2 datasets
+
+This function calculates meta analysis odds ratios, standard errors and p-values
+using results from a table containing odds ratio and standard error data for analyses
+of 2 different datasets (typically logistic regression, but other analyses can be
+incorporated if an odds-ratio and SE can be derived, for instance one analysis might
+be a case control logistic regression GWAS and the other a family TDT analysis).
+<p></p><b>make.granges</b> Wrapper to construct GRanges object from chr,pos or chr,start,end
+
+Slightly simplifies the creation of a GRanges object, allowing flexible input of
+chr, pos, or chr,start,end, and specification of rownames and the 'genome' parameter
+for specifying the build/coordinate type, e.g, hg18, build 37, etc. Designed for
+a simplified GRanges object without metadata, and where the 'strand' data is of
+no interest, so if strand/metadata is to be used, use the original GRanges() constructor.
+<p></p><b>conv.37.36</b> Convert from build 37 to build 36 SNP coordinates
+
+Convert range or SNP coordinates between builds using a chain file. Depending on the chain file
+this can do any conversion, but the default will use the hg19 to hg18 (37-->36) chain file
+built into this package. The positions to convert can be entered using using chr, pos vectors,
+or a RangedData or GRanges object. This function is a wrapper for liftOver() from rtracklayer,
+providing more control of input and output and 'defensive' preservation of order and length
+of the output versus the input ranges/SNPs.
+<p></p><b>conv.36.37</b> Convert from build 36 to build 37 SNP coordinates
+
+Convert range or SNP coordinates between builds using a chain file. Depending on the chain file
+this can do any conversion, but the default will use the hg18 to hg19 (36-->37) chain file
+built into this package. The positions to convert can be entered using using chr, pos vectors,
+or a RangedData or GRanges object. This function is a wrapper for liftOver() from rtracklayer,
+providing more control of input and output and 'defensive' preservation of order and length
+of the output versus the input ranges/SNPs.
+<p></p><b>recwindow</b> Extend an interval or SNP by distance in centimorgans (recombination distance)
+
+It is straightforward to extend a genomic interval or position by a number of basepairs, or
+a percentage, but extending by recombination units of centimorgans is more involved, requiring
+annotation lookup. This function streamlines this process.
+This function makes use of recombination rate hapmap reference files to calculate
+recombination distances for genome locations, in centimorgans. For a given position
+(or vector), a window can be returned of a given extension on either side of the position,
+for instance, 1 centimorgan to the left, and to the right of a SNP, giving a 2 centimorgan
+range as a result.
+<p></p><b>Ranges.to.txt</b> Convert GRanges/RangedData to chr:pos1-pos2 vector
+
+Takes a RangedData or GRanged object from some annotation lookup functions and converts to standard text
+positions, such as what you might see on the UCSC genome browser, such as
+chr1:10,000,234-11,000,567 for a range, or chrX:234,432 for a SNP. Useful for printing
+messages, concatenating positions to a single vector, or creating queries for databastes.
+<p></p><b>select.autosomes</b> Select ranges only within the 22 autosomes in a ranged data object
+
+Select only data from autosomes from a GRanges/RangedData object.
+Will exclude X,Y, mitochondrial chromosome rows, and can automatically
+detect whether chromosomes are coded as 'chr1' or just '1', etc.
+<p></p><b>ranged.to.data.frame</b> Convert RangedData/GRanges to a data.frame
+
+Convert a RangedData/GRanges object to a data.frame with columns
+chr, start and end. Default is to only translate the chromosome and
+position information, which is faster. Using 'include.cols'=TRUE
+allows all the columns from 'ranged' to be taken across to the resulting
+data.frame.
+<p></p><b>data.frame.to.granges</b> Convert a data.frame with positional information to GRanges
+
+Convert a data.frame containing chromosome and position information
+to a GRanges object. Assumes the position information is contained in
+columns named 'chr', 'start' and 'end' respectively (not case sensitive)
+although you can enter alternative column names for each as parameters.
+'seqnames' will be automatically detected as an alternative to 'chr' if
+present. Column names that are default GRanges slot names such as 'seqnames',
+'ranges', 'strand', 'seqlevels', etc, will be removed during conversion, so
+rename these if you want them to be translated into the resulting GRanges
+objects' column metadata. If there is a column 'pos' but no columns 'start'
+and 'end' this will be detected automatically without needing to change
+the default parameters and start will equal end equals pos (ie., SNPs).
+<p></p><b>data.frame.to.ranged</b> Convert a data.frame with positional information to RangedData/GRanges
+
+Convert a data.frame containing chromosome and position information
+to a RangedData or GRanges object. Assumes the position information is contained in
+columns named 'chr', 'start' and 'end' respectively (not case sensitive)
+although you can enter alternative column names for each as parameters.
+'seqnames' will be automatically detected as an alternative to 'chr' if
+present. If there is a column 'pos' but no columns 'start' and 'end' this
+will be detected automatically without needing to change the default parameters
+and start will equal end equals pos (ie., SNPs). Column names that are default
+GRanges slot names such as 'seqnames', 'ranges', 'strand', 'seqlevels', etc, will
+be removed during conversion, so rename these if you want them to be translated
+into the resulting object.
+<p></p><b>chr.sel</b> Select chromosome subset of GRanges or RangedData object
+
+One of the main differences between RangedData and GRanges is the way
+of selecting the subset for a chromosome. RangedData just uses [n] where
+'n' is the chromosome name or number. Whereas GRanges, does not have a
+method like this, so need to select using [chr(X)==chr.num,]
+This wrapper allows selection of a chromosome or chromosomes regardless of
+whether the object is RangedData or GRanges type.
+<p></p><b>rranges</b> Simulate a GRanges or RangedData object
+
+For testing purposes, this function will generate a S4 ranged object
+based on the human genome. The default is to produce ranges selected
+from chromosomes, with probability of a position in each chromosome
+equal to the length of that chromosome versus the whole genome. The
+maximum position allocated within each chromosome will be within
+the length bounds of that chromosome. You can specify SNPs (ie., start
+=end), but the default is for random ranges. You can alter the UCSC
+build to base the chromosome lengths on, and you can specify whether
+chromosomes should appear as chr1,chr2,... versus 1,2,..
+<p></p><b>chrNums</b> Extract chromosome numbers from GRanges/RangedData
+
+Sometimes chromosomes are codeds as 1:22, sometimes there is also X,Y, etc, sometimes it's
+chr1, ch2, etc. This function extracts the set of chromosome labels used by a ranged object
+(ie, GRanges or RangedData) and converts the labels to numbers in a consistent way, so
+1:22, X, Y, XT, MT ==> 1:26, and optionally you can output the conversion table of codes to
+numbers, then input this table for future conversions to ensure consistency.
+<p></p><b>exp.window.nsnp</b> Expand genomic locations to the ranges covering the 'n' closest SNPs
+
+Sometimes for chip data we want to create windows around some locus, and
+fixed distance [see flank()], recombination distance [see recwindow()] or a number of SNPs
+might be used. This function allows expansion of regions according to a set number of SNPs.
+The result gives two regions for each row of a GRanges or RangedData object describing
+the start and end of the left flanking 'nsnp' region, and right flanking 'nsnp' region
+respectively.
+<p></p><b>end.snp</b> Find closest SNPs to the ends of ranges
+
+For given genome ranges (GRanges/RangedData) will try to find the closest snps to the end of the ranges.
+<p></p><b>range.snp</b> Find closest SNPs to the starts and ends of ranges
+
+For given genome ranges (GRanges/RangedData) will try to find the closest snps to the starts and ends
+of the ranges.
+<p></p><b>start.snp</b> Find closest SNPs to the starts of ranges
+
+For given genome ranges (GRanges/RangedData) will try to find the closest snps to the starts
+of the ranges.
+<p></p><b>force.chr.pos</b> Force a valid genomic range, given the inputted coordinates
+
+Enter a pair of genomic locations representing a range for a given chromosome and this
+function will ensure that no position is less than 1 or greater than the relevant chromosome
+lengths. Anything below will be coerced to 1, and anything above to the chromosome length.
+<p></p><b>in.window</b> Select all ranges lying within a chromosome window
+
+Input a ranged object (ie., GRanges or RangedData) and this function will
+return the subset from chromosome 'chr' and within the base-pair range specified
+by 'pos', in units of 'unit'. By default ranges with ANY overlap are returned, but
+it can be specified that it must be full overlap. Duplicates can be removed.
+<p></p><b>plot.ranges</b> Plot the locations specified in a GRanges or RangedData object
+
+GRanges and RangedData objects are used in bioconductor to store genomic locations and
+ranges, such as transcripts, genes, CNVs and SNPs. This function allows simple
+plotting of this data directly from the ranged object. SNPs will be plotted as dots
+and ranges as lines. Either can be plotted using vertical bars at the start/end of each
+range. There are options for labelling and other graphical parameters.
+<p></p><b>set.chr.to.char</b> Change the chromosome labels in a RangedData or GRanges object to string codes
+
+<p></p><b>set.chr.to.numeric</b> Change the chromosome labels in a RangedData or GRanges object to numbers
+
+<p></p><b>invert.granges</b> Invert a ranged object
+Select the empty space between ranges for the whole genome, for instance you may want
+to overlap with everything NOT in a set of ranges.
+<p></p><b>lambda_nm</b> Normalize Lambda inflation factors to specific case-control count
+
+Lambda inflation statistics are influenced by the size of the generating datasets. To facilitate
+comparison to other studies, this function converts a given lambda from nr cases and mr controls,
+to n cases and m controls, where m=n=1000 is the most common normalization. All values other than
+'Lnm' are forced within this function to be positive integers.
+<p></p><b>abf</b> Calculate approximate Bayes factors from p values and MAF
+
+This is a function to calculate approximate Bayes factors from p
+values and MAF - for reference see Wakefield, J (2009) Bayes
+factors for genome-wide association studies: comparison with
+p-values.
+<p></p><b>convert.textpos.to.data</b> Convert a chr:pos1-pos2 vector to a matrix
+
+Takes standard text positions, such as what you might see on the UCSC genome browser, such as
+chr1:10,000,234-11,000,567 for a range, or chrX:234,432 for a SNP, and converts to
+with cols: chr, start, end.
+<p></p><b>read.pedData</b> Import a ped file to pedData format used by snpStats
+
+PLINK ped files (family information files) are not in the
+same format as ped files required for use with snpStats, for
+instance for the tdt.snp() function to conduct a transmission
+disequilibrium test. This function will import a PLINK style
+ped file and return a 'pedData' object in the correct form
+for snpStats and other rpackages. The plink file format is:
+column 1: family id, column 2: individual id: column 3:
+father's ID or 0, column 4: mother's ID or 0, column 5: sex of subject,
+column 7: phenotype of subject.
+<p></p><b>compact.gene.list</b> Make a compact version of gene annotation
+
+When adding gene annotation to genomic ranges, sometimes
+there are many genes associated with a single feature, so
+that compiling a table becomes awkward, if some rows contain
+hundreds of genes. This function takes a character vector
+of gene lists delimited by some separator and provides
+a compact representation of the gene labels
+
+<p></p><b>lambdas</b> Calculate Lambda inflation factors for SNP dataset
+
+This function calculates SNP-wise or overall Lambda and Lambda_1000 statistics for inflation due
+to population structure. It works on a SnpMatrix object or dataframe coded 0,1,2,NA (autodetects which).
+<p></p><b>SnpMatrix.to.data.frame</b> Convert a snpStats SnpMatrix object to a dataframe
+
+Converts a snpStats::SnpMatrix object to a dataframe where coding becomes 0,1,2,NA,
+which represents genotypes as the number of copies of the reference allele.
+<p></p><b>data.frame.to.SnpMatrix</b> Convert a data.frame to a snpStats SnpMatrix object
+
+Converts a dataframe to a snpStats::SnpMatrix object where the object contains
+genotypes coded as number of copies of the reference allele: 0,1,2, and missing=NA.
+This is an alternative to using new("SnpMatrix",data.frame()). Using 'new' the required
+format for the 'data.frame' argument is not as intuitive, as NA's are not allowed, and
+2 copies of the reference allele must be coded as 3, and 1 copy as 2, 0 copies as 1.
+Note that this function will also accept data.frames/matrices coded in that way, and
+will detect the coding automatically.
+<p></p><b>majmin</b> Determine major or minor allele status for a set of SNPs
+
+For a snpStats object or data.frame containing values 0,1,2, NA representing genotypes AA, AB,
+BB and no-call. Determines whether the reference allele is the major or minor allele
+Where the homozygous genotype coded as highest value = reference, e.g, if AA=0, AB=1, BB=2,
+then B is considered the reference here, and by the snpStats package. Combines this with
+frequencies of the alleles to evaluate whether 'BB' is major or minor. Note that default
+behaviour for a SnpMatrix is to code alleles alphabetically, so usually the reference allele
+is the letter later in the alphabet, e.g, it is never an 'A' allele.
+<p></p><b>caseway</b> Find the direction of GWAS effects between cases and controls
+
+After conducting an case-control association analysis on a SnpMatrix, e.g,
+GWAS using for example snp.rhs.tests from the snpStats package, it is not
+always trivial to determine the direction of the effects with respect
+to the reference allele. This function calculates which way around the
+data is for case vs control (pheno) and will indicate with respect to
+cases whether they have more copies of the reference allele, or less, or also
+can highlight whether the heterozygous is the affected genotype. This function
+works on a SnpMatrix or dataframe coded 0,1,2,NA (autodetects which). Note that
+using a SnpMatrix, with het.effects=FALSE can be much faster (5-100x) than
+using a data.frame and/or setting het.effects=TRUE.
+<p></p><b>randomize.missing</b> Multicore randomised replacement of missing genotypes
+
+snpStats imputation only works if there are correlated SNPs with non-missing values
+that can be used to interpolate missing SNPs. If any correlated SNPs are missing
+'impute.missing' will leave these blank. This function mops up the remainder
+by randomly inserting values consistent with the minor allele frequency of each SNP.
+This can be run using multiple cores to speed up progress for large matrices.
+<p></p><b>impute.missing</b> Replace missing values in a SnpMatrix object with imputed values
+
+This function is a wrapper for the snpStats snp.imputation() and impute.snps() functions.
+It allows a full imputation with one simple command, and facilitates stratified imputation for
+subsets of samples, and the parameter 'by' allows subsetting by SNPs, which speeds up the
+imputation for large sets by running it in smaller batches (as large ones are really slow).
+The standard use of the snpStats imputation functions will still leave some NA's behind,
+whereas the option 'random' ensures each missing value is replaced, even if just by an
+allele chosen at random (using existing frequencies).
+(chris)
+<p></p><b>rSnpMatrix</b> Create a SNP matrix with simulated data
+
+A simple function to simulation random SnpMatrix objects for
+testing purposes. Does not produce data with an 'LD' structure
+so is not very realistic.
+<p></p><b>get.support</b> Retrieve current ChipInfo annotation object
+
+This function returns the current 'ChipInfo' annotation object, containing chromosome,
+id, position, strand, 'rs' id, allele 1, allele 2 for each SNP of a microarray chip,
+in either hg18 or hg19 (build 36/37) coordinates.
+This package makes extension use of this class of annotation object for the working
+microarray chip, e.g, default is ImmunoChip, but Metabochip is also built-in,
+and you can also load your own annotation if using a different chip. The class
+of the object used is 'ChipInfo' which is a GRanges object, modified to always
+have columns for A1, A2 (alleles), rs.id, and a quality control flag. The
+default display is tidier than GRanges, it has nice coersion to and frame data.frame
+and indexing by chromosome using [[n]] has been added, in addition to normal [i,j]
+indexing native to GRanges.
+<p></p><b>id.to.rs</b> Convert from chip ID labels to dbSNP rs-ids
+
+Most SNPs will have an 'rs-id' from dbSNP/HapMap, and these are often the standard for reporting or
+annotation lookup. These can differ from the IDs used on the chip. This functions looks at the current
+snp support (ChipInfo object) and returns rs-ids in place of chip IDs.
+<p></p><b>rs.to.id</b> Convert from dbSNP rs-ids to chip ID labels
+
+Most SNPs will have an 'rs-id' from dbSNP/HapMap, and these are often the standard for reporting or
+annotation lookup. These can differ from the IDs used on the chip. This functions looks at the current
+snp support (ChipInfo object) and looks up chip IDs based on rs-ids.
+<p></p><b>Chr</b> Find chromosome for SNP ids, gene name or band
+
+Allows retrieval of the chromosome associated with a SNP-id, HGNC gene label, karyotype band,
+or vector of such ids. For SNPs the ids can be either chip ids, or rs-ids, but must be contained
+in the current annotation. Default behaviour is to assume 'id' are SNP ids, but if none are
+found in the SNP annotation, the id's will be passed to functions Pos.gene() and Pos.band() to
+see whether a result is found. This latter step will only happen if no SNP ids are retreived in
+the first instance, and if snps.only=TRUE, then genes and bands will not be searched and NA's
+returned. If you are repeatedly searching for chromosomes for genes/bands, using the dedicated
+Pos.gene and Pos.band functions would be slightly faster than relying on the fallback behaviour
+of the Chr() function.  See documentation for these functions for more information. The build
+used will be that in the current ChipInfo object.
+<p></p><b>Pos</b> Find the chromosome position for SNP ids, gene name or band
+
+Allows retrieval of the the chromosome position associated with a SNP-id, HGNC gene label,
+karyotype band, or vector of such ids. For SNPs the ids can be either chip ids, or rs-ids,
+but must be contained in the current annotation. Default behaviour is to assume 'id' are
+SNP ids, but if none are found in the SNP annotation, the id's will be passed to functions
+Pos.gene() and Pos.band() to see whether a result is found. This latter step will only happen
+if no SNP ids are retreived in the first instance, and if snps.only=TRUE, then genes and bands
+will not be searched and NA's returned. If you are repeatedly searching for positions for
+genes/bands, using the dedicated Pos.gene() and Pos.band() functions would be slightly faster
+than relying on the fallback behaviour of the Pos() function. Note that the position for
+genes and bands are not a single point, so the result will be a range with start and end,
+see 'values' below. See documentation for these functions for more information.
+<p></p><b>ids.by.pos</b> Order rs-ids or ichip ids by chrosome and position
+
+Simple function to sort a character list of SNP ids into genome order.
+<p></p><b>Pos.gene</b> Find the chromosome, start and end position for gene names
+
+Allows retrieval of the the chromosome position associated with a HGNC gene label,
+or vector of such labels. Note that the position returned for genes is not a
+single point as for SNPs, so the result will be a chromosome, then a position range with
+start and end.
+<p></p><b>Pos.band</b> Find the chromosome, start and end position for cytoband names
+
+Allows retrieval of the the chromosome position of a karyotype/cytoband label,
+or vector of such labels. Note that the position returned for bands is not a
+single point as for SNPs, so the result will be a chromosome, then a position range with
+start and end, and lastly the band without the chromosome prefix
+<p></p><b>Band</b> Retrieve the cytoband(s) for snp ids, genes or locations
+
+Allows retrieval of the the cytoband/karyotype label, based on multiple
+possible input featues, including SNP chip or rs-ids, HGNC gene labels, GRanges or
+RangedData object, chromosome and position vectors. The most robust way to use the
+function is to use the parameter names to imply the type of input, e.g, use the 'genes'
+parameter to input gene labels, the 'snps' parameter to enter SNP ids, etc. However,
+if you enter the first argument as a GRanges or RangedData object instead of using the
+'ranges' argument, this will be detected and automatically moved to the 'ranges' parameter.
+<p></p><b>Band.gene</b> Retrieve the cytoband(s) for genes labels
+
+Allows retrieval of the the cytoband/karyotype label for HGNC gene labels.
+<p></p><b>Gene.pos</b> Find the gene(s) overlapping a chromosome location
+
+Allows retrieval of genes intersected by a chromosome and position, which can be entered
+using chr, pos/start/end vectors, or a RangedData or GRanges object
+<p></p><b>Band.pos</b> Find the cytoband(s) overlapping a chromosome location
+
+Allows retrieval of cytobands/karyotypes intersected by a chromosome and position, which can be
+entered using chr, pos/start/end vectors, or a RangedData or GRanges object
+<p></p><b>AB</b> Returns the A and B allele for SNP ids
+
+For a set of chip ids or rs ids, returns a two column matrix containing the A and B allele.
+For snpStats objects the default is that A,B are coded in alphabetical order, so A,C; A,T;
+C,T; C,G are possible A,B pairs. Allele codes are specific to each dataset, so you should
+upload your allele codes into the current ChipInfo object to make the alleles produced by
+this function meaningful.
+<p></p><b>snps.in.range</b> Retrieve SNP ids or positions in specified range
+
+<p></p><b>nearest.snp</b> Retrieve the 'n' closest SNP ids or positions near specified locus
+
+<p></p><b>get.nearby.snp.lists</b> Obtain nearby SNP-lists within a recombination window
+
+For a snp.id (or list), extend a window around that chromosome location in recombination
+units (centimorgans) and return the list of SNPs from the current ChipInfo object that
+lie in this window. This is a way of extracting SNPs in linkage disequilibrium with an
+index SNP, that could also be plausible causal candidates.

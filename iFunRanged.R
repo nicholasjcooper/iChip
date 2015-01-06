@@ -1003,11 +1003,11 @@ chrNums <- function(ranged,warn=FALSE,table.out=FALSE,table.in=NULL) {
 #' @param ranged a GRanges or RangedData object describing the locations for
 #' which we want to find regions encompassing 'nsnps' closest SNPs.
 #' @param snp.info An object of type: ChipInfo, RangedData or GRanges, describing the set of SNPs
-#' you are using (e.g, chip annotation). If left as null the ChipInfo object from get.support() 
+#' you are using (e.g, chip annotation). If left as null the ChipInfo object from chip.support() 
 #' with default options() will be used
 #' @param nsnp Number of nearest SNPs to return for each location
 #' @param add.chr logical, whether to add a chromosome column for the output object
-#' @seealso nearest.snp, get.support, recwindow
+#' @seealso nearest.snp, chip.support, recwindow
 #' @export
 #' @return Two regions for each row of a the 'ranged' object describing
 #' the start and end of the left flanking 'nsnp' region, and right flanking 'nsnp' region
@@ -1018,7 +1018,7 @@ chrNums <- function(ranged,warn=FALSE,table.out=FALSE,table.in=NULL) {
 #' # not run - slow ~5 seconds # exp.window.nsnp(rngs)
 #' # not run - slow ~5 seconds # exp.window.nsnp(rngs,add.chr=TRUE)
 exp.window.nsnp <- function(ranged,snp.info=NULL,nsnp=10, add.chr=FALSE) {
-  if(is.null(snp.info)) { snp.info <- get.support() }
+  if(is.null(snp.info)) { snp.info <- chip.support() }
   if(!is(snp.info)[1] %in% c("ChipInfo","RangedData","GRanges")) { 
     stop("snp.info must be of type: ChipInfo, RangedData or GRanges") }
   snp.info <- toGenomeOrder2(snp.info,strict=TRUE); rw.cnt <- 1
@@ -1061,8 +1061,8 @@ exp.window.nsnp <- function(ranged,snp.info=NULL,nsnp=10, add.chr=FALSE) {
 #' @param ranged A GRanges or RangedData object specifying the range(s) you wish to find SNPs near the
 #' ends of. Alternatively leave this parameter as NULL and specify ranges using chr, pos
 #' @param snp.info ChipInfo/GRanges/Ranged data object describing the SNPs relevant to your query, e.g, 
-#' SNPs on the chip you are using. If left NULL, the SNP set used will be that retrieved by get.support()
-#' which will depend on your options() settings, see ?get.support for more info
+#' SNPs on the chip you are using. If left NULL, the SNP set used will be that retrieved by chip.support()
+#' which will depend on your options() settings, see ?chip.support for more info
 #' @param chr optional alternative to 'ranged' input, use in conjunction with 'pos' to specify the ranges
 #' to find the SNPs near the ends of.
 #' @param pos matrix with 2 columns for start, end positions, or a single column if all ranges are SNPs.
@@ -1088,8 +1088,8 @@ end.snp <- function(ranged=NULL,snp.info=NULL,chr=NULL,pos=NULL,nearest=T) {
 #' @param ranged A GRanges or RangedData object specifying the range(s) you wish to find SNPs near the
 #' starts/ends of. Alternatively leave this parameter as NULL and specify ranges using chr, pos
 #' @param snp.info ChipInfo/GRanges/Ranged data object describing the SNPs relevant to your query, e.g, 
-#' SNPs on the chip you are using. If left NULL, the SNP set used will be that retrieved by get.support()
-#' which will depend on your options() settings, see ?get.support for more info
+#' SNPs on the chip you are using. If left NULL, the SNP set used will be that retrieved by chip.support()
+#' which will depend on your options() settings, see ?chip.support for more info
 #' @param chr optional alternative to 'ranged' input, use in conjunction with 'pos' to specify the ranges
 #' to find the SNPs near the starts/ends of.
 #' @param pos matrix with 2 columns for start, end positions, or a single column if all ranges are SNPs.
@@ -1115,8 +1115,8 @@ range.snp <- function(ranged=NULL,snp.info=NULL,chr=NULL,pos=NULL,nearest=T) {
 #' @param ranged A GRanges or RangedData object specifying the range(s) you wish to find SNPs near the
 #' starts of. Alternatively leave this parameter as NULL and specify ranges using chr, pos
 #' @param snp.info ChipInfo/GRanges/Ranged data object describing the SNPs relevant to your query, e.g, 
-#' SNPs on the chip you are using. If left NULL, the SNP set used will be that retrieved by get.support()
-#' which will depend on your options() settings, see ?get.support for more info
+#' SNPs on the chip you are using. If left NULL, the SNP set used will be that retrieved by chip.support()
+#' which will depend on your options() settings, see ?chip.support for more info
 #' @param chr optional alternative to 'ranged' input, use in conjunction with 'pos' to specify the ranges
 #' to find the SNPs near the starts of.
 #' @param pos matrix with 2 columns for start, end positions, or a single column if all ranges are SNPs.
@@ -1152,7 +1152,7 @@ start.snp <- function(ranged=NULL,snp.info=NULL,chr=NULL,pos=NULL,start=T,end=F,
     st <- start(ranged); en <- end(ranged); chr <- chr2(ranged)
     nmz <- rownames(ranged)
   }
-  if(is.null(snp.info)) { snp.info <- get.support() }  # load default chip
+  if(is.null(snp.info)) { snp.info <- chip.support() }  # load default chip
   if(!is(snp.info)[1] %in% c("ChipInfo","RangedData","GRanges")) {
     stop("snp.info must be of type ChipInfo, RangedData or GRanges")
   } else {

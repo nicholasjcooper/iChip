@@ -31,8 +31,8 @@
 #' @seealso ChipInfo, build, rs.id, QCfail, convTo36, convTo37, A1, A2
 #' @author Nicholas Cooper \email{nick.cooper@@cimr.cam.ac.uk}
 #' @examples
-#' get.support() # shows the current ChipInfo object (default is 'ImmunoChip' build 36)
-get.support <- function(build=NULL,refresh=FALSE,alternate.file=NULL) {
+#' chip.support() # shows the current ChipInfo object (default is 'ImmunoChip' build 36)
+chip.support <- function(build=NULL,refresh=FALSE,alternate.file=NULL) {
   if(is.null(build)) { build <- getOption("ucsc") }
   build <- ucsc.sanitizer(build)
   ## NEED TO ADD SUPPORT HERE TO USE CORRECT OUT OF 36/37
@@ -89,7 +89,7 @@ get.support <- function(build=NULL,refresh=FALSE,alternate.file=NULL) {
 #' id.to.rs(c("imm_11_2138800","rs9467354","vh_1_1108138")) # middle one is already a rs.id
 id.to.rs <- function(ids) {
   ids <- clean.snp.ids(ids)
-  all.support <- get.support()
+  all.support <- chip.support()
   if(!exists("all.support")) { stop("ChipInfo data object 'all.support' not found") }  ## load object: all.support [snp support for whole chip]
   rsvec <- mcols(all.support)$rs.id[match(ids,rownames(all.support))]
   rsvec2 <- mcols(all.support)$rs.id[match(ids,mcols(all.support)$rs.id)]
@@ -122,7 +122,7 @@ id.to.rs <- function(ids) {
 #' rs.to.id(test.ids, multi.list=TRUE) # list with duplicates
 rs.to.id <- function(rs.ids,multi.list=FALSE) {
   rs.ids <- clean.snp.ids(rs.ids)
-  all.support <- get.support()
+  all.support <- chip.support()
   if(!exists("all.support")) { stop("ChipInfo data object 'all.support' not found") }  ## load object: all.support [snp support for whole chip]
   if(multi.list) {
     X0 <- rmv.trail(rs.ids)
@@ -173,7 +173,7 @@ rs.to.id <- function(rs.ids,multi.list=FALSE) {
 Chr <- function(ids,dir=NULL,snps.only=FALSE) {
   ic.chr <- function(ids) {
     ic.ids <- clean.snp.ids(ids)
-    all.support <- get.support()
+    all.support <- chip.support()
     if(!exists("all.support")) { stop("ChipInfo data object 'all.support' not found")  }  ## load object: all.support [snp support for whole chip]
     outlist <- chr(all.support)[match(ic.ids,rownames(all.support))]
     return(outlist)
@@ -222,7 +222,7 @@ Chr <- function(ids,dir=NULL,snps.only=FALSE) {
 #'  columns 'chr' [chromosome], 'start' [starting position of feature], 'end' [end position of feature], 
 #'  and the band without the chromosome prefix, if ids are bands. Note that this function cannot
 #'  retrieve multiple ranges for a single gene (e.g, OR2A1), which means you'd need to use Pos.gene().
-#'  The coordinates used will be of version getOption(ucsc="hg18"), or ucsc(get.support()), which
+#'  The coordinates used will be of version getOption(ucsc="hg18"), or ucsc(chip.support()), which
 #'  should be equivalent.
 #' @export
 #' @author Nicholas Cooper \email{nick.cooper@@cimr.cam.ac.uk}
@@ -234,7 +234,7 @@ Chr <- function(ids,dir=NULL,snps.only=FALSE) {
 #' Pos(c("CTLA4","PTPN22"),snps.only=TRUE) # fails as these are genes
 #' Pos(c("rs689","PTPN22","13q21.31")) # mixed input, will default to SNPs, as at least 1 was found
 Pos <- function(ids,dir=NULL,snps.only=FALSE) {
-  all.support <- get.support()
+  all.support <- chip.support()
   ic.pos <- function(ic.ids) {
     ic.ids <- clean.snp.ids(ic.ids)
     if(!exists("all.support")) { stop("ChipInfo data object 'all.support' not found") }  ## load object: all.support [snp support for whole chip]
@@ -774,10 +774,10 @@ Band.pos <- function(chr=NA,pos=NA,start=NA,end=NA,ranges=NULL,build=NULL,dir=NU
 #' snp.ids <- c("rs3842724","rs9729550","rs1815606","rs114582555","rs1240708","rs6603785")
 #' AB(snp.ids) 
 AB <- function(ids) {
-  all.support <- get.support()
+  all.support <- chip.support()
   ic.ab <- function(ic.ids) {
     ic.ids <- clean.snp.ids(ic.ids)
-    if(!exists("all.support")) { all.support <- get.support() }  ## load object: all.support [snp support for whole chip]
+    if(!exists("all.support")) { all.support <- chip.support() }  ## load object: all.support [snp support for whole chip]
     outlist <- cbind(A1(all.support)[match(ic.ids,rownames(all.support))],A2(all.support)[match(ic.ids,rownames(all.support))])
     return(outlist)
   }
@@ -826,9 +826,9 @@ snps.in.range <- function(chr, start=NA, end=start, ids=TRUE) {
   if(length(end)>1) { warning("end should be length 1, using only first entry"); end <- end[1] }
   if(start>end) { warning("start was higher than end, so switching") }
   the.range <- sort(c(start,end))
-  all.support <- get.support()
+  all.support <- chip.support()
   #if(!exists("work.dir")) { if(is.null(dir)) { work.dir <- getwd() } else { work.dir <- dir } }
-  if(!exists("all.support")) { all.support <- get.support() }  ## load object: all.support [snp support for whole chip]
+  if(!exists("all.support")) { all.support <- chip.support() }  ## load object: all.support [snp support for whole chip]
   all.chr <- chr(all.support)
   all.pos <- start(all.support)[all.chr %in% chr]
   if(length(all.pos)<1) { warning("no positions found for 'chr' specified"); return(NULL) }
@@ -874,8 +874,8 @@ nearest.snp <- function(chr, pos, n=1, side=c("either","left","right"),ids=TRUE,
   if(length(pos)>1) { warning("pos should be length 1, using only first entry"); pos <- pos[1] }
   if(is.null(build)) { build <- getOption("ucsc") }
   build <- ucsc.sanitizer(build)
-  all.support <- get.support(build=build)
-  if(!exists("all.support")) { all.support <- get.support() }  ## load object: all.support [snp support for whole chip]
+  all.support <- chip.support(build=build)
+  if(!exists("all.support")) { all.support <- chip.support() }  ## load object: all.support [snp support for whole chip]
   side <- tolower(side[1]); 
   if(!side %in% c("either","left","right")) {
     side <- "either"; warning("invalid side argument, defaulting to 'either'") }
@@ -939,7 +939,7 @@ nearest.snp <- function(chr, pos, n=1, side=c("either","left","right"),ids=TRUE,
 #' get.nearby.snp.lists(c("rs689","rs4909944"),cM=0.001,build=37,name.by.bands=FALSE) 
 get.nearby.snp.lists <- function(snpid.list,cM=0.1,bp.ext=0,build=NULL,excl.snps=NULL,name.by.bands=TRUE) {
   #if(!exists("all.support")) { print(load("all.support.RData")) }
-  all.support <- get.support()
+  all.support <- chip.support()
   if(is.null(build)) { build <- getOption("ucsc") }
   build <- ucsc.sanitizer(build)
   snpic.list <- rs.to.id(snpid.list)

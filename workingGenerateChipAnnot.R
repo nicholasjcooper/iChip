@@ -16,8 +16,8 @@ options(ucsc="hg19")
 if(F) {
   
   rm(all.support)
-  ichip37 <- get.support(build=37)
-  ichip36 <- get.support(build=36)
+  ichip37 <- chip.support(build=37)
+  ichip36 <- chip.support(build=36)
   
   
   #### generate fresh all.support ####
