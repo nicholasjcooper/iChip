@@ -857,7 +857,7 @@ snps.in.range <- function(chr, start=NA, end=start, ids=TRUE) {
 #' using any form recognised by ucsc.sanitizer()
 #' @param dir string, specify the directory to store or look for annotation (defaults to current)
 #' @export
-#' @seealso exp.window.nsnp, nearest.gene
+#' @seealso expand.nsnp, nearest.gene
 #' @return Set of SNP ids (when ids=TRUE), or otherwise genomic positions within chromosome 'chr'.
 #' If the number of SNPs on the chromosome or the bounds of the 'side' and 'limit' parameters
 #' restrict the number returned to less than 'n' then the return value will be padded with NAs.
@@ -930,7 +930,7 @@ nearest.snp <- function(chr, pos, n=1, side=c("either","left","right"),ids=TRUE,
 #' If name.by.bands is TRUE, then these list elements will each be named using the local
 #' karyotype/cytoband location
 #' @export
-#' @seealso snps.in.range, get.recombination.map, recwindow, conv.37.36, conv.36.37, exp.window.nsnp
+#' @seealso snps.in.range, get.recombination.map, recomWindow, conv.37.36, conv.36.37, expand.nsnp
 #' @examples
 #' result <- get.nearby.snp.lists("rs900569")
 #' get.nearby.snp.lists("rs900569",cM=0.2,excl.snps=result[[1]]) # get SNPs within 0.1-0.2cM
@@ -960,7 +960,7 @@ get.nearby.snp.lists <- function(snpid.list,cM=0.1,bp.ext=0,build=NULL,excl.snps
   } else { sort.back <- 1:length(snps.locs) }
   ddz <- snpic.list[duplicated(snpic.list)]
   if(length(ddz)>0) { warning("dup SNPs:",ddz,"\n") }
-  snp.rd <- RangedData(ranges=IRanges(start=snps.locs,end=snps.locs,names=snpic.list),
+  snp.rd <- RangedData(ranges=IRanges(startSnps.locs,endSnps.locs,names=snpic.list),
                        space=rep(next.chr,length(snps.locs)))
   snp.rd <- toGenomeOrder(snp.rd,strict=T) # think it autosorts anyway, but just in case
   if(name.by.bands) {
@@ -968,8 +968,8 @@ get.nearby.snp.lists <- function(snpid.list,cM=0.1,bp.ext=0,build=NULL,excl.snps
     bands <- Band.pos(ranges=snp.rd) #   snp.rd$band
   }
   #prv(next.chr,cM,bp.ext)
-  ## recwindow uses build36 only, so convert back afterwards
-  nxt.window <- lapply(snps.locs36, function(X,...) { recwindow(start=X,...) },
+  ## recomWindow uses build36 only, so convert back afterwards
+  nxt.window <- lapply(snps.locs36, function(X,...) { recomWindow(start=X,...) },
                        chr=next.chr,window=cM,bp.ext=bp.ext,info=FALSE)
   if(build=="hg18") {
     st.window <- sapply(nxt.window, "[",1)

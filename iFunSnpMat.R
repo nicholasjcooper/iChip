@@ -758,4 +758,4 @@ rSnpMatrix <- function(nsamp=10, nsnp=5, call.rate=.95, A.freq.fun=runif) {
 
 
 
-################## end snpmatrix ##########################
+################## endSnpmatrix ##########################

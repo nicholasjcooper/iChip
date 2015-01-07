@@ -245,7 +245,7 @@ GENE.to.ENS <- function(genes,dir=NULL,...) {
 #' @param ga RangedData object, e.g, result of get.gene.annot(); gene annotation to save download
 #' time if repeatedly calling this function
 #' @export
-#' @seealso exp.window.nsnp, nearest.snp, get.gene.annot
+#' @seealso expand.nsnp, nearest.snp, get.gene.annot
 #' @return Set of GENE ids (when ids=TRUE), or otherwise genomic positions within chromosome 'chr'.
 #' If the number of gemes on the chromosome or the bounds of the 'side' and 'limit' parameters
 #' restrict the number returned to less than 'n' then the return value will be padded with NAs.
@@ -362,10 +362,10 @@ nearest.gene <- function(chr, pos, n=1, side=c("either","left","right"),ids=TRUE
 #' # create some SNPs and plot
 #' rr3 <- rr; end(rr3) <- start(rr3) 
 #' rownames(rr3) <- paste0("rs",sample(10^6,nrow(rr3)))
-#' plot.ranges(rr3,col="blue",scl="mb",xlim=loc,xlab="Chr21 position (Mb)",ylab="")
+#' plotRanges(rr3,col="blue",scl="mb",xlim=loc,xlab="Chr21 position (Mb)",ylab="")
 #' # NOW add UCSC hg18 GENE annotation to the plot #
-#' ## not run ## plot.gene.annot(chr=21,pos=c(9.95,10.1),scl="mb",y.ofs=1,build=36)
-plot.gene.annot <- function(chr=1, pos=NA, scl=c("b","kb","mb","gb"), y.ofs=0, width=1, txt=T, chr.pos.offset=0,
+#' ## not run ## plotGeneAnnot(chr=21,pos=c(9.95,10.1),scl="mb",y.ofs=1,build=36)
+plotGeneAnnot <- function(chr=1, pos=NA, scl=c("b","kb","mb","gb"), y.ofs=0, width=1, txt=T, chr.pos.offset=0,
                             gs=NULL, build=NULL, dir=NULL, box.col="green", txt.col="black", join.col="red", ...)
 {
   if(is.null(dir)) { if(any(getOption("save.annot.in.current")<1)) { dir <- NULL } else { dir <- getwd() } }
@@ -466,7 +466,7 @@ get.immunog.locs <- function(build=NULL,bioC=TRUE,text=FALSE,GRanges=TRUE) {
     outData <- RangedData(ranges=IRanges(start=stz,end=enz,names=nmz),space=chr,
                           reg=reg.dat,universe=build[1])
     outData <- toGenomeOrder2(outData,strict=T)
-    if(text) { outData <- Ranges.to.txt(outData) } else {
+    if(text) { outData <- ranges.to.txt(outData) } else {
       if(GRanges) { outData <- as(outData,"GRanges") }
     }
   } else {
@@ -535,7 +535,7 @@ get.centromere.locs <- function(dir=NULL,build=NULL,
                           reg=reg.dat,universe=build[1])
     outData <- toGenomeOrder2(outData,strict=TRUE)
     if(text) { 
-      outData <- Ranges.to.txt(outData) 
+      outData <- ranges.to.txt(outData) 
     } else {
       if(GRanges){
         outData <- as(outData,"GRanges")
@@ -620,7 +620,7 @@ get.cyto <- function(build=NULL,dir=NULL,bioC=TRUE,GRanges=TRUE,refresh=FALSE) {
 #' for genome locations, in centimorgans. This function downloads these reference
 #' files from the hapmap NCBI website. At the time of writing they were only 
 #' availble for build 36. If using a more recent build I suggest using the
-#' conversion function conv.37.36(), then recwindow(), then conv.36.37() to 
+#' conversion function conv.37.36(), then recomWindow(), then conv.36.37() to 
 #' get recombination distances for other builds. If getOption("save.annot.in.current")
 #' is <=0 then no files will be kept. Otherwise an object containing this mapping data
 #' will be saved in the local directory if dir=NULL, or else in the directory specified.
@@ -791,7 +791,7 @@ get.exon.annot <- function(dir=NULL,build=NULL,bioC=T, transcripts=FALSE, GRange
         return(as(tS,"RangedData"))
       }
     } else {
-      return(ranged.to.data.frame(tS))
+      return(ranges.to.data.frame(tS))
     }
   }
 }
@@ -1010,7 +1010,7 @@ get.telomere.locs <- function(dir=NULL,kb=10,build=NULL,bioC=TRUE,GRanges=TRUE,
     outData <- RangedData(ranges=IRanges(start=stz,end=enz,names=nmz),space=chrz,
                           reg=reg.dat,universe=build[1])
     outData <- toGenomeOrder2(outData,strict=T)
-    if(text) { outData <- Ranges.to.txt(outData) } else { if(GRanges) { outData <- as(outData,"GRanges") } }
+    if(text) { outData <- ranges.to.txt(outData) } else { if(GRanges) { outData <- as(outData,"GRanges") } }
   } else {
     outData <- my.chr.range 
   }
@@ -1172,13 +1172,13 @@ get.t1d.regions <- function(dense.reg=NULL,build=NULL,invert=FALSE) {
   		locs <- conv.36.37(chr=chrs,pos=locs)[,"start"]
   	}
   }
-  t1dgr <- make.granges(chr=chrs,pos=locs,build=build)
+  t1dgr <- makeGRanges(chr=chrs,pos=locs,build=build)
   #prv(t1dgr,ichip.regions)
   t1d.regions <- suppressWarnings(subsetByOverlaps(set.chr.to.numeric(as(ichip.regions,"GRanges")),t1dgr))
-#  t1dgr <- as(make.granges(chr=chrs,pos=locs,build=build),"RangedData")
+#  t1dgr <- as(makeGRanges(chr=chrs,pos=locs,build=build),"RangedData")
 #  t1d.regions <- find.overlaps(ichip.regions,ref=t1dgr,thresh=0.000000000001,ranges.out=TRUE)
   #prv(t1d.regions)
-  if(invert) { t1d.regions <- invert.granges(t1d.regions,build=build) }
+  if(invert) { t1d.regions <- invGRanges(t1d.regions,build=build) }
   return(t1d.regions)
 }
 

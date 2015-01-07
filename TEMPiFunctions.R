@@ -1173,7 +1173,7 @@ conv.36.37 <- function(ranged=NULL,chr=NULL,pos=NULL,chain.file="/home/oliver/R/
   if(!file.exists(chain.file)) { stop("couldn't find ollie's script in: ",chain.file) }
   chn <- import.chain(chain.file)
   toranged <- F
-  if(!is.null(chr) & !is.null(pos)) { ranged <- data.frame.to.ranged(cbind(chr,pos),start="pos",end="pos") }
+  if(!is.null(chr) & !is.null(pos)) { ranged <- data.frame.to.ranges(cbind(chr,pos),start="pos",end="pos") }
   #return(ranged)
   if(is(ranged)[1]=="RangedData") {
     wd <- width(ranged)
@@ -1762,14 +1762,14 @@ find.overlapping.regions  <- function(ranged) {
 
 # chris' function to get a centimorgan window from intervals
 # vector input
-recwindow <- function(ranged=NULL,chr=NA,st=NA,en=st,window=0.1, # cM either side
+recomWindow <- function(ranged=NULL,chr=NA,st=NA,en=st,window=0.1, # cM either side
                       do.plot=FALSE, # if wanted to plot
                       add.plot=FALSE,do.lines=TRUE,bp.ext=0,...) {
   if(is(ranged)[1] %in% c("RangedData","GRanges")) { 
     if(is(ranged)[1]=="GRanges") { ranged <- as(ranged,"RangedData") }
     ranged <- toGenomeOrder(ranged,strict=T)
     ss <- start(ranged); ee <- end(ranged); cc <- chr(ranged)
-    out <- recwindow(chr=cc,st=ss,en=ee,window=window,bp.ext=bp.ext,...)
+    out <- recomWindow(chr=cc,st=ss,en=ee,window=window,bp.ext=bp.ext,...)
     outData <- RangedData(ranges=IRanges(start=out[,1],end=out[,2],names=rownames(ranged)),space=cc)
     outData <- toGenomeOrder(outData,strict=TRUE)
     for (zz in 1:ncol(ranged)) { outData[[colnames(ranged)[zz]]] <- ranged[[colnames(ranged)[zz]]]  }
@@ -1782,7 +1782,7 @@ recwindow <- function(ranged=NULL,chr=NA,st=NA,en=st,window=0.1, # cM either sid
           # run for a vector
           out <- matrix(ncol=2,nrow=length(chr)); colnames(out) <- c("start","end")
           for (dd in 1:length(chr)) {
-            out[dd,] <- recwindow(chr=chr[dd],st=st[dd],en=en[dd],window=window,bp.ext=bp.ext,...)
+            out[dd,] <- recomWindow(chr=chr[dd],st=st[dd],en=en[dd],window=window,bp.ext=bp.ext,...)
           }
           return(out)
         } else {
@@ -1950,7 +1950,7 @@ conditional <- function(X) {
 
 
 
-data.frame.to.ranged <- function(dat,ids=NULL,start="start",end="end",width=NULL,
+data.frame.to.ranges <- function(dat,ids=NULL,start="start",end="end",width=NULL,
                                  chr="chr",exclude=NULL,ucsc="hg18") 
 {
   ## convert any data frame with chr,start,end, or pos data into a RangedData object
@@ -2285,15 +2285,15 @@ get.nearby.snp.lists <- function(snpid.list,cM=0.1,bp.ext=0,build=37,excl.snps=N
   } else { sort.back <- 1:length(snps.locs) }
   ddz <- snpic.list[duplicated(snpic.list)]
   if(length(ddz)>0) { warning("dup SNPs:",ddz,"\n") }
-  snp.rd <- RangedData(ranges=IRanges(start=snps.locs,end=snps.locs,names=snpic.list),
+  snp.rd <- RangedData(ranges=IRanges(startSnps.locs,endSnps.locs,names=snpic.list),
                        space=rep(next.chr,length(snps.locs)))
   snp.rd <- toGenomeOrder(snp.rd,strict=T) # think it autosorts anyway, but just in case
   if(do.bands) {
     snp.rd <- annot.cnv(snp.rd,gs=cyto); colnames(snp.rd) <- "band"
     bands <- snp.rd$band
   }
-  ## recwindow uses build36 only, so convert back afterwards
-  nxt.window <- lapply(snps.locs36, function(X,...) { recwindow(st=X,...) },chr=next.chr,window=cM,bp.ext=bp.ext)
+  ## recomWindow uses build36 only, so convert back afterwards
+  nxt.window <- lapply(snps.locs36, function(X,...) { recomWindow(st=X,...) },chr=next.chr,window=cM,bp.ext=bp.ext)
   if(build==36) {
     st.window <- sapply(nxt.window, "[",1)
     en.window <- sapply(nxt.window, "[",2)

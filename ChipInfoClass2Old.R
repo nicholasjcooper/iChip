@@ -115,7 +115,7 @@ setAs("ChipInfo", "RangedData",
       }
 )
 
-setAs("ChipInfo", "data.frame", function(from) { ranged.to.data.frame(as(from,"GRanges"),include.cols=TRUE) })
+setAs("ChipInfo", "data.frame", function(from) { ranges.to.data.frame(as(from,"GRanges"),include.cols=TRUE) })
 
 setAs("GRanges", "ChipInfo", 
       function(from) { 
@@ -127,7 +127,7 @@ setAs("RangedData", "ChipInfo", function(from) { as(as(from,"GRanges"),"ChipInfo
 
 setAs("data.frame", "ChipInfo", 
       function(from) { 
-        rr <- data.frame.to.granges(from,chr="seqnames") 
+        rr <- data.frame.to.GRanges(from,chr="seqnames") 
         return(as(as(rr,"GRanges"),"ChipInfo"))
       } 
 )

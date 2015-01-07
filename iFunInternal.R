@@ -583,7 +583,7 @@ chrnames.to.num <- function(X,keep.let=TRUE) {
 
 # iFunctions
 # internal, tidy chromosome names using extra chromosomal annotation into rough chromosomes
-tidy.extra.chr <- function(chr,select=FALSE) {
+tidy.extra.chr <- function(chrSelect=FALSE) {
   # most relevant to hg18
   chr <- paste(chr)
   SEL_c6 <- grep("c6",chr,ignore.case=T)

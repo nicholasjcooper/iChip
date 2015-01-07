@@ -1,23 +1,24 @@
 ###NAMESPACE ADDITIONS###
-# Depends: R (>= 2.14), grDevices, graphics, stats, utils, reader, genoset, NCmisc
-# Imports: IRanges, GenomicRanges, snpStats
-# Suggests:
+# Depends: R (>= 2.14), grDevices, graphics, stats, utils, reader, NCmisc
+# Imports: genoset, IRanges, GenomicRanges, snpStats, Rcpp, GenomicFeatures, rtracklayer, biomaRt, methods, parallel
+# Suggests: snpStats
 # importClassesFrom("GenomicFeatures",TranscriptDb)
 # importFrom("GenomicFeatures",makeTranscriptDbFromUCSC, exonsBy, transcriptsBy)
-# importMethodsFrom("GenomicFeatures",makeTranscriptDbFromUCSC, exonsBy, transcriptsBy, select, as.list, as.data.frame)
-# importFrom("gage", egSymb)
-# importFrom("rtracklayer", liftOver)
-# importMethodsFrom("rtracklayer", liftOver)
-# importClassesFrom("rtracklayer", Chain)
-# importClassesFrom("IRanges", Rle)
-# importClassesFrom("GenomicRanges", GRanges)
+# importMethodsFrom("GenomicFeatures", exonsBy, transcriptsBy, as.list)
+# importMethodsFrom("snpStats", effect.sign)
+# importFrom("snpStats", row.summary, col.summary, read.pedfile, snp.imputation, impute.snps, single.snp.tests)
+# importClassesFrom("rtracklayer", ChainFile)
+# importClassesFrom("snpStats", SnpMatrix, XSnpMatrix, SingleSnpTests, SingleSnpTestsScore)
+# importMethodsFrom("rtracklayer", liftOver, import.chain)
 # importFrom("biomaRt", useMart, useDataset, getBM)
-# importMethodsFrom("biomaRt", useMart, getBM, useDataset)
 # importClassesFrom("biomaRt", Mart)
-# import(grDevices, graphics, stats, utils, reader, genoset, NCmisc, IRanges, GenomicRanges, snpStats)
+# importFrom(parallel, mclapply)
+# import(grDevices, graphics, stats, utils, reader, genoset, NCmisc, Rcpp, methods, IRanges, GenomicRanges, genoset)
 ###END NAMESPACE###
 
 
+# importNoClassesFrom("GenomicRanges", GRanges)
+# importNoClassesFrom("IRanges", Rle)
 
 .onAttach <- function(libname, pkgname) {
   packageStartupMessage("humarray >= 1.0 is awesome.\n")
@@ -717,6 +718,7 @@ validate.dir.for <- function(dir,elements,warn=F) {
   }
   return(dir)
 }
+
 
 
 ################# end internals #################

@@ -8,7 +8,7 @@
 # snp.info <- ChipInfo(chr=all.support[,"Chr"],pos=all.support[,"Pos"],ids=rownames(all.support),chip="ImmunoChip",rs.id=all.support[,"dbSNP"],
 #                      A1=all.support[,"A1"], A2=all.support[,"A2"])
 # 
-# gr.snp.info <- with(all.support,make.granges(chr=Chr,pos=Pos,row.names=rownames(all.support)))
+# gr.snp.info <- with(all.support,makeGRanges(chr=Chr,pos=Pos,row.names=rownames(all.support)))
 # 
 # snp.info <- ChipInfo(GRanges=gr.snp.info,chip="ImmunoChip",rs.id=all.support[,"dbSNP"],
 #                      A1=all.support[,"A1"], A2=all.support[,"A2"])
@@ -85,6 +85,7 @@ setClass("ChipInfo",
 #' 
 #' Returns the number of rows
 #' @name length
+#' @param x a ChipInfo object
 #' @rdname length-methods
 #' @aliases length,ChipInfo,ChipInfo-method
 #' @docType methods
@@ -132,6 +133,9 @@ setMethod("ucsc", "ChipInfo", function(x) x@build)
 #' Only if these are annotated internally, or else a vector of NAs
 #' @name rs.id
 #' @param x a ChipInfo object
+#' @param b logical, whether to show 'b' suffixes on rs.ids which
+#' are created in the background to allow duplicate ids to be uniquely
+#' represented for lookup and reference purposes.
 #' @return character vector of IDs (or NAs)
 #' @export
 #' @docType methods
@@ -194,7 +198,7 @@ setMethod("A2", "ChipInfo", function(x) { u <- mcols(x) ;  if("A2" %in% colnames
 #' e.g, 0,1,..,n etc
 #' Only if these are added manually, or else all will be 'pass' (=0)
 #' @name QCcode
-#' @param x a ChipInfo object
+# why not? param x a ChipInfo object
 #' @return integer vector of pass/fail codes
 #' @export
 #' @docType methods
@@ -216,26 +220,26 @@ setMethod("QCcode", "ChipInfo", function(x) {
 #' can be used to represent a different failure type, or for simplicity, stick
 #' to 0 and 1, ie, just pass and fail.
 #' @param x a ChipInfo object
-#' @param values new pass/fail codes, e.g, 0,1,...,n
+#' @param value new pass/fail codes, e.g, 0,1,...,n
 #' @return updates the object specified with new pass/fail codes for the 'QCcode' slot
 #' @export
 #' @docType methods
 #' @rdname QCcode-methods
-setGeneric("QCcode<-", function(x,values) standardGeneric("QCcode<-") )
+setGeneric("QCcode<-", function(x,value) standardGeneric("QCcode<-") )
 
 
 #' @rdname QCcode-methods
 #' @aliases QCcode,ChipInfo,ChipInfo-method
 #' @docType methods
-setMethod("QCcode<-", "ChipInfo", function(x,values) {
-  if(length(x)==length(values)) {
-    if(is.numeric(values)) {
-      mcols(x)[,"QCcode"] <- as.integer(values)
+setMethod("QCcode<-", "ChipInfo", function(x,value) {
+  if(length(x)==length(value)) {
+    if(is.numeric(value)) {
+      mcols(x)[,"QCcode"] <- as.integer(value)
     } else {
       stop("only numeric values can be inserted into the QCcode column, 0=pass, higher integers are failure codes")
     }
   } else {
-    stop("mismatching lengths, tried to insert ",length(values),"new values into ChipInfo with ",length(x)," rows")
+    stop("mismatching lengths, tried to insert ",length(value),"new values into ChipInfo with ",length(x)," rows")
   }
   return(x)
 } )
@@ -259,6 +263,7 @@ setGeneric("QCpass", function(x) standardGeneric("QCpass") )
 #' control, according to the QCcodes() slot > 0.
 #' @name QCfail
 #' @param x a ChipInfo object
+#' @param type integer between 1 and 100, failure type (user can assign own coding scheme)
 #' @return ChipInfo object for which SNPs fail quality control
 #' @export
 #' @docType methods
@@ -336,9 +341,9 @@ setMethod("[[", "ChipInfo", function(x,i,j,...) {
 #' Returns the a ChipInfo object with positions updated to build
 #' 37 coordinates, assuming that the existing object was in build 36,
 #' or already in build 37 coordinates, and that the build() slot was
-#' entered correctly. Ensure that the value of build(x) is correct before
+#' entered correctly. Ensure that the value of ucsc(x) is correct before
 #' running this function for conversion; for instance, if the coordinates 
-#' are already build 37/hg19, but build(x)=="hg18" (incorrect value), then
+#' are already build 37/hg19, but ucsc(x)=="hg18" (incorrect value), then
 #' these coordinates will be transformed in a relative manner rendering the
 #' result meaningless.
 #' @name convTo37
@@ -354,7 +359,7 @@ setGeneric("convTo37", function(x) standardGeneric("convTo37"))
 #' @aliases convTo37,ChipInfo,ChipInfo-method
 #' @docType methods
 setMethod("convTo37", "ChipInfo", function(x) {
-  if(ucsc.sanitizer(build(x))=="hg18") {
+  if(ucsc.sanitizer(ucsc(x))=="hg18") {
     u <- conv.36.37(ranges=as(x,"GRanges"))
     if(length(u)==length(x)) { 
       x@ranges <- u@ranges
@@ -374,7 +379,7 @@ setMethod("convTo37", "ChipInfo", function(x) {
       stop("conversion to build37/hg19 failed, input had length ",length(x),"; output had length ",length(u)) 
     } 
   } else {
-    if(ucsc.sanitizer(build(x))!="hg19") { 
+    if(ucsc.sanitizer(ucsc(x))!="hg19") { 
       warning("input object was not tagged as hg18/build36 [@build], left unchanged") 
     } else {
       warning("object is already using hg19/build37, no change")
@@ -439,6 +444,7 @@ setMethod("convTo36", "ChipInfo", function(x) {
 #' 
 #' Displays a preview of the object
 #' @name show
+#' @param object a ChipInfo object
 #' @rdname show-methods
 #' @aliases show,ChipInfo,ChipInfo-method
 #' @docType methods
@@ -453,6 +459,8 @@ setMethod("show", "ChipInfo",
 #' 'up.to' is set to 50, so that any ChipInfo object (or subset) of less than or equal
 #' to 50 rows will be displayed in its entirety, rather than just the top/bottom 5 rows. 
 #' @name print
+#' @param x a ChipInfo object
+#' @param ... further arguments to showChipInfo()
 #' @rdname print-methods
 #' @aliases print,ChipInfo,ChipInfo-method
 #' @docType methods
@@ -509,7 +517,7 @@ ChipInfo <- function(GRanges=NULL, chr=NULL, pos=NULL, ids=NULL, chip="unknown c
   }
   if(length(QCcode)!=LL) { QCcode <- rep(0,LL) }
   if(is.null(GRanges)) {
-    GRanges <- make.granges(chr=chr,pos=pos,row.names=ids)
+    GRanges <- makeGRanges(chr=chr,pos=pos,row.names=ids)
   } else {
     if(is(GRanges)[1]!="GRanges") { GRanges <- as(GRanges,"GRanges") }
   }
@@ -525,6 +533,7 @@ ChipInfo <- function(GRanges=NULL, chr=NULL, pos=NULL, ids=NULL, chip="unknown c
 #' 
 #' Please use the 'ChipInfo()' wrapper
 #' @name ChipInfo
+#' @param .Object not sure what this is
 #' @rdname ChipInfo-class
 #' @docType methods
 setMethod("initialize", "ChipInfo",
@@ -564,7 +573,7 @@ setAs("ChipInfo", "RangedData",
 #' As("ChipInfo", "GRanges")
 #'
 #' @name as
-setAs("ChipInfo", "data.frame", function(from) { ranged.to.data.frame(as(from,"GRanges"),include.cols=TRUE) })
+setAs("ChipInfo", "data.frame", function(from) { ranges.to.data.frame(as(from,"GRanges"),include.cols=TRUE) })
 
 
 #' As("GRanges", "ChipInfo")
@@ -602,7 +611,7 @@ setAs("RangedData", "ChipInfo", function(from) { as(as(from,"GRanges"),"ChipInfo
 #' @family ChipInfo
 setAs("data.frame", "ChipInfo", 
       function(from) { 
-        rr <- data.frame.to.granges(from,chr="seqnames") 
+        rr <- data.frame.to.GRanges(from,chr="seqnames") 
         return(as(as(rr,"GRanges"),"ChipInfo"))
       } 
 )
@@ -632,14 +641,18 @@ setValidity("ChipInfo",
 #' by default is hidden, and the integer codes for pass/fail in QCcodes() are 
 #' displayed as 'pass' or 'fail', even though this is not how they are represented internally.
 #' This is called by the default 'show' method for ChipInfo objects. 
-#' @param object a ChipInfo object
-#' @param up.to only SNPs at the start and end are generally displayed, however this
-#' parameter specifies that when there are <= 'up.to' SNPs, then all SNPs will be displayed.
-#' @param head.tail number of SNPs to display at start/end (only the head and tail are
-#' shown as these objects are generally very large with >100K SNPs)
-#' @param show.strand logical, by default the strand is hidden, particularly given that
-#' the strand can vary between different datasets of the same chip. Setting to TRUE will
-#' display the strand
+#' @param x a ChipInfo object
+#' @param margin margin for display, usually ""
+#' @param with.classinfo logical, whether to display class information
+#' @param print.seqlengths logical, whether to display sequence lengths below
+#' the main output listing (e.g, chromsomes). Usually tidier when this is FALSE.
+#' @param ... hidden arguments including: 'head.tail'; number of SNPs to display 
+#' at start/end (only the head and tail are shown as these objects are generally
+#' very large with >100K SNPs); 'up.to'; only SNPs at the start and end are generally
+#' displayed, however this parameter specifies that when there are <= 'up.to' SNPs,
+#' then all SNPs will be displayed; 'show.strand'; logical, by default the strand is 
+#' hidden, particularly given that the strand can vary between different datasets 
+#' of the same chip. Setting to TRUE will display the strand.
 #' @return print compact preview of the object to the standard output (terminal)
 #' @export
 #' @seealso ChipInfo
@@ -659,6 +672,19 @@ showChipInfo <- function (x, margin = "", with.classinfo = FALSE, print.seqlengt
   print(out, quote = FALSE, right = TRUE)
 }
 
+
+#internal
+extraColumnSlots2 <- function(x) {
+  sapply(extraColumnSlotNames2(x), slot, object = x, simplify = FALSE)
+}
+
+#internal
+setGeneric("extraColumnSlotNames2",
+           function(x) standardGeneric("extraColumnSlotNames2"))
+
+setMethod("extraColumnSlotNames2", "ANY", function(x) character())
+
+
 #internal
 .makeNakedMatFromChipInfo <- function (x,show.strand=TRUE) 
 {
@@ -669,9 +695,9 @@ showChipInfo <- function (x, margin = "", with.classinfo = FALSE, print.seqlengt
   } else { 
     ans <- cbind(seqnames = as.character(seqnames(x)), ranges = showAsCell(ranges(x)),strand = as.character(strand(x)))
   }
-  extraColumnNames <- GenomicRanges:::extraColumnSlotNames(x)
+  extraColumnNames <- extraColumnSlotNames2(x)
   if (length(extraColumnNames) > 0L) {
-    ans <- do.call(cbind, c(list(ans), lapply(GenomicRanges:::extraColumnSlots(x), 
+    ans <- do.call(cbind, c(list(ans), lapply(extraColumnSlots2(x), 
                                               showAsCell)))
   }
   if (nc > 0L) {
@@ -737,3 +763,36 @@ makePrettyMatrixForCompactPrinting2 <- function (x, makeNakedMat.FUN,head.tail=6
     }
   }
 }
+
+
+
+
+
+#' Plot method for GRanges objects
+#' 
+#' See plotRanges()
+#' @name plot
+#' @param x a GRanges object
+#' @param ... further arguments, see plotRanges()
+#' @rdname plot-methods
+#' @aliases plot,GRanges,GRanges-method
+#' @docType methods
+setMethod("plot", "GRanges", function(x,...) {
+  ranged <- x
+  plotRanges(ranged,...)
+})
+
+
+#' Plot method for RangedData objects
+#' 
+#' See plotRanges()
+#' @name plot
+#' @param x a RangedData object
+#' @param ... further arguments, see plotRanges()
+#' @rdname plot-methods
+#' @aliases plot,RangedData,RangedData-method
+#' @docType methods
+setMethod("plot", "RangedData", function(x,...) {
+  ranged <- x
+  plotRanges(ranged,...)
+})

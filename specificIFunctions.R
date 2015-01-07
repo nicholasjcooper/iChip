@@ -762,7 +762,7 @@ conditional <- function(X) {
 
 
 
-data.frame.to.ranged2 <- function(dat,ids=NULL,start="start",end="end",width=NULL,
+data.frame.to.ranges2 <- function(dat,ids=NULL,start="start",end="end",width=NULL,
                                   chr="chr",exclude=NULL,build="hg18") 
 {
   ## convert any data frame with chr,start,end, or pos data into a RangedData object

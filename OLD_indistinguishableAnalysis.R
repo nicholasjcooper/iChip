@@ -141,7 +141,7 @@ if(load.ichip.regions) {
     if(length(snpic.list)<1) { next } # skip this chromosome if no SNPs were found to analyse
     
     ### READY TO ADD RECWINDOW FROM 'WORKING.R' ##
-    #recwindow(chr,st,en=st,window=0.1,bp=0)
+    #recomWindow(chr,st,en=st,window=0.1,bp=0)
     if(T) {
       which.snps <- match(snpid.list,snp.support$dbSNP)
       if(any(is.na(which.snps))) { stop(paste("NAs in dbSNP match:",paste(snpid.list[is.na(which.snps)],collapse=","))) }
@@ -150,12 +150,12 @@ if(load.ichip.regions) {
       snps.locs <- snp.support$Pos[which.snps]
       if(all(snp.support$SNP[which.snps]==snpic.list)) { cat("it's true!\n") }
       warning("dup SNPs:",snp.support$SNP[which.snps][duplicated(snp.support$SNP[which.snps])],"\n")
-      snp.rd <- RangedData(ranges=IRanges(start=snps.locs,
-                                          end=snps.locs,names=snp.support$SNP[which.snps]),
+      snp.rd <- RangedData(ranges=IRanges(startSnps.locs,
+                                          endSnps.locs,names=snp.support$SNP[which.snps]),
                            space=rep(next.chr,length(snps.locs)))
       snp.rd <- annot.cnv(snp.rd,gs=cyto); colnames(snp.rd) <- "band"
       bands <- snp.rd$band
-      nxt.window <- lapply(snps.locs, function(X,...) { recwindow(st=X,...) },chr=next.chr,window=1)
+      nxt.window <- lapply(snps.locs, function(X,...) { recomWindow(st=X,...) },chr=next.chr,window=1)
       if(next.chr==16) {
         cat("changing window[[2]] from",paste(nxt.window[[2]],collapse=","),
           "to",paste(c(10663100,11601037),collapse=","),"\n")

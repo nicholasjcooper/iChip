@@ -145,7 +145,7 @@ if(T) {
   ## NB must choose rule to account for OTHER_ and EXT_
   
   ## NB: original code source was: "/home/chrisw/local/R/scripts/hapmap-rates.R"
-  #recwindow <- function(chr,st,en=st,window=0.1,bp=0,do.plot=FALSE,
+  #recomWindow <- function(chr,st,en=st,window=0.1,bp=0,do.plot=FALSE,
   #                      add.plot=FALSE,do.lines=TRUE,...)
   
 }
@@ -193,12 +193,12 @@ for(next.chr in chrz) {
     snps.next <- annotated.snp.support$dbSNP[which.snps]
     snps.next.SNP <- annotated.snp.support$SNP[which.snps]
     snps.locs <- annotated.snp.support$Pos[which.snps]
-    snp.rd <- RangedData(ranges=IRanges(start=snps.locs,
-                                        end=snps.locs,names=annotated.snp.support$SNP[which.snps]),
+    snp.rd <- RangedData(ranges=IRanges(startSnps.locs,
+                                        endSnps.locs,names=annotated.snp.support$SNP[which.snps]),
                                         space=rep(next.chr,length(snps.locs)))
     snp.rd <- annot.cnv(snp.rd,gs=cyto); colnames(snp.rd) <- "band"
     bands <- snp.rd$band
-    nxt.window <- lapply(snps.locs, function(X,...) { recwindow(st=X,...) },chr=next.chr,window=1,bp=50000)
+    nxt.window <- lapply(snps.locs, function(X,...) { recomWindow(st=X,...) },chr=next.chr,window=1,bp=50000)
     st.window <- lapply(nxt.window, "[",1)
     en.window <- lapply(nxt.window, "[",2)
     n.snps <- vector("list",length(st.window))

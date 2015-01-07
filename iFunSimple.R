@@ -88,9 +88,9 @@ abf <- function(p,maf, n0=1000, n1=1000, scale0=n0, scale1=n1) {
 #' @export
 #' @return a matrix of the same length as 'ranges' with columns chr, start and end, and
 #' rownames will be the same as the original text vector.
-#' @seealso Ranges.to.txt
+#' @seealso ranges.to.txt
 #' @examples
-#' txt <- Ranges.to.txt(rranges())
+#' txt <- ranges.to.txt(rranges())
 #' convert.textpos.to.data(txt)
 convert.textpos.to.data <- function(text) {
   do.one <- function(X) {
