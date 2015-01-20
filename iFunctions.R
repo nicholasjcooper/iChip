@@ -106,13 +106,13 @@ get.t1dbase.snps <- function(disease="T1D",build=NULL,show.codes=FALSE) {
 #' get.GO.for.genes(c("CTLA4","PTPN2","PTPN22"),cel=TRUE) # add cellular GO terms
 get.GO.for.genes <- function(gene.list,bio=T,cel=F,mol=F) {
  # must.use.package(c("biomaRt","genoset","gage"),T)
-  ens <- useMart("ENSEMBL_MART_ENSEMBL",
+  ens <- biomaRt::useMart("ENSEMBL_MART_ENSEMBL",
                  dataset="hsapiens_gene_ensembl",
                  host="may2009.archive.ensembl.org",
                  path="/biomart/martservice",
                  archive=FALSE)
-  ens <- useDataset("hsapiens_gene_ensembl",mart=ens)
-  egSymb <- egSymb <- reader("~/github/iChip/egSymb.rda")
+  ens <- biomaRt::useDataset("hsapiens_gene_ensembl",mart=ens)
+  egSymb <- reader("~/github/iChip/egSymb.rda")
   base.attr <- c("hgnc_symbol", "chromosome_name")
   if(bio) { base.attr <- c(base.attr,"go_biological_process_description") }
   if(cel) { base.attr <- c(base.attr,"go_cellular_component_description") }
@@ -120,7 +120,7 @@ get.GO.for.genes <- function(gene.list,bio=T,cel=F,mol=F) {
   #  dat <- getBM(attributes = c("hgnc_symbol", "chromosome_name",
   #                              "start_position", "end_position", "band"), filters = "hgnc_symbol",
   #               values = egSymb[,2], mart = ens)
-  results <- getBM(attributes = base.attr, filters = "hgnc_symbol",
+  results <- biomaRt::getBM(attributes = base.attr, filters = "hgnc_symbol",
                    values = c(gene.list), mart = ens)
   return(results)
 }
@@ -212,7 +212,7 @@ ENS.to.GENE <- function(ens,dir=NULL,build=NULL,name.dups=FALSE,name.missing=TRU
 #' @author Nicholas Cooper \email{nick.cooper@@cimr.cam.ac.uk}
 #' @seealso GENE.to.ENS, rs.to.id, id.to.rs; eg2sym, sym2eg from package 'gage'
 #' @examples
-#' gene.ids <- c("MICA","PTPN2","IL2RA","APOE")
+#' gene.ids <- c("MYC","PTPN2","IL2RA","APOE")
 #' GENE.to.ENS(gene.ids)
 GENE.to.ENS <- function(genes,dir=NULL,...) {
   if(is.null(dir)) { if(any(getOption("save.annot.in.current")<1)) { dir <- NULL } else { dir <- getwd() } }
@@ -251,10 +251,10 @@ GENE.to.ENS <- function(genes,dir=NULL,...) {
 #' @examples
 #' nearest.gene(1,159000000,n=10) # return ids
 #' nearest.gene(1,159000000,n=10,build=37)
-#' nearest.gene(1,159000000,n=10,build=36,ids=F) # return positions
-#' nearest.gene(1,159000000,n=10,build=37,ids=F)
-#' nearest.gene(6,25000000,n=10,build=37,ids=F,side="left")  # only genes to the left of the locus
-#' nearest.gene(6,25000000,n=10,build=37,ids=F,side="right") # only genes to the right of the locus
+#' nearest.gene(1,159000000,n=10,build=36,ids=FALSE) # return positions
+#' nearest.gene(1,159000000,n=10,build=37,ids=FALSE)
+#' nearest.gene(6,25000000,n=10,build=37,ids=FALSE,side="left")  # only genes to the left of the locus
+#' nearest.gene(6,25000000,n=10,build=37,ids=FALSE,side="right") # only genes to the right of the locus
 nearest.gene <- function(chr, pos, n=1, side=c("either","left","right"),ids=TRUE,limit=NULL,build=NULL, ga=NULL) { 
   # ids - whether to return ichip SNP ids or positions
   if(length(chr)>1) { warning("chr should be length 1, using only first entry"); chr <- chr[1] }
@@ -353,6 +353,7 @@ nearest.gene <- function(chr, pos, n=1, side=c("either","left","right"),ids=TRUE
 #' @export
 #' @examples
 #' # EXAMPLE PLOT OF SOME SIMULATED SNPS on chr21-p11.1 #
+#' # do we need to require(GenomicRanges)? #
 #' loc <- c(9.9,10.2)
 #' Band(chr=21,pos=loc*10^6)
 #' rr <- in.window(rranges(50000),chr=21,pos=loc,unit="mb") # make some random MHC ranges
@@ -442,19 +443,28 @@ plotGeneAnnot <- function(chr=1, pos=NA, scl=c("b","kb","mb","gb"), y.ofs=0, wid
 #' get.immunog.locs(bioC=FALSE)
 #' get.immunog.locs(text=TRUE,build=37)
 get.immunog.locs <- function(build=NULL,bioC=TRUE,text=FALSE,GRanges=TRUE) {
+  # http://atlasgeneticsoncology.org/Genes/GC_IGH.html
+  # ^ has list of CELL line breakpoints... for future filtering?
   nchr <- 22
   if(is.null(build)) { build <- getOption("ucsc") }
   build <- ucsc.sanitizer(build)
-  if(build[1]=="hg19") {
-    #hg19
-    chr <- c(22,14,2,14)
-    stz <- c(22385572,105994256,89156874,22090057)
-    enz <- c(23265082,107281230,89630187,23021097)
-  } else {
+  if(build[1]=="hg18") {
     # hg18
     chr <- c(22,14,2,14)
     stz <- c(20715572,105065301,88937989,21159897)
     enz <- c(21595082,106352275,89411302,22090937)
+  } else {
+    if(build[1]=="hg38") {
+      #hg38
+      chr <- c(22,14,2,14)
+      stz <- c(20668232,105594256,88857361,21621904)
+      enz <- c(22922910,107281230,89917421,22552944)
+    } else {
+      # hg19
+      chr <- c(22,14,2,14)
+      stz <- c(22385572,105994256,89156874,22090057)
+      enz <- c(23265082,107281230,89630187,23021097)
+    }
   }
   nmz <- c("ig_c22","ig_c14_a","ig_c2","ig_c14_b")
   reg.dat <- rep("immunoglobin",length(chr))
@@ -563,8 +573,10 @@ get.centromere.locs <- function(dir=NULL,build=NULL,
 #' @return Returns a list, GRanges or RangedData object, depending on input parameters. Contained
 #' will be centromere chromosome and start and end positions.
 #' @examples
+#' require(BiocInstaller)
 #' get.cyto()
-#' get.cyto(bioC=FALSE)
+#' cyto.frame <- get.cyto(bioC=FALSE)
+#' prv(cyto.frame)
 #' get.cyto(build=36)
 get.cyto <- function(build=NULL,dir=NULL,bioC=TRUE,GRanges=TRUE,refresh=FALSE) {
   if(is.null(dir)) { if(any(getOption("save.annot.in.current")<1)) { dir <- NULL } else { dir <- getwd() } }
@@ -736,8 +748,8 @@ get.exon.annot <- function(dir=NULL,build=NULL,bioC=T, transcripts=FALSE, GRange
   if(from.scr) {
     must.use.package("gage",T)
     # get transcripts from build table 'knownGene'
-    success <- tryCatch(txdb <- makeTranscriptDbFromUCSC(genome=build,
-                                                         tablename="knownGene")  ,error=function(e) { F } )
+    success <- tryCatch(txdb <- suppressWarnings(makeTranscriptDbFromUCSC(genome=build,
+                                                         tablename="knownGene"))  ,error=function(e) { F } )
     if(is.logical(success)) { 
       if(!success) {
         warning("Couldn't reach build website! try again later or, \n",
@@ -748,7 +760,7 @@ get.exon.annot <- function(dir=NULL,build=NULL,bioC=T, transcripts=FALSE, GRange
     }
     if(!transcripts) {
       ex = exonsBy(txdb, by="gene")
-      tS <- toGenomeOrder(unlist(ex),strict=T)
+      tS <- toGenomeOrder2(unlist(ex),strict=T)
     } else {  
       tS = transcriptsBy(txdb, by="gene")
       egSymb <- egSymb <- reader("~/github/iChip/egSymb.rda")
@@ -845,14 +857,17 @@ get.gene.annot <- function(dir=NULL,build=NULL,bioC=TRUE,duplicate.report=FALSE,
   # have more than one row in the listing (split across ranges usually)
   # run with dir as NULL to refresh changes in COX
   #must.use.package(c("biomaRt","genoset","gage"),T)
+  verbose <- TRUE # hard coded at this stage!!
   if(is.null(build)) { build <- getOption("ucsc") }
   build <- ucsc.sanitizer(build)
+  if(build %in% c("hg15","hg16","hg17")) { stop("older builds, prior to may 2009 are not supported by this function")}
   from.scr <- T
   if(is.null(dir)) { if(any(getOption("save.annot.in.current")<1)) { dir <- NULL } else { dir <- getwd() } }
   if(!is.null(dir)) {
     dir <- validate.dir.for(dir,"ano")
     utxt <- ""; if(one.to.one) { utxt <- "_unq" }
     if(ens.id) { utxt <- paste(utxt,"ens",sep="_") }
+    if(only.named) { utxt <- paste(utxt,"onm",sep="_") }
     gn.fn <- cat.path(dir$ano,"geneAnnot",pref=build,suf=utxt,ext="RData")
     if(file.exists(gn.fn) & !refresh) {
       dat <- get(paste(load(gn.fn)))
@@ -864,33 +879,41 @@ get.gene.annot <- function(dir=NULL,build=NULL,bioC=TRUE,duplicate.report=FALSE,
   if(ens.id & bioC) { warning("ens.id=TRUE only has an effect when bioC=FALSE") }
   if(from.scr) {
     if(build=="hg18") {
-      ens <- useMart("ENSEMBL_MART_ENSEMBL",
-                     dataset="hsapiens_gene_ensembl",
-                     host="may2009.archive.ensembl.org",
-                     path="/biomart/martservice",
-                     archive=FALSE)
+      ens <- biomaRt::useMart("ENSEMBL_MART_ENSEMBL",
+                              dataset="hsapiens_gene_ensembl",
+                              host="may2009.archive.ensembl.org",
+                              path="/biomart/martservice",
+                              archive=FALSE)
     } else {
-      ens <- useMart("ensembl")
+      if(build=="hg19") {
+        ens <- biomaRt::useMart("ENSEMBL_MART_ENSEMBL",
+                                dataset="hsapiens_gene_ensembl",
+                                host="feb2014.archive.ensembl.org",
+                                path="/biomart/martservice",
+                                archive=FALSE)
+      } else {
+        # whatever the current mart is
+        ens <- biomaRt::useMart("ensembl")
+      }
     }
-    ens <- useDataset("hsapiens_gene_ensembl",mart=ens)
-    
-    
+    ens <- biomaRt::useDataset("hsapiens_gene_ensembl",mart=ens)
     attr.list <- c("hgnc_symbol", "chromosome_name",
                    "start_position", "end_position", "band")
     if(ens.id) { attr.list <- c(attr.list,"ensembl_gene_id") }
-    if(build=="hg18" & only.named & !ens.id) {
-      egSymb <- reader("~/github/iChip/egSymb.rda")
-      dat <- getBM(attributes = attr.list, filters = "hgnc_symbol",
-                   values = egSymb[,2], mart = ens)
-    } else {
-      dat <- getBM(attributes = attr.list,  mart = ens)
-    }
+    #    if(only.named & !ens.id & build=="hg18") {
+    #      egSymb <- reader("~/github/iChip/egSymb.rda") # this is a hg18 list!
+    #      dat <- biomaRt::getBM(attributes = attr.list, filters = "hgnc_symbol",
+    #                   values = egSymb[,2], mart = ens)
+    #    } else {
+    dat <- biomaRt::getBM(attributes = attr.list, mart = ens)
+    #    }
     if(exists("gn.fn")) { save(dat,file=gn.fn) }
   } 
   if(ens.id) { nm.list <- c(nm.list,"ens.id") }
   #return(dat)
-  no.gene.names <- which(dat[[1]]=="")
-  if(one.to.one | (only.named & !ens.id & length(no.gene.names)>0)) { dat <- dat[-no.gene.names,] }
+  no.gene.names <- which(paste(dat[[1]])=="")
+  #prv(no.gene.names)
+  if((one.to.one | (only.named & !ens.id)) & length(no.gene.names)>0) { dat <- dat[-no.gene.names,] }
   if(remap.extra) {
     dat$chromosome_name <- tidy.extra.chr(dat$chromosome_name)
     #dat$chromosome_name[grep("c6",dat$chromosome_name,ignore.case=T)] <- 6  # prevent issues with c6_COX, c6_QBL  
@@ -902,9 +925,21 @@ get.gene.annot <- function(dir=NULL,build=NULL,bioC=TRUE,duplicate.report=FALSE,
     # note that if remapping is already done, then these won't be discarded unless remapping failed
     tt <- tidy.extra.chr(dat$chromosome_name,select=TRUE)
     badz <- which(!tt)
+    #prv(badz)
     if(length(badz)>0) { dat <- dat[-badz,] } # remove LRG, GS, HG, NT, COX, etc annotation from set
   }
   if(bioC) {
+    missin <- function(x) { is.na(x) | (x=="") | x=="NA" }
+  #  keep <- rep(T,nrow(dat))
+    stz <- dat$start_position; enz <- dat$end_position
+    whichmis <- missin(stz) | missin(enz)
+    if(any(whichmis)) { dat <- dat[!whichmis,]; warning("some start/end positions were missing") }
+    stz <- dat$start_position; enz <- dat$end_position
+    if(any(stz>enz)) { mm <- stz>enz; prv(cbind(stz,enz)[mm,]); tmp <- stz; stz[mm] <- enz[mm]; enz[mm] <- tmp[mm]; warning("some start positions were after end positions (swapped these)") }
+    dat$start_position <- stz; dat$end_position <- enz
+#    bad1s <- NULL
+#    for (jj in 1:22) { ii <- ga[ga$chr==jj,"end"]>get.chr.lens()[jj]; if(any(ii)) { bad1s <- c(bad1s,which(ga$chr==jj)[ii]) } }
+#    if(length(bad1s)>0) { dat <- dat[-bad1s,] ; warning(length(bad1s)," gene positions exceeded chromosome length") }
     outData <- RangedData(ranges=IRanges(start=dat$start_position,end=dat$end_position),
                           space=dat$chromosome_name,gene=dat$hgnc_symbol, band=dat$band, universe=build)
     outData <- toGenomeOrder2(outData,strict=T)
@@ -921,18 +956,21 @@ get.gene.annot <- function(dir=NULL,build=NULL,bioC=TRUE,duplicate.report=FALSE,
       n.dup <- length(dup.genes)
       if(one.to.one & n.dup>0) {
         #return(dup.genes)
-        indz <- sapply(as.list(dup.genes),function(X) { which(genez %in% X) })
+        indz <- sapply(as.list(unique(dup.genes)),function(X) { which(genez %in% X) })
         # keep the range that is widest
         st.en <- lapply(indz,function(X) { c(stz[X][wdz[X]==max(wdz[X])][1],enz[X][wdz[X]==max(wdz[X])][1]) } )
         to.del <- dG
         to.ch <- sapply(indz,min,na.rm=T)
         ch.st <- sapply(st.en,"[",1) 
         ch.en <- sapply(st.en,"[",2) 
-        start(outData)[to.ch] <- ch.st 
+        start(outData)[to.ch] <- 1
         end(outData)[to.ch] <- ch.en 
+        start(outData)[to.ch] <- ch.st 
         outData <- outData[-to.del,]
-        cat("kept widest ranges, merging",length(to.del)+length(to.ch),"duplicate gene labels to",length(to.ch),"labels\n")
-      } 
+        if(verbose) { warning(cat("kept widest ranges, merging",length(to.del)+length(to.ch),"duplicate gene labels to",length(to.ch),"labels\n")) }
+      } else {
+        #cat("no dups found")
+      }
       # but haven't done anything about them or removed them! 
     }
     if(GRanges) { outData <- as(outData, "GRanges") }
@@ -941,6 +979,7 @@ get.gene.annot <- function(dir=NULL,build=NULL,bioC=TRUE,duplicate.report=FALSE,
   }
   return(outData)
 }
+
 
 
 #' Derive Telomere locations across the genome
@@ -1059,9 +1098,20 @@ get.chr.lens <- function(dir=NULL,build=NULL,autosomes=FALSE,len.fn="humanChrLen
                    146364022,141213431,135534747,135006516,133851895,115169878,107349540,
                    102531392,90354753,81195210,78077248,59128983,63025520,48129895,
                    51304566,155270560,59373566,16571)
-  
+  hg38.backup <- c(248956422,242193529,198295559,190214555,181538259,170805979,159345973,
+                   145138636,138394717,133797422,135086622,133275309,114364328,107043718,
+                   101991189,90338345,83257441,80373285,58617616,64444167,46709983,
+                   50818468,156040895,57227415,16571)
   # backups for offline use
-  if(build=="hg18") { offline.backup <- hg18.backup  } else { offline.backup <- hg19.backup }
+  if(build=="hg18") { 
+    offline.backup <- hg18.backup 
+  } else {
+    if(build=="hg19") {
+      offline.backup <- hg19.backup 
+    } else {
+      offline.backup <- hg38.backup 
+    }
+  }
   if(file.exists(chrlens.f))
   {
     # file seems to be in annotation directory already
@@ -1073,19 +1123,20 @@ get.chr.lens <- function(dir=NULL,build=NULL,autosomes=FALSE,len.fn="humanChrLen
     } else {
       notGot <- F
       # we have the right length, but do we have the right version?
-      if(build=="hg18" & length(which(chrLens %in% hg19.backup))>2) { notGot <- T }
-      if(build=="hg19" & length(which(chrLens %in% hg18.backup))>2) { notGot <- T }
+      if(build=="hg18" & ( length(which(chrLens %in% hg38.backup))>2 | length(which(chrLens %in% hg19.backup))>2) ) { notGot <- T }
+      if(build=="hg19" & ( length(which(chrLens %in% hg18.backup))>2 | length(which(chrLens %in% hg38.backup))>2) ) { notGot <- T }
+      if(build=="hg38" & ( length(which(chrLens %in% hg18.backup))>2 | length(which(chrLens %in% hg19.backup))>2) ) { notGot <- T }
       names(chrLens) <- paste0("chr",n)
     }
   } else { notGot <- T }
-  if (notGot | (!build %in% c("hg18","hg19"))) {
+  if (notGot | (!build %in% c("hg18","hg19","hg38"))) {
     #download from build
     if(verbose) { cat("attempting to download chromosome lengths from genome build ... ") }
     urL <- switch(build,
                   hg17="http://hgdownload.cse.ucsc.edu/goldenPath/hg17/database/chromInfo.txt.gz",
                   hg18="http://hgdownload.cse.ucsc.edu/goldenPath/hg18/database/chromInfo.txt.gz",
                   hg19="http://hgdownload.cse.ucsc.edu/goldenPath/hg19/database/chromInfo.txt.gz",
-                  hg20="http://hgdownload.cse.ucsc.edu/goldenPath/hg20/database/chromInfo.txt.gz")
+                  hg38="http://hgdownload.cse.ucsc.edu/goldenPath/hg38/database/chromInfo.txt.gz")
     success <- T
     success <- tryCatch(download.file(urL, chrlens.f,quiet=T),error=function(e) { F } )
     if(!is.logical(success)) { success <- T }
@@ -1103,7 +1154,7 @@ get.chr.lens <- function(dir=NULL,build=NULL,autosomes=FALSE,len.fn="humanChrLen
       names(chrLens) <- nnn
     } else {
       warning("couldn't reach build website, so have used offline versions of chr lengths")
-      if(!build %in% c("hg18","hg19")) { warning("no offline version for build version:",build) }
+      if(!build %in% c("hg18","hg19","hg38")) { warning("no offline version for build version:",build) }
       chrLens <- paste(offline.backup)[1:length(n)]; names(chrLens) <- paste0("chr",n)
       #print(n)
       delete.after <- F
@@ -1150,7 +1201,11 @@ get.t1d.regions <- function(dense.reg=NULL,build=NULL,invert=FALSE) {
       if(build=="hg19") { 
         dense.reg <- conv.36.37(dense.reg) 
       } else { 
-        stop("automatic loading for dense regions is only supported for build 36 or 37") 
+        if(build=="hg38") {
+          dense.reg <- conv.37.38(conv.36.37(dense.reg))
+        } else {
+          stop("automatic loading for dense regions is only supported for builds 36, 37 or 38") 
+        }
       }
     }
   }  
@@ -1162,7 +1217,11 @@ get.t1d.regions <- function(dense.reg=NULL,build=NULL,invert=FALSE) {
   good <- !is.na(locs) & !is.na(chrs)
   locs <- locs[good]; chrs <- chrs[good]
   if(build!=def.build) {
-    if(!all(c(build,def.build) %in% c("hg18","hg19"))) { stop("if build is not equal to getOption('ucsc') then build and this getOption('ucsc') parameter must both be equivalent to either hg18 or hg19") }
+    if(!all(c(build,def.build) %in% c("hg18","hg19"))) {
+      stop("if build is not equal to getOption('ucsc') then build and this getOption('ucsc')",
+           " parameter must both be equivalent to either hg18 or hg19. To use build 38,
+           first set 'options(ucsc=38)'") 
+    }
     if(build=="hg18") {
       #prv(chrs,locs)
       locs <- conv.37.36(chr=chrs,pos=locs)[,"start"]
@@ -1292,6 +1351,7 @@ get.genic.subset <- function(X,ref=NULL,build=NULL) {
 #' There are multiple options for which columns to return and number of digits to display.
 #' @export
 #' @examples
+#' # do we need to require(stats)?
 #' ph <- c(0,0,0,1,1,1) # phenotype
 #' X <- rnorm(6) # independent variable
 #' test.glm <- glm(ph ~ X,family=binomial('logit'))
@@ -1592,8 +1652,9 @@ makeGRanges <- function(chr,pos=NULL,start=NULL,end=NULL,row.names=NULL,build=NU
 #'   is sorted by genome order, regardless of the original order.
 #' @export
 #' @author Nicholas Cooper \email{nick.cooper@@cimr.cam.ac.uk}
-#' @seealso conv.36.37, convTo37, convTo36
+#' @seealso conv.36.37, conv.37.38, conv.38.37, convTo37, convTo36
 #' @examples
+#' require(IRanges); require(GenomicRanges)
 #' gene.labs <- c("CTLA4","IL2RA","HLA-C")
 #' pp <- Pos.gene(gene.labs,build=37)
 #' gg <- GRanges(ranges=IRanges(start=pp$start,end=pp$end),seqnames=pp$chr)
@@ -1602,6 +1663,95 @@ makeGRanges <- function(chr,pos=NULL,start=NULL,end=NULL,row.names=NULL,build=NU
 #' conv.37.36(rr) # note the result is same as GRanges, but in genome order
 conv.37.36 <- function(ranges=NULL,chr=NULL,pos=NULL,...,ids=NULL) {
   chain.file <- "~/github/iChip/hg19ToHg18.over.chain"
+  return(conv.36.37(ranges=ranges,chr=chr,pos=pos,...,ids=ids,chain.file=chain.file))
+}
+
+#' Convert from build 38 to build 37 SNP coordinates
+#' 
+#' Convert range or SNP coordinates between builds using a chain file. Depending on the chain file
+#' this can do any conversion, but the default will use the hg38 to hg19 (38-->37) chain file
+#' built into this package. The positions to convert can be entered using using chr, pos vectors,
+#'  or a RangedData or GRanges object. This function is a wrapper for liftOver() from rtracklayer,
+#' providing more control of input and output and 'defensive' preservation of order and length
+#' of the output versus the input ranges/SNPs. 
+#' @param chr character, an optional vector of chromosomes to combine with 'pos' to describe
+#'  positions to convert from build hg38 to hg19
+#' @param pos integer, an optional vector of chromosome positions (for SNPs), no need to enter
+#' a ranges object if this is provided along with 'chr'
+#' @param ranges optional GRanges or RangedData object describing positions for which conversion
+#' should be performed. No need to enter chr, pos if using ranges
+#' @param ids if the ranges have ids (e.g, SNP ids, CNV ids), then by including this parameter
+#' when using chr, pos input, the output object will have these ids as rownames. For ranges input
+#' these ids would already be in the rownames of the GRanges or RangedData object, so use of
+#' this parameter should be unnecessary
+#' @param ... additional arguments to makeGRanges(), so in other words, can use 'start' and
+#' 'end' to specify ranges instead of 'pos'.
+#' @return Returns positions converted from build 38 to 37. If using the 'ranges' parameter 
+#' for position input, the object returned will be of the same format. If using chr and pos 
+#' to input, then the object returned will be a data.frame with columns, chr and pos with 
+#' rownames 'ids'. Output will be the same length as the input, which is not necessarily the
+#'  case for liftOver() which does the core part of this conversion. Using vector or GRanges 
+#'  input will give a resulting data.frame or GRanges object respectively that has the same
+#'  order of rownames as the original input. Using RangedData will result in an output that
+#'   is sorted by genome order, regardless of the original order.
+#' @export
+#' @author Nicholas Cooper \email{nick.cooper@@cimr.cam.ac.uk}
+#' @seealso conv.36.37, conv.37.36, conv.37.38, convTo37, convTo36
+#' @examples
+#' require(IRanges); require(GenomicRanges)
+#' gene.labs <- c("CTLA4","IL2RA","HLA-C")
+#' pp <- Pos.gene(gene.labs,build=38)
+#' gg <- GRanges(ranges=IRanges(start=pp$start,end=pp$end),seqnames=pp$chr)
+#' conv.38.37(gg) # order of output is preserved   ### HERE!!! ###
+#' rr <- as(gg,"RangedData")
+#' conv.38.37(rr) # note the result is same as GRanges, but in genome order
+conv.38.37 <- function(ranges=NULL,chr=NULL,pos=NULL,...,ids=NULL) {
+  chain.file <- "~/github/iChip/hg38ToHg19.over.chain"
+  return(conv.36.37(ranges=ranges,chr=chr,pos=pos,...,ids=ids,chain.file=chain.file))
+}
+
+
+#' Convert from build 37 to build 38 SNP coordinates
+#' 
+#' Convert range or SNP coordinates between builds using a chain file. Depending on the chain file
+#' this can do any conversion, but the default will use the hg19 to hg38 (37-->38) chain file
+#' built into this package. The positions to convert can be entered using using chr, pos vectors,
+#'  or a RangedData or GRanges object. This function is a wrapper for liftOver() from rtracklayer,
+#' providing more control of input and output and 'defensive' preservation of order and length
+#' of the output versus the input ranges/SNPs. 
+#' @param chr character, an optional vector of chromosomes to combine with 'pos' to describe
+#'  positions to convert from build hg19 to hg38
+#' @param pos integer, an optional vector of chromosome positions (for SNPs), no need to enter
+#' a ranges object if this is provided along with 'chr'
+#' @param ranges optional GRanges or RangedData object describing positions for which conversion
+#' should be performed. No need to enter chr, pos if using ranges
+#' @param ids if the ranges have ids (e.g, SNP ids, CNV ids), then by including this parameter
+#' when using chr, pos input, the output object will have these ids as rownames. For ranges input
+#' these ids would already be in the rownames of the GRanges or RangedData object, so use of
+#' this parameter should be unnecessary
+#' @param ... additional arguments to makeGRanges(), so in other words, can use 'start' and
+#' 'end' to specify ranges instead of 'pos'.
+#' @return Returns positions converted from build 37 to 38. If using the 'ranges' parameter 
+#' for position input, the object returned will be of the same format. If using chr and pos 
+#' to input, then the object returned will be a data.frame with columns, chr and pos with 
+#' rownames 'ids'. Output will be the same length as the input, which is not necessarily the
+#'  case for liftOver() which does the core part of this conversion. Using vector or GRanges 
+#'  input will give a resulting data.frame or GRanges object respectively that has the same
+#'  order of rownames as the original input. Using RangedData will result in an output that
+#'   is sorted by genome order, regardless of the original order.
+#' @export
+#' @author Nicholas Cooper \email{nick.cooper@@cimr.cam.ac.uk}
+#' @seealso conv.36.37, conv.37.36, conv.37.38, convTo37, convTo36
+#' @examples
+#' require(IRanges); require(GenomicRanges)
+#' gene.labs <- c("CTLA4","IL2RA","HLA-C")
+#' pp <- Pos.gene(gene.labs,build=37)
+#' gg <- GRanges(ranges=IRanges(start=pp$start,end=pp$end),seqnames=pp$chr)
+#' conv.37.38(gg) # order of output is preserved   ### HERE!!! ###
+#' rr <- as(gg,"RangedData")
+#' conv.37.38(rr) # note the result is same as GRanges, but in genome order
+conv.37.38 <- function(ranges=NULL,chr=NULL,pos=NULL,...,ids=NULL) {
+  chain.file <- "~/github/iChip/hg19ToHg38.over.chain"
   return(conv.36.37(ranges=ranges,chr=chr,pos=pos,...,ids=ids,chain.file=chain.file))
 }
 
@@ -1645,10 +1795,12 @@ conv.37.36 <- function(ranges=NULL,chr=NULL,pos=NULL,...,ids=NULL) {
 #' in order to preserve the original ordering of locations.
 #' @export
 #' @author Nicholas Cooper \email{nick.cooper@@cimr.cam.ac.uk}
-#' @seealso conv.37.36, convTo37, convTo36
+#' @seealso conv.37.36, conv.37.38, conv.38.37, convTo37, convTo36
 #' @references http://crossmap.sourceforge.net/
 #' @examples
+#' require(IRanges); require(GenomicRanges)
 #' # various chain files downloadable from http://crossmap.sourceforge.net/ #
+#' options(ucsc="hg18")
 #' gene.labs <- c("CTLA4","IL2RA","HLA-C")
 #' snp.ids <- c("rs3842724","rs9729550","rs1815606","rs114582555","rs1240708","rs6603785")
 #' pp <- Pos(snp.ids); cc <- Chr(snp.ids)
@@ -1848,6 +2000,7 @@ conv.36.37 <- function(ranges=NULL,chr=NULL,pos=NULL,...,ids=NULL,chain.file="~/
 #' @author Chris Wallace and Nicholas Cooper \email{nick.cooper@@cimr.cam.ac.uk}
 #' @export
 #' @examples
+#' require(IRanges); require(GenomicRanges)
 #' # not run, as initial download of the recombination map takes nearly a minute #
 #' recomWindow(chr=11,start=10000000,end=10000000,window=1,bp.ext=10000)
 #' rd <- RangedData(ranges=IRanges(start=c(1.5,10.1)*10^7, end=c(1.55,10.1)*10^7),space=c(2,10))
@@ -2399,7 +2552,7 @@ rranges <- function(n=10,SNP=FALSE,chr.range=1:26,chr.pref=FALSE,order=TRUE,equa
   if(!order) {
     gg <- gg[order(rnorm(nrow(gg))),]
   } else {
-    gg <- toGenomeOrder(gg,strict=TRUE)
+    gg <- toGenomeOrder2(gg,strict=TRUE)
   }
   if(!GRanges) { gg <- as(gg,"RangedData"); gg <- gg[,-1] }
   if(n==0) { return(gg[-1,])} # returns empty ranges if that's what you really want
@@ -2430,6 +2583,7 @@ rranges <- function(n=10,SNP=FALSE,chr.range=1:26,chr.pref=FALSE,order=TRUE,equa
 #' @return a set of integers of length equal to the number of unique chromosomes in the ranged data.
 #' @export
 #' @examples
+#' require(genoset)
 #' gg <- rranges(1000)
 #' chrNames(gg); chrNums(gg)
 #' gg <- rranges(1000,chr.pref=TRUE) # example where chromosomes are chr1, chr2, ...
@@ -2560,7 +2714,7 @@ expand.nsnp <- function(ranged,snp.info=NULL,nsnp=10, add.chr=FALSE) {
 #' @param pos matrix with 2 columns for start, end positions, or a single column if all ranges are SNPs.
 #' An optional alternative to 'ranged' input, use in conjunction with 'chr' to specify the ranges
 #' to find the SNPs near the ends of.
-#' @param nearest will preferably find an exact match but if nearest=T, will fall-back on nearest match, 
+#' @param nearest will preferably find an exact match but if nearest=TRUE, will fall-back on nearest match, 
 #' even if slightly outside the range.
 #' @export
 #' @return a list of SNP-ids (rownames of 'snp.info') fulfilling the criteria, the output vector (character)
@@ -2587,7 +2741,7 @@ endSnp <- function(ranged=NULL,snp.info=NULL,chr=NULL,pos=NULL,nearest=T) {
 #' @param pos matrix with 2 columns for start, end positions, or a single column if all ranges are SNPs.
 #' An optional alternative to 'ranged' input, use in conjunction with 'chr' to specify the ranges
 #' to find the SNPs near the starts/ends of.
-#' @param nearest will preferably find an exact match but if nearest=T, will fall-back on nearest match, 
+#' @param nearest will preferably find an exact match but if nearest=TRUE, will fall-back on nearest match, 
 #' even if slightly outside the range.
 #' @export
 #' @return a list of SNP-ids (rownames of 'snp.info') fulfilling the criteria, the output will be a matrix
@@ -2616,7 +2770,7 @@ rangeSnp <- function(ranged=NULL,snp.info=NULL,chr=NULL,pos=NULL,nearest=T) {
 #' to find the SNPs near the starts of.
 #' @param start logical whether to return the SNP nearest the range starts
 #' @param end logical whether to return the SNP nearest the range ends
-#' @param nearest will preferably find an exact match but if nearest=T, will fall-back on nearest match, 
+#' @param nearest will preferably find an exact match but if nearest=TRUE, will fall-back on nearest match, 
 #' even if slightly outside the range.
 #' @export
 #' @return a list of SNP-ids (rownames of 'snp.info') fulfilling the criteria, the output will be a vector
@@ -2768,6 +2922,7 @@ force.chr.pos <- function(Pos,Chr,snp.info=NULL,build=NULL,dir=NULL) {
 #' were within the specified bounds
 #' @export
 #' @examples
+#' require(GenomicRanges)
 #' iG <- get.immunog.locs()[2,] # select the 2nd iG region
 #' ciG <- chr(iG)  #  get the chromosome
 #' posiG <- c(start(iG),end(iG)) # get the region start and end
@@ -2843,6 +2998,7 @@ in.window <- function(ranged,chr,pos,full.overlap=F, unit=c("b","kb","mb","gb"),
 #' @export
 #' @return Plots the ranges specified in 'ranged' to the current plot, or to a new plot
 #' @examples
+#' require(GenomicRanges)
 #' rr <- in.window(rranges(5000),chr=6,pos=c(28,32),unit="mb") # make some random MHC ranges
 #' rownames(rr) <- paste0("range",1:length(rr))
 #' # plotRanges vertically #
@@ -2859,7 +3015,8 @@ in.window <- function(ranged,chr,pos,full.overlap=F, unit=c("b","kb","mb","gb"),
 plotRanges <- function(ranged,labels=NULL,do.labs=T,skip.plot.new=F,lty="solid", alt.y=NULL,
                         v.lines=FALSE,ylim=NULL,xlim=NULL,scl=c("b","Kb","Mb","Gb"),
                         col=NULL,srt=0,pos=4,pch=1,lwd=1,cex=1,...) {
-  if(!is(ranges)[1] %in% c("RangedData","GRanges")) { warning("need RangedData or GRanges object") ; return(NULL) }
+  if(!is(ranges)[1] %in% c("RangedData","GRanges")) { 
+    warning("ranged needs to be a RangedData or GRanges object, plot likely to fail") ; return(NULL) }
   chk <- chrNums(ranged)
   typ <- is(ranged)[1]
   if(!is.null(alt.y)) {
@@ -3450,7 +3607,7 @@ read.pedData <- function(file,correct.codes=TRUE,silent=FALSE) {
 #' gene-1, gene-2, ..., gene-n, + length(gene-n) - n [others]
 #' @export
 #' @examples
-#' my.genes <- c("ERAP1","HLA-C;CTLA4;IFIH","INS;MICA","AGAP1;APOE;DRDB1;FUT2;HCP5;BDNF;COMT")
+#' my.genes <- c("ERAP1","HLA-C;CTLA4;IFIH","INS;MYC","AGAP1;APOE;DRDB1;FUT2;HCP5;BDNF;COMT")
 #' compact.gene.list(my.genes)
 #' compact.gene.list(my.genes,n=2,others=TRUE)
 compact.gene.list <- function(x,n=3,sep=";",others=FALSE) {
@@ -3509,7 +3666,7 @@ compact.gene.list <- function(x,n=3,sep=";",others=FALSE) {
 #' pheno <- rep(0,nrow(Autosomes))
 #' pheno[subject.data$cc=="case"] <- 1
 #' lambdas(Autosomes,pheno)
-#' lambdas(Autosomes[,1:5],pheno,snp.wise=T) # list everything snp-wise for the first 5 SNPs
+#' lambdas(Autosomes[,1:5],pheno,snp.wise=TRUE) # list everything snp-wise for the first 5 SNPs
 #' lambdas(Autosomes[,1:5],pheno) # just for the first 5 SNPs
 lambdas <- function(X, pheno, checks=TRUE, 
                     output=c("all","lamba","l1000","both"),snp.wise=FALSE) {
@@ -3640,7 +3797,8 @@ lambdas <- function(X, pheno, checks=TRUE,
 #' missing data.
 #' @seealso data.frame.to.SnpMatrix
 #' @examples
-#' samp <- matrix(sample(c(0:3),18,replace=T),
+#' require(snpStats)
+#' samp <- matrix(sample(c(0:3),18,replace=TRUE),
 #'   ncol=3,dimnames=list(paste0("ID0",1:6),c("rs123","rs232","rs433")))
 #' samp # note that 0's for SnpMatrix objects are missing values, and other
 #' # values are the number of copies of the reference allele plus 1. The reference
@@ -3681,12 +3839,14 @@ SnpMatrix.to.data.frame <- function(SnpMat,matrix=FALSE) {
 #' @seealso SnpMatrix.to.data.frame
 #' @return SnpMatrix object
 #' @examples
-#' test.frame <- matrix(sample(c(0:2),18,replace=T),
+#' require(snpStats)
+#' test.frame <- matrix(sample(c(0:2),18,replace=TRUE),
 #'   ncol=3,dimnames=list(paste0("ID0",1:6),c("rs123","rs232","rs433")))
 #' test.frame[2,2] <- NA # set one genotype to missing
 #' test.frame 
 #' test.mat <- data.frame.to.SnpMatrix(test.frame) 
-#' snp.mat <- new("SnpMatrix",test.frame) # note that does not handle the NAs/0s nicely
+#' test.mat
+#' snp.mat <- new("SnpMatrix",test.frame) # note this does not handle the NAs/0s nicely
 #' all.equal(print(as.data.frame(snp.mat)),print(as.data.frame(test.mat))) # shows offset by 1
 #' test.mat
 #' row.summary(test.mat) # call rate analysis by sample using snpStats function
@@ -3743,6 +3903,7 @@ data.frame.to.SnpMatrix <- function(X){
 #' @seealso caseway
 #' @export
 #' @examples
+#' require(snpStats)
 #' cn <- c("rs123","rs232","rs433","rs234")
 #' rn <- paste0("ID0",1:6)
 #' samp <- rbind(c(0,2,0,2),c(0,0,0,2),c(0,1,1,2),c(0,0,2,NA),c(0,2,1,1),c(0,2,2,0))
@@ -3971,6 +4132,7 @@ caseway <- function(X, pheno, checks=TRUE, long=FALSE, het.effects=FALSE) {
 #' @return returns a SnpMatrix object with all missing values replaced
 #' @export
 #' @examples
+#' require(snpStats)
 #' test <- rSnpMatrix(nsamp=1000,call.rate=.95) # create a random SnpMatrix
 #' prv(test) 
 #' col.summary(test) # shows some missing values
@@ -4079,6 +4241,7 @@ randomize.missing <- function(X,verbose=FALSE,n.cores=1) {
 #' @export
 #' @author Chris Wallace and Nicholas Cooper \email{nick.cooper@@cimr.cam.ac.uk}
 #' @examples
+#' require(snpStats)
 #' test.mat <- rSnpMatrix(nsnp=5,nsamp=10)
 #' print(SnpMatrix.to.data.frame(test.mat))
 #' out.mat <- impute.missing(test.mat)
@@ -4216,6 +4379,7 @@ impute.missing <- function (X,  strata = NULL, by=NULL, random=TRUE, data.frame 
 #' @return returns a SnpMatrix object with nsnp columns and nsamp rows, with 1-call.rate% 
 #' missing data, with allele frequencies generated by 'A.freq.fun'.
 #' @examples
+#' require(snpStats)
 #' newMat <- rSnpMatrix(call.rate=.92) # specify target of 8% missing data
 #' print(as.data.frame(newMat)) # to see actual values
 rSnpMatrix <- function(nsamp=10, nsnp=5, call.rate=.95, A.freq.fun=runif) {
@@ -4228,7 +4392,7 @@ rSnpMatrix <- function(nsamp=10, nsnp=5, call.rate=.95, A.freq.fun=runif) {
     mat <- sapply(dummy.vec,rsnp,A.freq.fun=A.freq.fun,cr=call.rate)
   } else {
     # this didn't really work #
-    if(estimate.memory(exp.fac*nsamp*nsnp)>warn.mem) { warning("when ld=T, large simulations can take a long time") }
+    if(estimate.memory(exp.fac*nsamp*nsnp)>warn.mem) { warning("when ld=TRUE, large simulations can take a long time") }
     mat <- sapply(rep(nsamp,nsnp*exp.fac),rsnp,A.freq.fun=A.freq.fun,cr=call.rate)
     mat <- get.top.n(mat,nsnp)    
   }
@@ -4274,8 +4438,9 @@ rSnpMatrix <- function(nsamp=10, nsnp=5, call.rate=.95, A.freq.fun=runif) {
 #' @return returns the current ChipInfo object [S4]
 #' @seealso ChipInfo, build, rs.id, QCfail, convTo36, convTo37, A1, A2
 #' @author Nicholas Cooper \email{nick.cooper@@cimr.cam.ac.uk}
+#' @export
 #' @examples
-#' chip.support() # shows the current ChipInfo object (default is 'ImmunoChip' build 36)
+#' chip.support() # shows the current ChipInfo object (default is 'ImmunoChip' build 37)
 chip.support <- function(build=NULL,refresh=FALSE,alternate.file=NULL) {
   if(is.null(build)) { build <- getOption("ucsc") }
   build <- ucsc.sanitizer(build)
@@ -4311,6 +4476,7 @@ chip.support <- function(build=NULL,refresh=FALSE,alternate.file=NULL) {
     any37 <- c(grep("37",nnn),grep("hg19",nnn))
     any36 <- c(grep("36",nnn),grep("hg18",nnn))
     if(build=="hg19" & length(any37)>0) { all.support <- all.support[[nnn[any37[1]]]]}
+    if(build=="hg38" & length(any37)>0) { all.support <- convTo38(all.support[[nnn[any37[1]]]])}
     if(build=="hg18" & length(any36)>0) { all.support <- all.support[[nnn[any36[1]]]]}
   }
   return(all.support)
@@ -4380,8 +4546,12 @@ rs.to.id <- function(rs.ids,multi.list=FALSE) {
     if(!is.list(idvec)) { idvec <- as.list(idvec) }
       #warning("'multi.list' option was used, but no duplicate rs-ids found, so returning a vector, not a list") }
   } else {
+    #prv(all.support,rs.ids)
+    #print(showMethods(rownames))
+    #print(rownames(all.support))
     idvec <- rownames(all.support)[match(rs.ids,mcols(all.support)$rs.id)]
     idvec2 <- rownames(all.support)[match(rs.ids,rownames(all.support))]
+    #prv(idvec,idvec2)
     idvec[is.na(idvec)] <- idvec2[is.na(idvec)]
   }
   return(idvec)
@@ -4458,20 +4628,21 @@ Chr <- function(ids,dir=NULL,snps.only=FALSE) {
 #'  than relying on the fallback behaviour of the Pos() function. Note that the position for
 #'  genes and bands are not a single point, so the result will be a range with start and end, 
 #'  see 'values' below. See documentation for these functions for more information.
-#' @param ids character, a vector of rs-ids or chip-ids representing SNPs in the current ChipInfo annotation,
-#'  or gene ids, or karyotype bands
-#' @param dir character, only relevant when gene or band ids are entered, in this case 'dir' is the location
-#' to download gene and cytoband information; if left as NULL, depending on the value of 
-#' getOption("save.annot.in.current"), the annotation will either be saved in the working directory to 
-#' speed-up subsequent lookups, or deleted after use.
-#' @param snps.only logical, if TRUE, only search SNP ids, ignore the possibility of genes/cytobands.
-#' @return When ids are SNP ids, returns a numeric vector of positions for each id, with NA values
-#'  where no result was found. When ids are genes or karyotype bands, will return a data.frame with
-#'  columns 'chr' [chromosome], 'start' [starting position of feature], 'end' [end position of feature], 
-#'  and the band without the chromosome prefix, if ids are bands. Note that this function cannot
-#'  retrieve multiple ranges for a single gene (e.g, OR2A1), which means you'd need to use Pos.gene().
-#'  The coordinates used will be of version getOption(ucsc="hg18"), or ucsc(chip.support()), which
-#'  should be equivalent.
+#' @param ids character, a vector of rs-ids or chip-ids representing SNPs in the current ChipInfo 
+#' annotation,or gene ids, or karyotype bands
+#' @param dir character, only relevant when gene or band ids are entered, in this case 'dir' is 
+#' the location to download gene and cytoband information; if left as NULL, depending on the 
+#' value of getOption("save.annot.in.current"), the annotation will either be saved in the 
+#' working directory to speed-up subsequent lookups, or deleted after use.
+#' @param snps.only logical, if TRUE, only search SNP ids, ignore the possibility of 
+#' genes/cytobands.
+#' @return When ids are SNP ids, returns a numeric vector of positions for each id, with NA 
+#' values where no result was found. When ids are genes or karyotype bands, will return a 
+#' data.frame with columns 'chr' [chromosome], 'start' [starting position of feature], 'end'
+#' [end position of feature], and the band without the chromosome prefix, if ids are bands. 
+#' Note that this function cannot retrieve multiple ranges for a single gene (e.g, OR2A1 in
+#' build 38), which means you'd need to use Pos.gene(). The coordinates used will be of 
+#' version getOption(ucsc="hg18"), or ucsc(chip.support()), which should be equivalent.
 #' @export
 #' @author Nicholas Cooper \email{nick.cooper@@cimr.cam.ac.uk}
 #' @seealso Chr
@@ -4568,12 +4739,12 @@ ids.by.pos <- function(ids) {
 #' @seealso Chr, Pos, Pos.band, Band, Band.gene, Band.pos, Gene.pos
 #' @examples
 #' Pos.gene(c("CTLA4","PTPN22"))
-#' Pos.gene("MICA",build=36)
-#' Pos.gene("MICA",build=37)
+#' Pos.gene("MYC",build=36)
+#' Pos.gene("MYC",build=37)
 #' Pos.gene(c("CTLA4","PTPN22"),bioC=TRUE,band=TRUE)
-#' Pos.gene(c("CTLA4","OR2A1"),one.to.one=TRUE) # OR2A1 is split over two ranges
-#' Pos.gene(c("CTLA4","OR2A1"),one.to.one=FALSE)
-#' Pos.gene("RNU2-1",one.to.one=FALSE,bioC=T,remap.extra=FALSE) # RNU2-1 is split over several ranges
+#' Pos.gene(c("CTLA4","OR2A1"),one.to.one=TRUE,build=38) # OR2A1 is split over two ranges
+#' Pos.gene(c("CTLA4","OR2A1"),one.to.one=FALSE,build=38)
+#' Pos.gene("RNU2-1",one.to.one=FALSE,bioC=TRUE,build=38) # RNU2-1 is split over multiple ranges
 Pos.gene <- function(genes,build=NULL,dir=NULL,bioC=FALSE,band=FALSE,one.to.one=TRUE,
                      remap.extra=FALSE,discard.extra=TRUE,warnings=TRUE) {
   if(!is.character(genes)) { stop("'genes' must be a character vector of gene names") }
@@ -4581,8 +4752,8 @@ Pos.gene <- function(genes,build=NULL,dir=NULL,bioC=FALSE,band=FALSE,one.to.one=
   build <- ucsc.sanitizer(build)
   if(is.null(dir)) { if(any(getOption("save.annot.in.current")<1)) { dir <- NULL } else { dir <- getwd() } }
   char.lim <- 100
-  ga <- get.gene.annot(dir=dir,build=build,bioC=bioC,one.to.one=one.to.one,
-                       remap.extra=remap.extra,discard.extra=discard.extra,GRanges=TRUE)
+  ga <- suppressWarnings(get.gene.annot(dir=dir,build=build,bioC=bioC,one.to.one=one.to.one,
+                       remap.extra=remap.extra,discard.extra=discard.extra,GRanges=TRUE))
   typ <- is(ga)[1]
   if(typ=="GRanges") {  mt <- match(genes,mcols(ga)$gene) } else { mt <- match(genes,ga$gene) }
   failz <- paste(genes[is.na(mt)],collapse=", "); if(nchar(failz)>char.lim) { failz <- paste(substr(failz,1,char.lim),",...",sep="") }
@@ -4713,6 +4884,7 @@ Pos.band <- function(bands,build=NULL,dir=NULL,bioC=FALSE) {
 #' @author Nicholas Cooper \email{nick.cooper@@cimr.cam.ac.uk}
 #' @seealso Chr, Pos, Pos.gene, Band, Band.gene, Band.pos, Gene.pos
 #' @examples
+#' require(IRanges); require(GenomicRanges)
 #' Band(chr=1,pos=1234567) # using chr,pos vectors
 #' rd <- RangedData(ranges=IRanges(start=87654321,end=87654321),space=1)
 #' gr <- as(rd,"GRanges")
@@ -4772,8 +4944,8 @@ Band <- function(genes=NULL,chr=NULL,ranges=NULL,snps=NULL,build=NULL,dir=NULL,.
 #' Band.gene(a.few.snps)  # fails with warning as these are SNPs, not genes
 #' Band.gene(a.few.snps,warnings=FALSE) # with warnings=FALSE this continues with snps entered
 #' Band.gene("SLC6A4")  # serotonin gene [5-HTT]
-#' Band.gene("SLC6A4",append.chr=F)
-#' Band.gene("SLC6A4",data.frame=T)
+#' Band.gene("SLC6A4",append.chr=FALSE)
+#' Band.gene("SLC6A4",data.frame=TRUE)
 Band.gene <- function(genes,build=NULL,dir=getwd(),append.chr=TRUE,data.frame=FALSE,warnings=TRUE) {
   if(is.null(build)) { build <- getOption("ucsc") }
   build <- ucsc.sanitizer(build)
@@ -4835,7 +5007,8 @@ Band.gene <- function(genes,build=NULL,dir=getwd(),append.chr=TRUE,data.frame=FA
 #' Gene.pos(Chr("rs689"),Pos("rs689")) # combine with Chr() and Pos() to find gene(s) for SNP rs689
 #' Gene.pos(chr=1,start=114000000,end=115000000,build="hg19") # multiple genes in range
 #' Gene.pos(chr=1,start=114000000,end=115000000,one.to.one=FALSE) # list separately
-#' Gene.pos(Pos.gene(c("CTLA4","PTPN22"),bioC=TRUE)) # use the ranges object returned by Pos.gene()
+#' ii <- Pos.gene(c("CTLA4","PTPN22"))
+#' Gene.pos(ii$chr,ii$start,ii$end,bioC=FALSE) # returns same genes inputted on line above
 Gene.pos <- function(chr=NA,pos=NA,start=NA,end=NA,ranges=NULL,build=NULL,dir=NULL,bioC=FALSE,one.to.one=TRUE) {
   if(is.null(build)) { build <- getOption("ucsc") }
   build <- ucsc.sanitizer(build)
@@ -4866,7 +5039,7 @@ Gene.pos <- function(chr=NA,pos=NA,start=NA,end=NA,ranges=NULL,build=NULL,dir=NU
   testData <- set.chr.to.numeric(testData,keep=T)
   #return(testData)
   if(is.null(dir)) { if(any(getOption("save.annot.in.current")<1)) { dir <- NULL } else { dir <- getwd() } }
-  ga <- get.gene.annot(build=build,dir=dir,GRanges=FALSE)
+  ga <- suppressWarnings(get.gene.annot(build=build,dir=dir,GRanges=FALSE))
   #ga <- set.chr.to.numeric(ga,keep=F)
   newDataList <- vector("list",nrow(testData))
   overlaps <- findOverlaps(testData,ga)
@@ -5055,8 +5228,8 @@ AB <- function(ids) {
 #' in a list for each row of the ranges object.
 #' @examples
 #' snps.in.range(1,9000000,10000000)
-#' snps.in.range(10,19000000,20000000,ids=T)
-#' snps.in.range(10,19000000,20000000,ids=F) # return positions instead of rs-ids
+#' snps.in.range(10,19000000,20000000,ids=TRUE)
+#' snps.in.range(10,19000000,20000000,ids=FALSE) # return positions instead of rs-ids
 snps.in.range <- function(chr, start=NA, end=start, ids=TRUE) { 
   # ids - whether to return ichip SNP ids or positions
   if(is(chr)[1]=="RangedData" | is(chr)[1]=="GRanges") {
@@ -5110,10 +5283,10 @@ snps.in.range <- function(chr, start=NA, end=start, ids=TRUE) {
 #' @examples
 #' nearest.snp(1,159000000,n=10) # return ids
 #' nearest.snp(1,159000000,n=10,build=37)
-#' nearest.snp(1,159000000,n=10,build=36,ids=F) # return positions
-#' nearest.snp(1,159000000,n=10,build=37,ids=F)
-#' nearest.snp(6,25000000,n=10,build=37,ids=F,side="left")  # only SNPs to the left of the locus
-#' nearest.snp(6,25000000,n=10,build=37,ids=F,side="right") # only SNPs to the right of the locus
+#' nearest.snp(1,159000000,n=10,build=36,ids=FALSE) # return positions
+#' nearest.snp(1,159000000,n=10,build=37,ids=FALSE)
+#' nearest.snp(6,25000000,n=10,build=37,ids=FALSE,side="left")  # only SNPs to the left of the locus
+#' nearest.snp(6,25000000,n=10,build=37,ids=FALSE,side="right") # only SNPs to the right of the locus
 nearest.snp <- function(chr, pos, n=1, side=c("either","left","right"),ids=TRUE,limit=NULL,build=NULL) { 
   # ids - whether to return ichip SNP ids or positions
   if(length(chr)>1) { warning("chr should be length 1, using only first entry"); chr <- chr[1] }
@@ -5153,7 +5326,8 @@ nearest.snp <- function(chr, pos, n=1, side=c("either","left","right"),ids=TRUE,
 #' For a snp.id (or list), extend a window around that chromosome location in recombination
 #' units (centimorgans) and return the list of SNPs from the current ChipInfo object that
 #' lie in this window. This is a way of extracting SNPs in linkage disequilibrium with an 
-#' index SNP, that could also be plausible causal candidates.
+#' index SNP, that could also be plausible causal candidates. Runs fastest for build 36,
+#' otherwise internal conversion takes place (runs using build based on getOptions('ucsc')).
 #' @param snpid.list character, list of snp-ids (e.g, rs-id or chip id) to obtain lists for.
 #' SNPs must all be from the same chromosome - if ranges for SNPs spanning multiple ranges
 #' are desired, you must use multiple calls. A warning will be given if SNPs from the same
@@ -5163,10 +5337,6 @@ nearest.snp <- function(chr, pos, n=1, side=c("either","left","right"),ids=TRUE,
 #' @param cM numeric, the number of centimorgans to extend the window either side of each SNP
 #' @param bp.ext numeric, optional number of base-pairs to extend the window by in addition
 #' to the centimorgan extension
-#' @param build character, "hg18" or "hg19" (or 36/37) to show which reference to use The 
-#' default when build is NULL is to use the build from the current ChipInfo annotation.
-#' Note that build37 is slower as the recombination reference is in build 36, so conv.36.37() 
-#' and conv.37.36() need to be used to retrieve the appropriate ranges for build 37.
 #' @param excl.snps character, a list of rs-id or chip-ids of SNPs to exclude from the list
 #' returned, as, for instance, they may have failed quality control such as call-rate.
 #' @param name.by.bands give labels to each sublist returned by the karotype/cytoband name, 
@@ -5178,26 +5348,52 @@ nearest.snp <- function(chr, pos, n=1, side=c("either","left","right"),ids=TRUE,
 #' @export
 #' @seealso snps.in.range, get.recombination.map, recomWindow, conv.37.36, conv.36.37, expand.nsnp
 #' @examples
-#' result <- get.nearby.snp.lists("rs900569")
-#' get.nearby.snp.lists("rs900569",cM=0.2,excl.snps=result[[1]]) # get SNPs within 0.1-0.2cM
+#' # examples not run as too slow
+#' # not run # result <- get.nearby.snp.lists("rs900569")
+#' # trick below to extract SNPs within 0.1-0.2cM
+#' # not run # get.nearby.snp.lists("rs900569",cM=0.2,excl.snps=result[[1]]) 
 #' # note that the same query can return a different set with build 36 versus 37
-#' get.nearby.snp.lists(c("rs689","rs4909944"),cM=0.001,build=36,name.by.bands=FALSE)
-#' get.nearby.snp.lists(c("rs689","rs4909944"),cM=0.001,build=37,name.by.bands=FALSE) 
-get.nearby.snp.lists <- function(snpid.list,cM=0.1,bp.ext=0,build=NULL,excl.snps=NULL,name.by.bands=TRUE) {
+#' # not run # get.nearby.snp.lists(c("rs689","rs4909944"),cM=0.001,name.by.bands=FALSE) 
+get.nearby.snp.lists <- function(snpid.list,cM=0.1,bp.ext=0,excl.snps=NULL,name.by.bands=TRUE) {
   #if(!exists("all.support")) { print(load("all.support.RData")) }
   all.support <- chip.support()
-  if(is.null(build)) { build <- getOption("ucsc") }
-  build <- ucsc.sanitizer(build)
+#  if(is.null(build)) { build <- getOption("ucsc") }
+#  build <- ucsc.sanitizer(build)
+  build <- ucsc.sanitizer(getOption("ucsc"))
+  if(!build %in% c("hg19","hg18","hg38")) { stop("only builds 36,37,38 are supported") }
   snpic.list <- rs.to.id(snpid.list)
+  if(length(snpic.list)<1) { stop("snpic.list must contain at least 1 id")}
   cyto <- get.cyto(dir=getwd(),GRanges=FALSE); cyto[["gene"]] <- rownames(cyto)
   #which.snps <- match(snpid.list,mcols(all.support)$rs.id)
   #if(any(is.na(which.snps))) { stop(paste("NAs in dbSNP match:",paste(snpid.list[is.na(which.snps)],collapse=","))) }
   snps.locs <- Pos(snpid.list)
   snps.chrs <- Chr(snpid.list)
   if(build=="hg18") {
-    snps.locs36 <- snps.locs;  snps.locs37 <- conv.36.37(chr=snps.chrs,pos=snps.locs)[,"start"] 
+    snps.locs36 <- snps.locs;  
+    if(length(snps.locs)>1) {
+      snps.locs37 <- conv.36.37(chr=snps.chrs,pos=snps.locs)[,"start"] 
+    } else {
+      snps.locs37 <- conv.36.37(chr=snps.chrs,pos=snps.locs)["start"] 
+    }
   } else { 
-    snps.locs37 <- snps.locs;  snps.locs36 <- conv.37.36(chr=snps.chrs,pos=snps.locs)[,"start"]
+    if(build=="hg38") {
+      snps.locs38 <- snps.locs; 
+      if(length(snps.locs)>1) {
+        snps.locs37 <- conv.38.37(chr=snps.chrs,pos=snps.locs)[,"start"]
+        snps.locs36 <- conv.37.36(chr=snps.chrs,pos=snps.locs)[,"start"]
+      } else {
+        snps.locs37 <- conv.38.37(chr=snps.chrs,pos=snps.locs)["start"]
+        snps.locs36 <- conv.37.36(chr=snps.chrs,pos=snps.locs)["start"]
+      }
+    } else {
+      # assume hg19
+      snps.locs37 <- snps.locs; 
+      if(length(snps.locs)>1) {
+        snps.locs36 <- conv.37.36(chr=snps.chrs,pos=snps.locs)[,"start"]
+      } else {
+        snps.locs36 <- conv.37.36(chr=snps.chrs,pos=snps.locs)["start"]
+      }
+    }
   }
   next.chr <- unique(Chr(snpid.list)); if(length(next.chr)>1) { stop("enter snpids from only 1 chromosome at a time!") }
   if(any(snps.locs!=sort(snps.locs))) { 
@@ -5206,16 +5402,17 @@ get.nearby.snp.lists <- function(snpid.list,cM=0.1,bp.ext=0,build=NULL,excl.snps
   } else { sort.back <- 1:length(snps.locs) }
   ddz <- snpic.list[duplicated(snpic.list)]
   if(length(ddz)>0) { warning("dup SNPs:",ddz,"\n") }
-  snp.rd <- RangedData(ranges=IRanges(start(snps.locs),end(snps.locs),names=snpic.list),
+  #prv(snps.locs,snps.locs36)
+  snp.rd <- RangedData(ranges=IRanges(start=snps.locs,end=snps.locs,names=snpic.list),
                        space=rep(next.chr,length(snps.locs)))
-  snp.rd <- toGenomeOrder(snp.rd,strict=T) # think it autosorts anyway, but just in case
+  snp.rd <- toGenomeOrder2(snp.rd,strict=T) # think it autosorts anyway, but just in case
   if(name.by.bands) {
     #snp.rd <- annot.cnv(snp.rd,gs=cyto,quiet=TRUE); colnames(snp.rd) <- "band"
-    bands <- Band.pos(ranges=snp.rd) #   snp.rd$band
+    bands <- Band.pos(ranges=snp.rd, build=build) #   snp.rd$band
   }
   #prv(next.chr,cM,bp.ext)
   ## recomWindow uses build36 only, so convert back afterwards
-  nxt.window <- lapply(snps.locs36, function(X,...) { recomWindow(start=X,...) },
+  nxt.window <- lapply(snps.locs36, function(X,...) { recomWindow(start=as.numeric(X),...) },
                        chr=next.chr,window=cM,bp.ext=bp.ext,info=FALSE)
   if(build=="hg18") {
     st.window <- sapply(nxt.window, "[",1)
@@ -5223,8 +5420,17 @@ get.nearby.snp.lists <- function(snpid.list,cM=0.1,bp.ext=0,build=NULL,excl.snps
   } else {
     #prv(next.chr,nxt.window)
     nncc <- rep(next.chr,length(nxt.window))
-    st.window <- conv.36.37(chr=nncc,pos=sapply(nxt.window, "[",1))[,"start"]
-    en.window <- conv.36.37(chr=nncc,pos=sapply(nxt.window, "[",2))[,"start"]
+    if(length(snps.locs)>1) {
+      st.window <- conv.36.37(chr=nncc,pos=sapply(nxt.window, "[",1))[,"start"]
+      en.window <- conv.36.37(chr=nncc,pos=sapply(nxt.window, "[",2))[,"start"]
+    } else {
+      st.window <- conv.36.37(chr=nncc,pos=sapply(nxt.window, "[",1))["start"]
+      en.window <- conv.36.37(chr=nncc,pos=sapply(nxt.window, "[",2))["start"]
+    }
+    if(build=="hg38") {
+      st.window <- conv.37.38(chr=nncc,pos=st.window)
+      en.window <- conv.37.38(chr=nncc,pos=en.window)
+    }
   }
   pozz <- start(all.support)
   n.snps <- vector("list",length(st.window))

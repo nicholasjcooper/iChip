@@ -29,7 +29,7 @@
 #' 
 #' This class annotates a microarray SNP chip with data for each SNP including chromosome,
 #' id, position, strand, 'rs' id, allele 1, allele 2 for each SNP of a microarray chip,
-#' in either hg18 or hg19 (build 36/37) coordinates.
+#' in either hg18, hg19 or hg38 (build 36/37/38) coordinates.
 #' This package makes extension use of this class of annotation object for the working
 #' microarray chip, e.g, default is ImmunoChip, 
 #' and you can also load your own annotation if using a different chip. The class
@@ -50,35 +50,59 @@
 #'    \item{\code{strand}:}{Object of class \code{"Rle"}, containing plus or minus coding for forward or reverse strand, see GRanges.}
 #'    \item{\code{seqinfo}:}{Object of class \code{"Seqinfo"}, containing chromosome listing, see GRanges.}
 #'    \item{\code{chip}:}{Name, class \code{"character"}, containing user description of the chip, e.g, 'immunoChip'.}
-#'    \item{\code{build}:}{Object of class \code{"character"}, annotation version, e.g, hg18, hg19, etc.}
+#'    \item{\code{build}:}{Object of class \code{"character"}, annotation version, e.g, hg18, hg19, hg38, etc.}
 #'    \item{\code{elementMetaData}:}{Object of class \code{"DataFrame"}, see GRanges, but with specific column names:
 #'  A1, A2, QCcode and rs.id.}
 #'  }
-#' @name ChipInfo
+#' @name ChipInfo-class
+#' @aliases ChipInfo-class, ChipInfo-method
 #' @rdname ChipInfo-class
 #' @exportClass ChipInfo
+#' @docType class
 #' @author Nick Cooper
 setClass("ChipInfo",
          contains="GRanges",
-         representation(
+         slots = c(
            seqnames="Rle",
            ranges="IRanges",
            strand="Rle",
-           elementMetadata="DataFrame",
            seqinfo="Seqinfo",
            chip="character", # a single string
-           build="character" # a single string
+           build="character", # a single string
+           elementMetadata="DataFrame"
          ),
-         prototype(
-           seqnames=Rle(factor()),
-           strand=Rle(strand()),
-           seqinfo=Seqinfo(),
-           ranges=IRanges(),
+         prototype=prototype(
+           seqnames=IRanges::Rle(factor()),
+           ranges=IRanges::IRanges(),
+           strand=IRanges::Rle(GenomicRanges::strand()),
+           seqinfo=GenomicRanges::Seqinfo(),
            chip=character(), 
            build=character(), 
-           elementMetadata=DataFrame(A1=NULL, A2=NULL,  QCcode=integer(), rs.id=NULL)
+           elementMetadata=IRanges::DataFrame(A1=NULL, A2=NULL,  QCcode=integer(), rs.id=NULL)
          )
 )
+
+
+#' rownames method for ChipInfo objects
+#' 
+#' Returns the row names
+#' @name rownames
+#' @param x a ChipInfo object
+#' @rdname rownames-methods
+#' @aliases rownames,ChipInfo,ChipInfo-method
+#' @docType methods
+setMethod("rownames", "ChipInfo", function(x) names(x@ranges))
+
+
+#' dim method for ChipInfo objects
+#' 
+#' Returns the dimension
+#' @name dim
+#' @param x a ChipInfo object
+#' @rdname dim-methods
+#' @aliases dim,ChipInfo,ChipInfo-method
+#' @docType methods
+setMethod("dim", "ChipInfo", function(x) dim(mcols(x)))
 
 
 #' Length method for ChipInfo objects
@@ -112,10 +136,10 @@ setMethod("chip", "ChipInfo", function(x) x@chip)
 
 #' Retrieve the UCSC build for a ChipInfo object
 #' 
-#' Returns the UCSC build of the chip object, e.g, "hg18" or "hg19"
+#' Returns the UCSC build of the chip object, e.g, 'hg18', 'hg19', or 'hg38'
 #' @name ucsc
 #' @param x a ChipInfo object
-#' @return character, "hg18" or "hg19"
+#' @return character, 'hg18', 'hg19', or 'hg38'
 #' @export
 #' @docType methods
 #' @rdname ucsc-methods
@@ -339,17 +363,17 @@ setMethod("[[", "ChipInfo", function(x,i,j,...) {
 #' Convert ChipInfo to build 37/hg19 coordinates
 #' 
 #' Returns the a ChipInfo object with positions updated to build
-#' 37 coordinates, assuming that the existing object was in build 36,
+#' 37 coordinates, assuming that the existing object was in build 36/38,
 #' or already in build 37 coordinates, and that the build() slot was
 #' entered correctly. Ensure that the value of ucsc(x) is correct before
 #' running this function for conversion; for instance, if the coordinates 
-#' are already build 37/hg19, but ucsc(x)=="hg18" (incorrect value), then
+#' are already build 37/hg19, but ucsc(x)!="hg19" (incorrect value), then
 #' these coordinates will be transformed in a relative manner rendering the
 #' result meaningless.
 #' @name convTo37
 #' @param x a ChipInfo object
 #' @return ChipInfo object with the build updated to hg19 coordinates
-#' @seealso convTo36
+#' @seealso convTo36, convTo38
 #' @export
 #' @docType methods
 #' @rdname convTo37-methods
@@ -359,8 +383,12 @@ setGeneric("convTo37", function(x) standardGeneric("convTo37"))
 #' @aliases convTo37,ChipInfo,ChipInfo-method
 #' @docType methods
 setMethod("convTo37", "ChipInfo", function(x) {
-  if(ucsc.sanitizer(ucsc(x))=="hg18") {
-    u <- conv.36.37(ranges=as(x,"GRanges"))
+  if(ucsc.sanitizer(ucsc(x)) %in% c("hg18","hg38")) {
+    if(ucsc.sanitizer(ucsc(x)) == c("hg18")) {
+      u <- conv.36.37(ranges=as(x,"GRanges"))
+    } else {
+      u <- conv.38.37(ranges=as(x,"GRanges"))
+    }
     if(length(u)==length(x)) { 
       x@ranges <- u@ranges
       all.eq <- TRUE
@@ -380,7 +408,7 @@ setMethod("convTo37", "ChipInfo", function(x) {
     } 
   } else {
     if(ucsc.sanitizer(ucsc(x))!="hg19") { 
-      warning("input object was not tagged as hg18/build36 [@build], left unchanged") 
+      warning("input object was not tagged as hg18/build36/hg38/build38 [@build], left unchanged") 
     } else {
       warning("object is already using hg19/build37, no change")
     }
@@ -401,7 +429,7 @@ setMethod("convTo37", "ChipInfo", function(x) {
 #' @name convTo36
 #' @param x a ChipInfo object
 #' @return ChipInfo object with the build updated to hg18 coordinates
-#' @seealso convTo37
+#' @seealso convTo37, convTo38
 #' @export
 #' @docType methods
 #' @rdname convTo36-methods
@@ -440,6 +468,61 @@ setMethod("convTo36", "ChipInfo", function(x) {
   return(x)
 })
 
+
+#' Convert ChipInfo to build 38/hg38 coordinates
+#' 
+#' Returns the a ChipInfo object with positions updated to build
+#' 38 coordinates, assuming that the existing object was in build 37,
+#' or already in build 38 coordinates, and that the build slot was
+#' entered correctly. Ensure that the value of ucsc(x) is correct before
+#' running this function for conversion; for instance, if the coordinates 
+#' are already build 38/hg38, but ucsc(x)=="hg38" (incorrect value), then
+#' these coordinates will be transformed in a relative manner rendering the
+#' result meaningless.
+#' @name convTo38
+#' @param x a ChipInfo object
+#' @return ChipInfo object with the build updated to hg38 coordinates
+#' @seealso convTo37, convTo36
+#' @export
+#' @docType methods
+#' @rdname convTo38-methods
+setGeneric("convTo38", function(x) standardGeneric("convTo38"))
+
+
+#' @rdname convTo38-methods
+#' @aliases convTo38,ChipInfo,ChipInfo-method
+#' @docType methods
+setMethod("convTo38", "ChipInfo", function(x) {
+  if(ucsc.sanitizer(ucsc(x))=="hg18") { stop("can't convert 36 to 38; must convert from 36 to 37, then convert from 37 to 38") }
+  if(ucsc.sanitizer(ucsc(x))=="hg19") {
+    u <- conv.37.38(ranges=as(x,"GRanges"))
+    if(length(u)==length(x)) { 
+      x@ranges <- u@ranges
+      all.eq <- TRUE
+      if(all.eq) { all.eq <- length(seqlevels(x))==length(seqlevels(u)) }
+      if(all.eq) { all.eq <- any(sort(seqlevels(x))==sort(seqlevels(u))) }
+      if(!all.eq) {
+        #warning("conversion altered the chromosomes"); 
+        seqlevels(x) <- c(seqlevels(x),seqlevels(u)[!seqlevels(u) %in% seqlevels(x)])  #x@seqinfo <- u@seqinfo 
+      }
+      xx <- as(x@seqnames,"character")
+      uu <- as(u@seqnames,"character")
+      if(any(xx!=uu)) { x@seqnames <- u@seqnames }
+      x@build <- "hg38"
+    } else { 
+      stop("conversion to build38/hg38 failed") 
+    } 
+  } else {
+    if(ucsc.sanitizer(ucsc(x))!="hg38") { 
+      warning("input object was not tagged as hg19/build37 [@build], left unchanged") 
+    } else {
+      warning("object is already using hg18/build36, no change")
+    }
+  }
+  return(x)
+})
+
+
 #' Display method for ChipInfo objects
 #' 
 #' Displays a preview of the object
@@ -471,7 +554,7 @@ setMethod("print", "ChipInfo",
 #' 
 #' This class annotates a microarray SNP chip with data for each SNP including chromosome,
 #' id, position, strand, 'rs' id, allele 1, allele 2 for each SNP of a microarray chip,
-#' in either hg18 or hg19 (build 36/37) coordinates.
+#' in either hg18, hg19 or hg38 (build 36/37/38) coordinates.
 #' This package makes extension use of this class of annotation object for the working
 #' microarray chip, e.g, default is ImmunoChip, but Metabochip is also built-in,
 #' and you can also load your own annotation if using a different chip. The class
@@ -546,7 +629,6 @@ setMethod("initialize", "ChipInfo",
 #'
 #' @name as
 #' @family ChipInfo
-#' @importClassesFrom GenomicRanges GRanges
 setAs("ChipInfo", "GRanges",
       function(from) { 
         #print(is(from)); print(from@seqnames)
@@ -560,7 +642,6 @@ setAs("ChipInfo", "GRanges",
 #'
 #' @name as
 #' @family ChipInfo
-#' @importClassesFrom IRanges RangedData
 setAs("ChipInfo", "RangedData",
       function(from) { 
         out <- as(as(from,"GRanges"),"RangedData")
@@ -626,7 +707,7 @@ setValidity("ChipInfo",
                 return("'build' slot must be a single string") 
               } else {
                 if(!ucsc(object) %in% c("",ucsc.sanitizer(show.valid=T)[,1])) {
-                  return("'build' must be a string, 36/37 or hg18/hg19") 
+                  return("'build' must be a string, 36/37/38 or hg18/hg19/hg38") 
                 }
               }
             }

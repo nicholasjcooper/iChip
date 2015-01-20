@@ -1,27 +1,53 @@
 ###NAMESPACE ADDITIONS###
-# Depends: R (>= 2.14), grDevices, graphics, stats, utils, reader, NCmisc
-# Imports: genoset, IRanges, GenomicRanges, snpStats, Rcpp, GenomicFeatures, rtracklayer, biomaRt, methods, parallel
-# Suggests: snpStats
-# importClassesFrom("GenomicFeatures",TranscriptDb)
-# importFrom("GenomicFeatures",makeTranscriptDbFromUCSC, exonsBy, transcriptsBy)
-# importMethodsFrom("GenomicFeatures", exonsBy, transcriptsBy, as.list)
-# importMethodsFrom("snpStats", effect.sign)
-# importFrom("snpStats", row.summary, col.summary, read.pedfile, snp.imputation, impute.snps, single.snp.tests)
-# importClassesFrom("rtracklayer", ChainFile)
-# importClassesFrom("snpStats", SnpMatrix, XSnpMatrix, SingleSnpTests, SingleSnpTestsScore)
-# importMethodsFrom("rtracklayer", liftOver, import.chain)
-# importFrom("biomaRt", useMart, useDataset, getBM)
-# importClassesFrom("biomaRt", Mart)
-# importFrom(parallel, mclapply)
-# import(grDevices, graphics, stats, utils, reader, genoset, NCmisc, Rcpp, methods, IRanges, GenomicRanges, genoset)
+#' @importFrom BiocInstaller  biocVersion
+#' @importFrom utils capture.output download.file read.table write.table head tail
+#' @importFrom stats family pnorm pt qnorm rchisq rnorm runif
+#' @importFrom reader cat.path reader shift.rownames
+#' @importFrom grDevices dev.off pdf
+#' @importFrom graphics abline lines points rect text plot
+#' @importFrom methods as callNextMethod is new prototype representation setAs setClass setGeneric setMethod setValidity
+#' @importClassesFrom GenomicRanges GIntervalTree GRanges GenomicRanges Seqinfo GenomicRangesORmissing
+#' @importFrom GenomicRanges "seqinfo" "seqinfo<-" "seqnames"  "seqnames<-" "seqlevels"  "seqlevels<-"
+#' @importFrom GenomicRanges GRanges seqlengths Seqinfo GRangesList
+#' @importMethodsFrom GenomicRanges "genome<-" "names<-" genome length names seqlevels start end
+#' @importMethodsFrom GenomicRanges width strand mcols  "mcols<-" show findOverlaps subsetByOverlaps
+#' @importMethodsFrom GenomicRanges seqinfo  "seqinfo<-" seqnames  "seqnames<-" seqlevels  "seqlevels<-"
+#' @importMethodsFrom GenomicRanges length names  "names<-" "dimnames<-" "["  "[<-"  "[["  "[[<-"  "$"  "$<-" cbind rbind
+#' @importClassesFrom IRanges DataFrame RangedData Rle Vector Annotated
+#' @importFrom IRanges "%over%" DataFrame IRanges  Rle  RangedData subjectHits queryHits showAsCell
+#' @importMethodsFrom IRanges "colnames<-" "rownames<-" "universe<-" Rle subjectHits queryHits showAsCell
+#' @importMethodsFrom IRanges as.data.frame as.list as.matrix cbind rbind colnames elementLengths
+#' @importMethodsFrom IRanges end findOverlaps subsetByOverlaps gsub intersect is.unsorted lapply
+#' @importMethodsFrom IRanges levels mean na.exclude nrow ncol order paste as.list head tail
+#' @importMethodsFrom IRanges ranges rownames runLength runValue sapply space  flank  reduce resize
+#' @importMethodsFrom IRanges start universe unlist Rle width  "start<-"  "width<-"  "end<-" ranges "ranges<-"
+#' @importClassesFrom "GenomicFeatures" TranscriptDb
+#' @importFrom "GenomicFeatures" makeTranscriptDbFromUCSC  exonsBy  transcriptsBy
+#' @importMethodsFrom "GenomicFeatures"  exonsBy  transcriptsBy  as.list
+#' @importMethodsFrom "snpStats"  effect.sign
+#' @importFrom "snpStats"  row.summary  col.summary  read.pedfile  snp.imputation  impute.snps  single.snp.tests
+#' @importClassesFrom "snpStats"  SnpMatrix  XSnpMatrix  SingleSnpTests  SingleSnpTestsScore
+#' @importClassesFrom "rtracklayer"  ChainFile
+#' @importMethodsFrom "rtracklayer"  liftOver  import.chain
+#' @importMethodsFrom "genoset"  chr  chrIndices  chrInfo  chrNames  genome  isGenomeOrder  locData  toGenomeOrder  universe
+#' @importFrom "genoset"  chr  chrIndices  chrInfo  chrNames  chrOrder  
+#' @importFrom "genoset" "genome"  "isGenomeOrder"  "locData"  "toGenomeOrder"  "universe" 
+#' @importClassesFrom "genoset" RangedDataOrGenomicRanges
+#' @importFrom "biomaRt"  useMart  useDataset  getBM
+#' @importClassesFrom "biomaRt"  Mart
+#' @importFrom parallel  mclapply
+#' @import Rcpp BiocGenerics NCmisc
 ###END NAMESPACE###
 
 
 # importNoClassesFrom("GenomicRanges", GRanges)
-# importNoClassesFrom("IRanges", Rle)
+# importNoClassesFrom("IRanges", Rle, RangedData)
+# doNotimportFrom AnnotationDbi head tail ncol as.list colnames get exists sample 
+# doNotimportFrom(BiocGenerics,strand, "strand<-", colnames, cbind, rbind, unlist, order, rownames, ncol, as.vector, paste, as.data.frame)
+
 
 .onAttach <- function(libname, pkgname) {
-  packageStartupMessage("humarray >= 1.0 is awesome.\n")
+  packageStartupMessage("humarray version 1.0\n")
 }
 
 .onLoad <- function(libname, pkgname) {
@@ -32,6 +58,7 @@
 }
 
 
+#require(GenomicRanges); require(IRanges); require(reader); require(genoset)
 
 
 ########################
@@ -109,12 +136,13 @@ pt2 <- function(q, df, log.p=FALSE) {  2*pt(-abs(q), df, log.p=log.p) }
 ucsc.sanitizer <- function(build,allow.multiple=FALSE,show.valid=FALSE) {
   build.alt <- c("hg15","hg20","hg17","hg18","hg19","hg38",17,18,19,20,35,36,37,38,
                  "build35","build36","build37","build38","b35","b36","b37","b38")
-  build.new <- c("hg15","hg20",rep(c("hg17","hg18","hg19","hg38"),times=5))
+  build.new <- c("hg15","hg38",rep(c("hg17","hg18","hg19","hg38"),times=5))
   if(show.valid) { return(cbind(valid=build.alt,mapsTo=build.new)) }
   build <- build.new[match(tolower(build),build.alt)]
+  if(is.null(build)) { build <- "hg19"; warning("build was NULL (see getOption('ucsc')), set to hg19") }
   if(any(is.na(build))) { 
-    warning("Illegal build parameter '",build[1],"', defaulting to hg18") 
-    build[is.na(build)] <- "hg18" 
+    warning("Illegal build parameter '",build[1],"', defaulting to hg19") 
+    build[is.na(build)] <- "hg19" 
   }
   if(allow.multiple) {
     return(build)
@@ -318,16 +346,16 @@ randomize.missing2 <- function(X,verbose=FALSE) {
 
 
 # internal
-#' Remove trailing letter from non-unique rs-ids
-#'
-#' @examples
-#' snp.ids <- rsnpid(25)
-#' snp.ids[1:2] <- paste0(snp.ids[1:2],"b")
-#' snp.ids[19:20] <- paste0(snp.ids[19:20],"c")
-#' snp.ids[6:7] <- paste0(snp.ids[6:7],"d")
-#' snp.ids[11:12] <- paste0(snp.ids[11:12],"a")
-#' snp.ids
-#' rmv.trail(snp.ids)
+# Remove trailing letter from non-unique rs-ids
+#
+# #@examples
+# snp.ids <- rsnpid(25)
+# snp.ids[1:2] <- paste0(snp.ids[1:2],"b")
+# snp.ids[19:20] <- paste0(snp.ids[19:20],"c")
+# snp.ids[6:7] <- paste0(snp.ids[6:7],"d")
+# snp.ids[11:12] <- paste0(snp.ids[11:12],"a")
+# snp.ids
+# rmv.trail(snp.ids)
 rmv.trail <- function(rs.ids,suffix=c("b","c","d","a")) {
   if(!is.character(suffix)) { stop("suffix must a character vector") }
   ind <- NULL
@@ -345,14 +373,14 @@ rmv.trail <- function(rs.ids,suffix=c("b","c","d","a")) {
 }
 
 # internal
-#' Add trailing letter(s) to non-unique rs-ids
-#' @examples
-#' snp.ids <- rsnpid(15)
-#' snp.ids
-#' add.trail(snp.ids)
-#' snp.ids <- snp.ids[sample(15,30,replace=TRUE)]
-#' snp.ids
-#' add.trail(snp.ids)
+# Add trailing letter(s) to non-unique rs-ids
+# #@examples
+# snp.ids <- rsnpid(15)
+# snp.ids
+# add.trail(snp.ids)
+# snp.ids <- snp.ids[sample(15,30,replace=TRUE)]
+# snp.ids
+# add.trail(snp.ids)
 add.trail <- function(rs.ids,suffix=c("b","c","d","a")) {
   rs.ids <- rmv.trail(rs.ids)
   for (txt in suffix) {
@@ -445,7 +473,8 @@ clean.fn <- function(x,fail=NA,fn=function(x) { x }) {
 # internal
 # Remove that pesky 'elementmetadata.' prefix from column names that have been converted from GRanges
 emd.rmv <- function(X, rmv.genome=TRUE) {
-  if(has.method("mcols",X)) {
+  requireNamespace("GenomicRanges"); requireNamespace("IRanges")
+  if(has.method("mcols",X, where=environment(emd.rmv))) {
     colnames(mcols(X)) <- gsub("elementMetadata.","",colnames(mcols(X)))
     ii <- which(colnames(mcols(X))=="genome")
     if(length(ii)>0) {
@@ -455,7 +484,7 @@ emd.rmv <- function(X, rmv.genome=TRUE) {
       }
     }
   } else {
-    if(has.method("colnames",X)) {
+    if(has.method("colnames",X, where=environment(emd.rmv))) {
       colnames(X) <- gsub("elementMetadata.","",colnames(X))
       ii <- which(colnames(X)=="genome")
       if(length(ii)>0) {
@@ -475,20 +504,58 @@ emd.rmv <- function(X, rmv.genome=TRUE) {
 
 # internal# iFunctions
 chrNames2 <- function(X) {
+  requireNamespace("GenomicRanges"); requireNamespace("IRanges")
   if(nrow(X)==0) { return(character(0)) }
   X <- toGenomeOrder2(X)
   XX <- chrIndices2(X)
   return(rownames(XX))
 }
 
+
+# internal from genoset
+TGORD <- function (ds, strict = TRUE) {
+  if (strict == TRUE) {
+    if (!isTRUE(all.equal(chrOrder(chrNames(ds)), chrNames(ds)))) {
+      ds = ds[chrOrder(chrNames(ds))]
+    }
+  }
+  row.order = order(as.integer(space(ds)), start(ds))
+  if (is.unsorted(row.order)) {
+    return(ds[row.order, , drop = FALSE])
+  }
+  else {
+    return(ds)
+  }
+}
+
+
+# internal from genoset
+TGOGR <- function (ds, strict = TRUE) {
+  if (strict == TRUE) {
+    if (!isTRUE(all.equal(chrOrder(seqlevels(ds)), seqlevels(ds)))) {
+      seqlevels(ds) = chrOrder(seqlevels(ds))
+    }
+  }
+  row.order = order(as.integer(seqnames(ds)), start(ds))
+  if (is.unsorted(row.order)) {
+    ds = ds[row.order, , drop = FALSE]
+  }
+  return(ds)
+}
+
+
+
 # internal # iFunctions
 # version of toGenomeOrder() that is guaranteed to work for IRanges or GRanges
 toGenomeOrder2 <- function(X,...) {
-  if(has.method("toGenomeOrder",X)) {
-    return(toGenomeOrder(X))
+  requireNamespace("GenomicRanges"); requireNamespace("IRanges"); requireNamespace("genoset")
+  if(has.method("toGenomeOrder",X, where=environment(toGenomeOrder2))) {
+    return(toGenomeOrder(X)) #genoset::
   } else {
+    typ <- is(X)[1]
+    if(!typ %in% c("GRanges","RangedData","ChipInfo")) { warning("unacceptable type '",typ,"' for toGenomeOrder(), failure likely") }
     alreadyThere <-("strand" %in% colnames(X))
-    out <- toGenomeOrder(as(X,"GRanges"),strict=T)
+    out <- TGOGR(as(X,"GRanges"),strict=T) #genoset::
     X <- as(out,"RangedData")
     if(("strand" %in% colnames(X)) & !alreadyThere) {
       X <- X[,-which(colnames(X) %in% "strand")]
@@ -500,9 +567,12 @@ toGenomeOrder2 <- function(X,...) {
 #internal # iFunctions
 # version of chrInfo() that is guaranteed to work for IRanges or GRanges
 chrInfo2 <- function(X) {
-  if(has.method("chrInfo",X)) {
+  requireNamespace("GenomicRanges"); requireNamespace("IRanges")
+  if(has.method("chrInfo",X, where=environment(chrInfo2))) {
     return(chrInfo(X))
   } else {
+    typ <- is(X)[1]
+    if(!typ %in% c("GRanges","RangedData","ChipInfo")) { warning("unacceptable type '",typ,"' for toGenomeOrder(), failure likely") }
     out <- chrInfo(as(X,"GRanges"))
     return(out)
   }
@@ -511,9 +581,12 @@ chrInfo2 <- function(X) {
 #internal # iFunctions
 # version of chrIndices() that is guaranteed to work for IRanges or GRanges
 chrIndices2 <- function(X,...) {
-  if(has.method("chrIndices",X)) {
+  requireNamespace("GenomicRanges"); requireNamespace("IRanges")
+  if(has.method("chrIndices",X, where=environment(chrIndices2))) {
     return(chrIndices(X,...))
   } else {
+    typ <- is(X)[1]
+    if(!typ %in% c("GRanges","RangedData","ChipInfo")) { warning("unacceptable type '",typ,"' for toGenomeOrder(), failure likely") }
     out <- chrIndices(as(X,"GRanges"))
     return(out)
   }
@@ -522,7 +595,8 @@ chrIndices2 <- function(X,...) {
 #internal # iFunctions
 # version of chr() that is guaranteed to work for IRanges or GRanges
 chr2 <- function(X) {
-  if(has.method("chr",X)) {
+  requireNamespace("GenomicRanges"); requireNamespace("IRanges")
+  if(has.method("chr",X, where=environment(chr2))) {
     return(chr(X))
   } else {
     if(is(X)[1]=="RangedData") {
