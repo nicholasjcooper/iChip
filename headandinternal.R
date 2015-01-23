@@ -1,6 +1,6 @@
 ###NAMESPACE ADDITIONS###
 #' @importFrom BiocInstaller  biocVersion
-#' @importFrom utils capture.output download.file read.table write.table head tail
+#' @importFrom utils capture.output download.file read.table write.table head tail data
 #' @importFrom stats family pnorm pt qnorm rchisq rnorm runif
 #' @importFrom reader cat.path reader shift.rownames
 #' @importFrom grDevices dev.off pdf
@@ -18,7 +18,7 @@
 #' @importMethodsFrom IRanges "colnames<-" "rownames<-" "universe<-" Rle subjectHits queryHits showAsCell
 #' @importMethodsFrom IRanges as.data.frame as.list as.matrix cbind rbind colnames elementLengths
 #' @importMethodsFrom IRanges end findOverlaps subsetByOverlaps gsub intersect is.unsorted lapply
-#' @importMethodsFrom IRanges levels mean na.exclude nrow ncol order paste as.list head tail
+#' @importMethodsFrom IRanges levels mean na.exclude nrow ncol order paste as.list head tail aggregate
 #' @importMethodsFrom IRanges ranges rownames runLength runValue sapply space  flank  reduce resize
 #' @importMethodsFrom IRanges start universe unlist Rle width  "start<-"  "width<-"  "end<-" ranges "ranges<-"
 #' @importClassesFrom "GenomicFeatures" TranscriptDb
@@ -52,10 +52,14 @@
 
 .onLoad <- function(libname, pkgname) {
   # library.dynam("humarray", pkgname, libname)
-  options(chip.info="~/github/iChip/ImmunoChip_ChipInfo_New.RData") # if you can access the file, you won't need to change this path
+  #~/github/iChip/ImmunoChip_ChipInfo_New.RData
+  options(chip.info="") # if you can access the file, you won't need to change this path
   options(ucsc="hg19") # depends on which analysis, need to set something though
+  #data("iChipRegionsB36", "egSymb", "ImmunoChipB37", "hg18ToHg19","hg38ToHg19","hg19ToHg18","hg19ToHg38",
+  #     package=pkgname, envir=parent.env(environment()))
   options(save.annot.in.current=1)  # 1 = TRUE, stores annotation in current folder to speed up subsequent lookups
 }
+
 
 
 #require(GenomicRanges); require(IRanges); require(reader); require(genoset)
@@ -550,7 +554,11 @@ TGOGR <- function (ds, strict = TRUE) {
 toGenomeOrder2 <- function(X,...) {
   requireNamespace("GenomicRanges"); requireNamespace("IRanges"); requireNamespace("genoset")
   if(has.method("toGenomeOrder",X, where=environment(toGenomeOrder2))) {
-    return(toGenomeOrder(X)) #genoset::
+    if(is(X)[1]=="RangedData") {
+      return(TGORD(X))
+    } else {
+      return(TGOGR(X))
+    }
   } else {
     typ <- is(X)[1]
     if(!typ %in% c("GRanges","RangedData","ChipInfo")) { warning("unacceptable type '",typ,"' for toGenomeOrder(), failure likely") }
@@ -572,7 +580,7 @@ chrInfo2 <- function(X) {
     return(chrInfo(X))
   } else {
     typ <- is(X)[1]
-    if(!typ %in% c("GRanges","RangedData","ChipInfo")) { warning("unacceptable type '",typ,"' for toGenomeOrder(), failure likely") }
+    if(!typ %in% c("GRanges","RangedData","ChipInfo")) { warning("unacceptable type '",typ,"' for chrInfo2(), failure likely") }
     out <- chrInfo(as(X,"GRanges"))
     return(out)
   }
@@ -586,7 +594,7 @@ chrIndices2 <- function(X,...) {
     return(chrIndices(X,...))
   } else {
     typ <- is(X)[1]
-    if(!typ %in% c("GRanges","RangedData","ChipInfo")) { warning("unacceptable type '",typ,"' for toGenomeOrder(), failure likely") }
+    if(!typ %in% c("GRanges","RangedData","ChipInfo")) { warning("unacceptable type '",typ,"' for chrIndices2(), failure likely") }
     out <- chrIndices(as(X,"GRanges"))
     return(out)
   }
@@ -596,15 +604,15 @@ chrIndices2 <- function(X,...) {
 # version of chr() that is guaranteed to work for IRanges or GRanges
 chr2 <- function(X) {
   requireNamespace("GenomicRanges"); requireNamespace("IRanges")
-  if(has.method("chr",X, where=environment(chr2))) {
-    return(chr(X))
+  if(is(X)[1]=="GRanges") {
+    return(genoset::chr(X))
   } else {
     if(is(X)[1]=="RangedData") {
       return(space(X))
     } else {
       if(is.null(X)) { warning("X was NULL, expecting RangedData/GRanges"); return(NULL) }
       warning("chr2() function applies only to RangedData objects, attempting to pass ",is(X)[1]," to chr()")
-      return(chr(X))
+      return(genoset::chr(X))
     }
   }
 }

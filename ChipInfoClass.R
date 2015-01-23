@@ -37,13 +37,15 @@
 #' rs.id, and a quality control flag. The default display is tidier than GRanges, it has
 #' nice coersion to and frame data.frame and subsetting by chromosome using [[n]] has been
 #' added, in addition to normal [i,j] indexing native to GRanges.
+#' Note that with this package the first time annotation is used it might be slow, but
+#' subsequent calls should be fast.
 #' METHODS
-#'  "[[", show, print, length, initialize
-#'  build, chip, rs.id, A1, A2, QCcode, QCcode<-, QCpass, QCfail, convTo36, convTo37
+#'  "[[", show, print, length, dim, rownames, initialize
+#'  build, chip, rs.id, A1, A2, QCcode, QCcode<-, QCpass, QCfail
+#'  convTo36, convTo37, convTo38
 #' COERCION
 #'  can use 'as' to convert to and from: GRanges, RangedData, data.frame
-#' SLOTS
-#'@section Slots: 
+#'@section Fields: 
 #'  \describe{
 #'    \item{\code{seqnames}:}{Object of class \code{"Rle"}, containing chromosomes for each range, see GRanges.}
 #'    \item{\code{ranges}:}{Object of class \code{"IRanges"}, containing genomic start and end, see GRanges.}
@@ -54,100 +56,107 @@
 #'    \item{\code{elementMetaData}:}{Object of class \code{"DataFrame"}, see GRanges, but with specific column names:
 #'  A1, A2, QCcode and rs.id.}
 #'  }
-#' @name ChipInfo-class
-#' @aliases ChipInfo-class, ChipInfo-method
+# @name ChipInfo-class
+#' @aliases ChipInfo-method
 #' @rdname ChipInfo-class
 #' @exportClass ChipInfo
-#' @docType class
 #' @author Nick Cooper
 setClass("ChipInfo",
          contains="GRanges",
-         slots = c(
-           seqnames="Rle",
-           ranges="IRanges",
-           strand="Rle",
-           seqinfo="Seqinfo",
-           chip="character", # a single string
-           build="character", # a single string
-           elementMetadata="DataFrame"
-         ),
+         slots=list(chip="character", 
+                    build="character"),
          prototype=prototype(
-           seqnames=IRanges::Rle(factor()),
-           ranges=IRanges::IRanges(),
-           strand=IRanges::Rle(GenomicRanges::strand()),
-           seqinfo=GenomicRanges::Seqinfo(),
-           chip=character(), 
-           build=character(), 
-           elementMetadata=IRanges::DataFrame(A1=NULL, A2=NULL,  QCcode=integer(), rs.id=NULL)
-         )
+              seqnames=IRanges::Rle(factor()),
+              ranges=IRanges::IRanges(),
+              strand=IRanges::Rle(GenomicRanges::strand()),
+              elementMetadata=IRanges::DataFrame(A1=NULL, A2=NULL,  QCcode=integer(), rs.id=NULL),
+              seqinfo=GenomicRanges::Seqinfo(),
+              metadata=list(),
+              chip=character(), 
+              build=character()
+            )
 )
 
 
+
+
+
+# seqnames="Rle",
+# ranges="IRanges",
+# strand="Rle",
+# elementMetadata="DataFrame",
+# seqinfo="Seqinfo",
+# metadata="list",
+# ,
+# prototype=prototype(
+#   seqnames=IRanges::Rle(factor()),
+#   ranges=IRanges::IRanges(),
+#   strand=IRanges::Rle(GenomicRanges::strand()),
+#   elementMetadata=IRanges::DataFrame(A1=NULL, A2=NULL,  QCcode=integer(), rs.id=NULL),
+#   seqinfo=GenomicRanges::Seqinfo(),
+#   chip=character(), 
+#   build=character(),
+# )
+
 #' rownames method for ChipInfo objects
 #' 
-#' Returns the row names
-#' @name rownames
+#' rownames: Returns the row names.
+# @name rownames
 #' @param x a ChipInfo object
-#' @rdname rownames-methods
-#' @aliases rownames,ChipInfo,ChipInfo-method
-#' @docType methods
+#' @return rownames: Character vector of row names (SNP IDs).
+#' @rdname ChipInfo-methods
+#' @exportMethod rownames
 setMethod("rownames", "ChipInfo", function(x) names(x@ranges))
 
 
 #' dim method for ChipInfo objects
 #' 
-#' Returns the dimension
-#' @name dim
-#' @param x a ChipInfo object
-#' @rdname dim-methods
-#' @aliases dim,ChipInfo,ChipInfo-method
-#' @docType methods
+#' dim: Returns the dimension
+# @name dim
+#' @return dim: same as length
+#' @rdname ChipInfo-methods
+#' @exportMethod dim
 setMethod("dim", "ChipInfo", function(x) dim(mcols(x)))
 
 
 #' Length method for ChipInfo objects
 #' 
-#' Returns the number of rows
-#' @name length
-#' @param x a ChipInfo object
-#' @rdname length-methods
-#' @aliases length,ChipInfo,ChipInfo-method
-#' @docType methods
+#' length: Returns the number of rows
+# @name length
+#' @return length: integer, number of rows, same as inherited nrow()
+#' @rdname ChipInfo-methods
+#' @exportMethod length
 setMethod("length", "ChipInfo", function(x) length(x@ranges))
 
 
 #' Retrieve the Chip name for ChipInfo
 #' 
 #' Simply returns the name of the chip, e.g, 'ImmunoChip'
-#' @name chip
+# @name chip
 #' @param x a ChipInfo object
 #' @return character string
-#' @export
-#' @docType methods
 #' @rdname chip-methods
+#' @export
 setGeneric("chip", function(x) standardGeneric("chip"))
 
 
+#' @exportMethod chip
 #' @rdname chip-methods
-#' @aliases chip,ChipInfo,ChipInfo-method
-#' @docType methods
 setMethod("chip", "ChipInfo", function(x) x@chip)
 
 
 #' Retrieve the UCSC build for a ChipInfo object
 #' 
 #' Returns the UCSC build of the chip object, e.g, 'hg18', 'hg19', or 'hg38'
-#' @name ucsc
+# @name ucsc
 #' @param x a ChipInfo object
 #' @return character, 'hg18', 'hg19', or 'hg38'
-#' @export
-#' @docType methods
 #' @rdname ucsc-methods
+#' @export
 setGeneric("ucsc", function(x) standardGeneric("ucsc") )
 
 #' @rdname ucsc-methods
-#' @aliases ucsc,ChipInfo,ChipInfo-method
-#' @docType methods
+#' @exportMethod ucsc
 setMethod("ucsc", "ChipInfo", function(x) x@build)
 
 
@@ -155,21 +164,18 @@ setMethod("ucsc", "ChipInfo", function(x) x@build)
 #' 
 #' Returns the rs-ids for the chip object, e.g, "rs689", etc
 #' Only if these are annotated internally, or else a vector of NAs
-#' @name rs.id
+# @name rs.id
 #' @param x a ChipInfo object
 #' @param b logical, whether to show 'b' suffixes on rs.ids which
 #' are created in the background to allow duplicate ids to be uniquely
 #' represented for lookup and reference purposes.
-#' @return character vector of IDs (or NAs)
-#' @export
-#' @docType methods
+#' @return A1/A2: character vector of IDs (or NAs)
 #' @rdname rs.id-methods
+#' @export
 setGeneric("rs.id", function(x,b=TRUE) standardGeneric("rs.id") )
 
-
 #' @rdname rs.id-methods
-#' @aliases rs.id,ChipInfo,ChipInfo-method
-#' @docType methods
+#' @exportMethod rs.id
 setMethod("rs.id", "ChipInfo", function(x,b=TRUE) { 
   u <- mcols(x) ;  
   if("rs.id" %in% colnames(u)) { 
@@ -180,40 +186,90 @@ setMethod("rs.id", "ChipInfo", function(x,b=TRUE) {
 })
 
 
-#' Access allele 1 for ChipInfo
+#' Access alleles for ChipInfo
 #' 
-#' Returns the letter for the first alleles for the chip object, 
+#' A1/A2: Returns the letter for the A1/A2 alleles for the chip object, 
 #' e.g, 'A','C','G','T', etc
 #' Only if these are annotated internally, or else a vector of NAs
 #' @param x a ChipInfo object
-#' @return character vector of allele codes (or NAs)
+#' @rdname allele-methods
+#' @family Alleles
 #' @export
-#' @docType methods
-#' @rdname A1-methods
 setGeneric("A1", function(x) standardGeneric("A1") )
 
-#' @rdname A1-methods
-#' @aliases A1,ChipInfo,ChipInfo-method
-#' @docType methods
+#' @rdname allele-methods
+#' @family Alleles
+#' @exportMethod A1
 setMethod("A1", "ChipInfo", function(x) { u <- mcols(x) ;  if("A1" %in% colnames(u)) { u[,"A1"] } else { NULL } })
 
 
-#' Access allele 2 for ChipInfo
-#' 
-#' Returns the letter for the second alleles for the chip object, 
-#' e.g, 'A','C','G','T', etc
-#' Only if these are annotated internally, or else a vector of NAs
-#' @param x a ChipInfo object
 #' @return character vector of allele codes (or NAs)
+#' @rdname allele-methods
+#' @family Alleles
 #' @export
-#' @name A2
-#' @rdname ChipInfo-methods
 setGeneric("A2", function(x) standardGeneric("A2") )
 
-#' @rdname ChipInfo-methods
-#' @aliases A2,ChipInfo,ChipInfo-method
-#' @docType methods
+#' @rdname allele-methods
+#' @family Alleles
+#' @exportMethod A2
 setMethod("A2", "ChipInfo", function(x) { u <- mcols(x) ;  if("A2" %in% colnames(u)) { u[,"A2"] } else { NULL } })
+
+
+#' Set quality control pass or fail codes for ChipInfo
+#' 
+#' A1<-/A2<-: Allows user to set the allele codes for each SNP of the chip object, 
+#' e.g, A,C,G,T,K, etc. If you are using allele codes this is likely to 
+#' necessary as each genotyping produces a different set of allele codes.
+#' If using in conjunction with snpStats, remember that allele codes are
+#' always flipped to be alphabetical, so the reference allele is the later
+#' letter in the alphabet. Note, assignment to A2 needs to be done separately.
+#' @param value new allele codes, e.g, A,C,G,T
+#' @return A1<-: updates the ChipInfo object specified with new allele codes for the 'A1' slot
+#' @rdname allele-methods
+#' @family Alleles
+#' @export
+setGeneric("A1<-", function(x,value) standardGeneric("A1<-") )
+
+
+#' @rdname allele-methods
+#' @family Alleles
+#' @exportMethod "A1<-"
+setMethod("A1<-", "ChipInfo", function(x,value) {
+  return(.updateAllele(x,value,"A1"))
+} )
+
+
+
+
+#' @return A2<-: updates the ChipInfo object specified with new allele codes for the 'A2' slot
+#' @rdname allele-methods
+#' @family Alleles
+#' @export
+setGeneric("A2<-", function(x,value) standardGeneric("A2<-") )
+
+
+#' @rdname allele-methods
+#' @family Alleles
+#' @exportMethod "A2<-"
+setMethod("A2<-", "ChipInfo", function(x,value) {
+  return(.updateAllele(x,value,"A2"))
+} )
+
+
+#internal
+.updateAllele <- function(x,value, allele="A1") {
+  if(length(dim(value))!=1) { stop("value must be a vector") }
+  if(length(x)==length(value)) {
+    if(is.character(value)) {
+      mcols(x)[,allele] <- paste(value)
+    } else {
+      stop("only character values can be inserted into the ",allele," column, A,C,G,T, etc")
+    }
+  } else {
+    stop("mismatching lengths, tried to insert ",length(value),"new allele codes into ChipInfo with ",length(x)," rows")
+  }
+  return(x)
+}
 
 
 #' Access quality control pass or fail codes for ChipInfo
@@ -221,17 +277,17 @@ setMethod("A2", "ChipInfo", function(x) { u <- mcols(x) ;  if("A2" %in% colnames
 #' Returns the pass or fail codes for each SNP of the chip object, 
 #' e.g, 0,1,..,n etc
 #' Only if these are added manually, or else all will be 'pass' (=0)
-#' @name QCcode
+# @name QCcode
 # why not? param x a ChipInfo object
 #' @return integer vector of pass/fail codes
+#' @rdname QC-methods
+#' @family QC
 #' @export
-#' @docType methods
-#' @rdname QCcode-methods
 setGeneric("QCcode", function(x) standardGeneric("QCcode") )
 
-#' @rdname QCcode-methods
-#' @aliases QCcode,ChipInfo,ChipInfo-method
-#' @docType methods
+#' @rdname QC-methods
+#' @family QC
+#' @exportMethod QCcode
 setMethod("QCcode", "ChipInfo", function(x) { 
   u <- mcols(x) ;  if("QCcode" %in% colnames(u)) { u[,"QCcode"] } else { NULL } 
 })
@@ -239,22 +295,22 @@ setMethod("QCcode", "ChipInfo", function(x) {
 
 #' Set quality control pass or fail codes for ChipInfo
 #' 
-#' Allows user to set the pass or fail codes for each SNP of the chip object, 
+#' QCcode<-: Allows user to set the pass or fail codes for each SNP of the chip object, 
 #' e.g, 0,1,..,n etc. 0 is always pass, >0 is always fail, but each integer
 #' can be used to represent a different failure type, or for simplicity, stick
 #' to 0 and 1, ie, just pass and fail.
 #' @param x a ChipInfo object
 #' @param value new pass/fail codes, e.g, 0,1,...,n
-#' @return updates the object specified with new pass/fail codes for the 'QCcode' slot
+#' @return QCcode<-: updates the object specified with new pass/fail codes for the 'QCcode' slot
+#' @rdname QC-methods
+#' @family QC
 #' @export
-#' @docType methods
-#' @rdname QCcode-methods
 setGeneric("QCcode<-", function(x,value) standardGeneric("QCcode<-") )
 
 
-#' @rdname QCcode-methods
-#' @aliases QCcode,ChipInfo,ChipInfo-method
-#' @docType methods
+#' @rdname QC-methods
+#' @family QC
+#' @exportMethod QCcode
 setMethod("QCcode<-", "ChipInfo", function(x,value) {
   if(length(x)==length(value)) {
     if(is.numeric(value)) {
@@ -268,44 +324,45 @@ setMethod("QCcode<-", "ChipInfo", function(x,value) {
   return(x)
 } )
 
+
 #' Filter ChipInfo to for only SNPs passing QC
 #' 
-#' Returns the subset of the ChipInfo object for which SNPs pass quality
+#' QCpass: Returns the subset of the ChipInfo object for which SNPs pass quality
 #' control, according to the QCcodes() slot == 0.
-#' @name QCpass
-#' @param x a ChipInfo object
-#' @return ChipInfo object for which SNPs pass quality control
+# @name QCpass
+# @param x a ChipInfo object
+#' @return QCpass: ChipInfo object for which SNPs pass quality control
+#' @rdname QC-methods
+#' @family QC
 #' @export
-#' @docType methods
-#' @rdname QCpass-methods
 setGeneric("QCpass", function(x) standardGeneric("QCpass") )
 
 
 #' Filter ChipInfo to for only SNPs failing QC
 #' 
-#' Returns the subset of the ChipInfo object for which SNPs fail quality
+#' QCfail: Returns the subset of the ChipInfo object for which SNPs fail quality
 #' control, according to the QCcodes() slot > 0.
-#' @name QCfail
-#' @param x a ChipInfo object
+# @name QCfail
+# @param x a ChipInfo object
 #' @param type integer between 1 and 100, failure type (user can assign own coding scheme)
-#' @return ChipInfo object for which SNPs fail quality control
+#' @return QCfail: ChipInfo object for which SNPs fail quality control
+#' @rdname QC-methods
+#' @family QC
 #' @export
-#' @docType methods
-#' @rdname QCfail-methods
 setGeneric("QCfail", function(x,type=NA) standardGeneric("QCfail") )
 
 
-#' @rdname QCpass-methods
-#' @aliases QCpass,ChipInfo,ChipInfo-method
-#' @docType methods
+#' @rdname QC-methods
+#' @family QC
+#' @exportMethod QCpass
 setMethod("QCpass", "ChipInfo", function(x) { 
   ii <- which(QCcode(x)==0)
   if(length(ii)>0) { return(x[ii,]) } else { warning("No SNPs passed QC"); return(NULL) } })
 
 
-#' @rdname QCfail-methods
-#' @aliases QCfail,ChipInfo,ChipInfo-method
-#' @docType methods
+#' @rdname QC-methods
+#' @family QC
+#' @exportMethod QCfail
 setMethod("QCfail", "ChipInfo", function(x,type=NA) { 
   ii <- which(QCcode(x)!=0)
   if(is.numeric(type)) { 
@@ -324,9 +381,11 @@ setMethod("QCfail", "ChipInfo", function(x,type=NA) {
 #' the chromosome specified, by either number or character.
 #' @param x a ChipInfo object
 #' @param i a chromosome number or letter, i.e, one of seqlevels(x)
+#' @param j always leave missing, not applicable for this method.
+#' @param ... further arguments - again there should not be any
 #' @return ChipInfo object for the subset of SNPs on chromosome i
-#' @rdname ChipInfo
-#' @usage ChipInfo[[x,i]]
+#' @rdname ChipInfo-subset
+#' @exportMethod "[["
 setMethod("[[", "ChipInfo", function(x,i,j,...) { 
   dotArgs <- list(...)
   if (length(dotArgs) > 0)
@@ -360,28 +419,27 @@ setMethod("[[", "ChipInfo", function(x,i,j,...) {
 } )
 
 
-#' Convert ChipInfo to build 37/hg19 coordinates
+#' Convert ChipInfo between build 36/37/38 coordinates
 #' 
-#' Returns the a ChipInfo object with positions updated to build
-#' 37 coordinates, assuming that the existing object was in build 36/38,
-#' or already in build 37 coordinates, and that the build() slot was
-#' entered correctly. Ensure that the value of ucsc(x) is correct before
+#' Returns the a ChipInfo object with positions updated to build 36/37/38
+#' coordinates, assuming that the build() slot was entered correctly. 
+#' Ensure that the value of ucsc(x) is correct before
 #' running this function for conversion; for instance, if the coordinates 
 #' are already build 37/hg19, but ucsc(x)!="hg19" (incorrect value), then
 #' these coordinates will be transformed in a relative manner rendering the
 #' result meaningless.
-#' @name convTo37
+# @name convTo37
 #' @param x a ChipInfo object
-#' @return ChipInfo object with the build updated to hg19 coordinates
-#' @seealso convTo36, convTo38
+#' @return convTo37: Returns a ChipInfo object with the build updated to hg19 coordinates
+#' @family conversion
+#' @rdname conv-methods
 #' @export
-#' @docType methods
-#' @rdname convTo37-methods
 setGeneric("convTo37", function(x) standardGeneric("convTo37"))
           
-#' @rdname convTo37-methods
-#' @aliases convTo37,ChipInfo,ChipInfo-method
-#' @docType methods
+#' @family conversion
+#' @aliases convTo37
+#' @rdname conv-methods
+#' @exportMethod convTo37
 setMethod("convTo37", "ChipInfo", function(x) {
   if(ucsc.sanitizer(ucsc(x)) %in% c("hg18","hg38")) {
     if(ucsc.sanitizer(ucsc(x)) == c("hg18")) {
@@ -416,29 +474,21 @@ setMethod("convTo37", "ChipInfo", function(x) {
   return(x)
 })
 
-#' Convert ChipInfo to build 36/hg18 coordinates
-#' 
-#' Returns the a ChipInfo object with positions updated to build
-#' 36 coordinates, assuming that the existing object was in build 37,
-#' or already in build 36 coordinates, and that the build slot was
-#' entered correctly. Ensure that the value of ucsc(x) is correct before
-#' running this function for conversion; for instance, if the coordinates 
-#' are already build 36/hg18, but ucsc(x)=="hg19" (incorrect value), then
-#' these coordinates will be transformed in a relative manner rendering the
-#' result meaningless.
-#' @name convTo36
-#' @param x a ChipInfo object
-#' @return ChipInfo object with the build updated to hg18 coordinates
-#' @seealso convTo37, convTo38
+
+
+# @name convTo36
+# @param x a ChipInfo object
+#' @return convTo36: Returns a ChipInfo object with the build updated to hg18 coordinates
+#' @family conversion
+#' @rdname conv-methods
 #' @export
-#' @docType methods
-#' @rdname convTo36-methods
 setGeneric("convTo36", function(x) standardGeneric("convTo36"))
 
 
-#' @rdname convTo36-methods
-#' @aliases convTo36,ChipInfo,ChipInfo-method
-#' @docType methods
+#' @family conversion
+#' @aliases convTo36
+#' @rdname conv-methods
+#' @exportMethod convTo36
 setMethod("convTo36", "ChipInfo", function(x) {
   if(ucsc.sanitizer(ucsc(x))=="hg19") {
     u <- conv.37.36(ranges=as(x,"GRanges"))
@@ -469,29 +519,20 @@ setMethod("convTo36", "ChipInfo", function(x) {
 })
 
 
-#' Convert ChipInfo to build 38/hg38 coordinates
-#' 
-#' Returns the a ChipInfo object with positions updated to build
-#' 38 coordinates, assuming that the existing object was in build 37,
-#' or already in build 38 coordinates, and that the build slot was
-#' entered correctly. Ensure that the value of ucsc(x) is correct before
-#' running this function for conversion; for instance, if the coordinates 
-#' are already build 38/hg38, but ucsc(x)=="hg38" (incorrect value), then
-#' these coordinates will be transformed in a relative manner rendering the
-#' result meaningless.
-#' @name convTo38
-#' @param x a ChipInfo object
-#' @return ChipInfo object with the build updated to hg38 coordinates
-#' @seealso convTo37, convTo36
+
+# @name convTo38
+# @param x a ChipInfo object
+#' @return convTo38: Returns a ChipInfo object with the build updated to hg38 coordinates
+#' @family conversion
+#' @rdname conv-methods
 #' @export
-#' @docType methods
-#' @rdname convTo38-methods
 setGeneric("convTo38", function(x) standardGeneric("convTo38"))
 
 
-#' @rdname convTo38-methods
-#' @aliases convTo38,ChipInfo,ChipInfo-method
-#' @docType methods
+#' @family conversion
+#' @aliases convTo38
+#' @rdname conv-methods
+#' @exportMethod convTo38
 setMethod("convTo38", "ChipInfo", function(x) {
   if(ucsc.sanitizer(ucsc(x))=="hg18") { stop("can't convert 36 to 38; must convert from 36 to 37, then convert from 37 to 38") }
   if(ucsc.sanitizer(ucsc(x))=="hg19") {
@@ -525,30 +566,31 @@ setMethod("convTo38", "ChipInfo", function(x) {
 
 #' Display method for ChipInfo objects
 #' 
-#' Displays a preview of the object
-#' @name show
+#' show: Displays a preview of the object
+# @name show
 #' @param object a ChipInfo object
-#' @rdname show-methods
-#' @aliases show,ChipInfo,ChipInfo-method
-#' @docType methods
+#' @return show: Displays a preview of the object
+#' @rdname ChipInfo-methods
+#' @exportMethod show
 setMethod("show", "ChipInfo", 
           function(object) { showChipInfo(object,up.to=10,head.tail=5,show.strand=FALSE) } )
 
 
 #' Print a ChipInfo object to the console
 #' 
-#' See 'show' as the behaviour is very similar and ... are just arguments of 'show'.
+#' print: See 'show' as the behaviour is very similar and ... are just arguments of 'show'.
 #' The key difference with 'print' instead of 'show' is that by default the parameter
 #' 'up.to' is set to 50, so that any ChipInfo object (or subset) of less than or equal
 #' to 50 rows will be displayed in its entirety, rather than just the top/bottom 5 rows. 
-#' @name print
-#' @param x a ChipInfo object
+# @name print
+# @param x a ChipInfo object
 #' @param ... further arguments to showChipInfo()
-#' @rdname print-methods
-#' @aliases print,ChipInfo,ChipInfo-method
-#' @docType methods
+#' @return print: Prints the object to terminal using 'showChipInfo()'.
+#' @rdname ChipInfo-methods
+#' @exportMethod print
 setMethod("print", "ChipInfo", 
           function(x,...) { showChipInfo(x,...) } )
+
 
 #' Constructor (wrapper) for ChipInfo annotation object
 #' 
@@ -562,8 +604,7 @@ setMethod("print", "ChipInfo",
 #' rs.id, and a quality control flag. The default display is tidier than GRanges, it has
 #' nice coersion to and frame data.frame and subsetting by chromosome using [[n]] has been
 #' added, in addition to normal [i,j] indexing native to GRanges.
-#' @name ChipInfo
-#' @rdname ChipInfo-class
+# @name ChipInfo
 #' @param GRanges a GRanges object containing chromosome, start/end = position, and strand
 #' information for the chip object to be created, also rownames should be used to code
 #' the chip-ids for each SNP.
@@ -590,6 +631,7 @@ setMethod("print", "ChipInfo",
 #' for pass and fail respectively, or else 0 can be pass, and 1,2,... can indicate failure for 
 #' different criteria. 0 will always be treated as a pass and anything else as a fail, so you
 #' can code fails however you wish.
+#' @export
 ChipInfo <- function(GRanges=NULL, chr=NULL, pos=NULL, ids=NULL, chip="unknown chip", build="",
                      rs.id=NULL, A1=NULL, A2=NULL, QCcode=NULL) {
   if(build!="") { build <- ucsc.sanitizer(build) }
@@ -614,11 +656,13 @@ ChipInfo <- function(GRanges=NULL, chr=NULL, pos=NULL, ids=NULL, chip="unknown c
 
 #' Initialize (constructor) method for ChipInfo
 #' 
-#' Please use the 'ChipInfo()' wrapper
-#' @name ChipInfo
-#' @param .Object not sure what this is
+#' Use the 'ChipInfo()' wrapper to construct ChipInfo objects from scratch
+#  @name ChipInfo
+#' @param .Object An object generated from the ChipInfo class prototype,
+#'  see methods:initialize
+#' @param ... Additional arguments to initialize. None recommended.
 #' @rdname ChipInfo-class
-#' @docType methods
+#' @exportMethod initialize
 setMethod("initialize", "ChipInfo",
               function(.Object, ...){
           		  callNextMethod(.Object, ...)
@@ -628,7 +672,8 @@ setMethod("initialize", "ChipInfo",
 #' As("ChipInfo", "GRanges")
 #'
 #' @name as
-#' @family ChipInfo
+# @rdname ChipInfo-class
+#' @export
 setAs("ChipInfo", "GRanges",
       function(from) { 
         #print(is(from)); print(from@seqnames)
@@ -641,7 +686,8 @@ setAs("ChipInfo", "GRanges",
 #' As("ChipInfo", "GRanges")
 #'
 #' @name as
-#' @family ChipInfo
+# @rdname ChipInfo-class
+#' @export
 setAs("ChipInfo", "RangedData",
       function(from) { 
         out <- as(as(from,"GRanges"),"RangedData")
@@ -654,13 +700,16 @@ setAs("ChipInfo", "RangedData",
 #' As("ChipInfo", "GRanges")
 #'
 #' @name as
+# @rdname ChipInfo-class
+#' @export
 setAs("ChipInfo", "data.frame", function(from) { ranges.to.data.frame(as(from,"GRanges"),include.cols=TRUE) })
 
 
 #' As("GRanges", "ChipInfo")
 #'
 #' @name as
-#' @family ChipInfo
+# @rdname ChipInfo-class
+#' @export
 setAs("GRanges", "ChipInfo", 
       function(from) { 
         bb <- genome(from)
@@ -683,13 +732,15 @@ setAs("GRanges", "ChipInfo",
 #' As("RangedData", "ChipInfo")
 #'
 #' @name as
-#' @family ChipInfo
+# @rdname ChipInfo-class
+#' @export
 setAs("RangedData", "ChipInfo", function(from) { as(as(from,"GRanges"),"ChipInfo") } )
 
 #' As("data.frame", "ChipInfo")
 #'
 #' @name as
-#' @family ChipInfo
+# @rdname ChipInfo-class
+#' @export
 setAs("data.frame", "ChipInfo", 
       function(from) { 
         rr <- data.frame.to.GRanges(from,chr="seqnames") 
@@ -706,7 +757,7 @@ setValidity("ChipInfo",
               if (!is.character(ucsc(object)) || length(ucsc(object)) != 1 || is.na(ucsc(object))) {
                 return("'build' slot must be a single string") 
               } else {
-                if(!ucsc(object) %in% c("",ucsc.sanitizer(show.valid=T)[,1])) {
+                if(!ucsc(object) %in% c("",humarray::ucsc.sanitizer(show.valid=T)[,1])) {
                   return("'build' must be a string, 36/37/38 or hg18/hg19/hg38") 
                 }
               }
@@ -735,8 +786,8 @@ setValidity("ChipInfo",
 #' hidden, particularly given that the strand can vary between different datasets 
 #' of the same chip. Setting to TRUE will display the strand.
 #' @return print compact preview of the object to the standard output (terminal)
+#' @seealso \code{\link{ChipInfo}}
 #' @export
-#' @seealso ChipInfo
 showChipInfo <- function (x, margin = "", with.classinfo = FALSE, print.seqlengths = FALSE,...) 
 {
   lx <- length(x)
@@ -848,32 +899,68 @@ makePrettyMatrixForCompactPrinting2 <- function (x, makeNakedMat.FUN,head.tail=6
 
 
 
+#' Get the chromosome vector for ranged objects
+#' 
+#' Simply returns the name of the chip, e.g, 'ImmunoChip'
+# @name chrm
+#' @param object a ChipInfo, GRanges or RangedData object
+#' @return vector of chromosome values for each range/SNP
+#' @rdname chrm-methods
+#' @export
+setGeneric("chrm", function(object) standardGeneric("chrm"))
+
+
+#' Chromosome method for RangedData objects
+#' 
+#' Return the list of chromosome values from a RangedData object
+#' @rdname chrm-methods
+#' @exportMethod chrm
+setMethod("chrm", "RangedData", function(object) {
+  return(chr2(object))
+})
+
+
+#' Chromosome method for GRanges objects
+#' 
+#' Return the list of chromosome values from a GRanges object
+#' @rdname chrm-methods
+#' @exportMethod chrm
+setMethod("chrm", "GRanges", function(object) {
+  return(genoset::chr(object))
+})
+
+#' Chromosome method for ChipInfo objects
+#' 
+#' Return the list of chromosome values from a GRanges object
+#' @rdname chrm-methods
+#' @exportMethod chrm
+setMethod("chrm", "ChipInfo", function(object) {
+  return(genoset::chr(object))
+})
+
 
 #' Plot method for GRanges objects
 #' 
 #' See plotRanges()
-#' @name plot
-#' @param x a GRanges object
+# @name plot
+#' @param x a GRanges or RangedData object
+#' @param y not used for plotRanges
 #' @param ... further arguments, see plotRanges()
 #' @rdname plot-methods
-#' @aliases plot,GRanges,GRanges-method
-#' @docType methods
-setMethod("plot", "GRanges", function(x,...) {
-  ranged <- x
-  plotRanges(ranged,...)
+#' @aliases GRanges GRanges-method
+#' @seealso \code{\link{plotRanges}}
+#' @exportMethod plot
+setMethod("plot", "GRanges", function(x,y,...) {
+  plotRanges(ranged=x,...)
 })
 
 
 #' Plot method for RangedData objects
 #' 
-#' See plotRanges()
-#' @name plot
-#' @param x a RangedData object
-#' @param ... further arguments, see plotRanges()
+# @name plot
 #' @rdname plot-methods
-#' @aliases plot,RangedData,RangedData-method
-#' @docType methods
-setMethod("plot", "RangedData", function(x,...) {
-  ranged <- x
-  plotRanges(ranged,...)
+#' @aliases RangedData RangedData-method
+#' @exportMethod plot
+setMethod("plot", "RangedData", function(x,y,...) {
+  plotRanges(ranged=x,...)
 })
