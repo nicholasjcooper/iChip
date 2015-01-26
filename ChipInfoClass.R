@@ -757,7 +757,8 @@ setValidity("ChipInfo",
               if (!is.character(ucsc(object)) || length(ucsc(object)) != 1 || is.na(ucsc(object))) {
                 return("'build' slot must be a single string") 
               } else {
-                if(!ucsc(object) %in% c("",humarray::ucsc.sanitizer(show.valid=T)[,1])) {
+               # requireNamespace(humarray)
+                if(!paste(ucsc(object)) %in% c("",paste(as.vector(ucsc.sanitizer(show.valid=T)[,1])))) {
                   return("'build' must be a string, 36/37/38 or hg18/hg19/hg38") 
                 }
               }
@@ -901,8 +902,7 @@ makePrettyMatrixForCompactPrinting2 <- function (x, makeNakedMat.FUN,head.tail=6
 
 #' Get the chromosome vector for ranged objects
 #' 
-#' Simply returns the name of the chip, e.g, 'ImmunoChip'
-# @name chrm
+#' Returns the vector of chromosomes for a ranged object
 #' @param object a ChipInfo, GRanges or RangedData object
 #' @return vector of chromosome values for each range/SNP
 #' @rdname chrm-methods

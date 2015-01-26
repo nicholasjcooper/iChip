@@ -739,7 +739,6 @@ get.recombination.map <- function(dir=NULL,verbose=TRUE,refresh=FALSE, compress=
 #' \donttest{
 #' setwd(tempdir())
 #' get.exon.annot()
-#' get.exon.annot(bioC=FALSE,build=37)
 #' }
 get.exon.annot <- function(dir=NULL,build=NULL,bioC=T, transcripts=FALSE, GRanges=TRUE) {
   if(is.null(dir)) { if(any(getOption("save.annot.in.current")<1)) { dir <- NULL } else { dir <- getwd() } }
@@ -866,7 +865,6 @@ get.exon.annot <- function(dir=NULL,build=NULL,bioC=T, transcripts=FALSE, GRange
 #' \donttest{
 #' setwd(tempdir())
 #' get.gene.annot()
-#' get.gene.annot(bioC=FALSE,build=37)
 #' }
 get.gene.annot <- function(dir=NULL,build=NULL,bioC=TRUE,duplicate.report=FALSE,
                            one.to.one=FALSE,remap.extra=FALSE,discard.extra=TRUE,only.named=FALSE,
@@ -3070,7 +3068,7 @@ in.window <- function(ranged,chr,pos,full.overlap=F, unit=c("b","kb","mb","gb"),
 plotRanges <- function(ranged,labels=NULL,do.labs=T,skip.plot.new=F,lty="solid", alt.y=NULL,
                         v.lines=FALSE,ylim=NULL,xlim=NULL,scl=c("b","Kb","Mb","Gb"),
                         col=NULL,srt=0,pos=4,pch=1,lwd=1,cex=1,...) {
-  if(!is(ranges)[1] %in% c("RangedData","GRanges")) { 
+  if(!is(ranged)[1] %in% c("RangedData","GRanges")) { 
     warning("ranged needs to be a RangedData or GRanges object, plot likely to fail") ; return(NULL) }
   chk <- chrNums(ranged)
   typ <- is(ranged)[1]
@@ -3618,8 +3616,10 @@ convert.textpos.to.data <- function(text) {
 #' @export
 #' @return return a pedData object (a data.frame)
 #' @examples
-#' # not run # fn <- "myfile.ped" # insert name of your own file
-#' # not run # myPed <- read.pedData(fn); prv(myPed)
+#' \donttest{
+#' # fn <- "myfile.ped" # insert name of your own ped file
+#' # myPed <- read.pedData(fn); prv(myPed)
+#' }
 read.pedData <- function(file,correct.codes=TRUE,silent=FALSE) {
   rr <- read.ped.file(file,keepsix = TRUE)
   want <- c("familyid","individual","father","mother","sex","affected")
@@ -5486,11 +5486,13 @@ nearest.snp <- function(chr, pos, n=1, side=c("either","left","right"),ids=TRUE,
 #' \code{\link{recomWindow}}, \code{\link{conv.37.36}}, \code{\link{conv.36.37}}, \code{\link{expand.nsnp}}
 #' @examples
 #' # examples not run as too slow
-#' # not run # result <- get.nearby.snp.lists("rs900569")
+#' \donttest{
+#' result <- get.nearby.snp.lists("rs900569")
 #' # trick below to extract SNPs within 0.1-0.2cM
-#' # not run # get.nearby.snp.lists("rs900569",cM=0.2,excl.snps=result[[1]]) 
+#' get.nearby.snp.lists("rs900569",cM=0.2,excl.snps=result[[1]]) 
 #' # note that the same query can return a different set with build 36 versus 37
-#' # not run # get.nearby.snp.lists(c("rs689","rs4909944"),cM=0.001,name.by.bands=FALSE) 
+#' get.nearby.snp.lists(c("rs689","rs4909944"),cM=0.001,name.by.bands=FALSE) 
+#' }
 get.nearby.snp.lists <- function(snpid.list,cM=0.1,bp.ext=0,excl.snps=NULL,name.by.bands=TRUE) {
   #if(!exists("all.support")) { print(load("all.support.RData")) }
   all.support <- chip.support()

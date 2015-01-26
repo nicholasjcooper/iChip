@@ -604,7 +604,7 @@ chrIndices2 <- function(X,...) {
 # version of chr() that is guaranteed to work for IRanges or GRanges
 chr2 <- function(X) {
   requireNamespace("GenomicRanges"); requireNamespace("IRanges")
-  if(is(X)[1]=="GRanges") {
+  if(is(X)[1] %in% c("GRanges","ChipInfo")) {
     return(genoset::chr(X))
   } else {
     if(is(X)[1]=="RangedData") {
