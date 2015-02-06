@@ -24,9 +24,6 @@
 #' @importClassesFrom "GenomicFeatures" TranscriptDb
 #' @importFrom "GenomicFeatures" makeTranscriptDbFromUCSC  exonsBy  transcriptsBy
 #' @importMethodsFrom "GenomicFeatures"  exonsBy  transcriptsBy  as.list
-#' @importMethodsFrom "snpStats"  effect.sign
-#' @importFrom "snpStats"  row.summary  col.summary  read.pedfile  snp.imputation  impute.snps  single.snp.tests
-#' @importClassesFrom "snpStats"  SnpMatrix  XSnpMatrix  SingleSnpTests  SingleSnpTestsScore
 #' @importClassesFrom "rtracklayer"  ChainFile
 #' @importMethodsFrom "rtracklayer"  liftOver  import.chain
 #' @importMethodsFrom "genoset"  chr  chrIndices  chrInfo  chrNames  genome  isGenomeOrder  locData  toGenomeOrder  universe
@@ -47,7 +44,7 @@
 
 
 .onAttach <- function(libname, pkgname) {
-  packageStartupMessage("humarray version 1.0\n")
+  packageStartupMessage("humarray version 1.0.0\n")
 }
 
 .onLoad <- function(libname, pkgname) {
@@ -136,7 +133,25 @@ pt2 <- function(q, df, log.p=FALSE) {  2*pt(-abs(q), df, log.p=log.p) }
 
 
 
-# internal function to allow flexible input for the build parameter
+
+#' Manage flexible input for the build parameter
+#' 
+#' The genome annotation version for internals in this package should always be
+#' of the form 'hgXX', where XX can be 15,16,17,18,19,38. However most functions
+#' allow flexible entry of this parameter as a build number, e.g, 36,37,38, or as
+#' 'build36', 'b36', etc. This function sanitizes various forms of input to the 
+#' correct format for internal operations. 
+#' @param build the input to be sanitized. 
+#' @param allow.multiple logical, whether to force a single value, or allow a vector
+#' of build strings as input
+#' @param show.valid logical, if TRUE, show a list of supported values.
+#' @return build string in the correct 'hgXX' format.
+# # @export
+#' @examples
+#' ucsc.sanitizer(36)
+#' ucsc.sanitizer("build38")
+#' ucsc.sanitizer("b37")
+#' ucsc.sanitizer(show.valid=TRUE)
 ucsc.sanitizer <- function(build,allow.multiple=FALSE,show.valid=FALSE) {
   build.alt <- c("hg15","hg20","hg17","hg18","hg19","hg38",17,18,19,20,35,36,37,38,
                  "build35","build36","build37","build38","b35","b36","b37","b38")
@@ -181,38 +196,6 @@ comma <- function(...) {
   paste(...,collapse=",")
 }
 
-
-## internal function for the 'lambdas' function below
-get.allele.counts <- function(myData,cc1000=FALSE) {
-  ii <-  col.summary(myData)
-  ii[["majmin"]] <- c("minor","major")[as.numeric(round(ii$RAF,3)!=round(ii$MAF,3))+1]
-  if(cc1000) { ii$Calls <- rep(1000,nrow(ii)) }
-  aa <- aA <- AA <- rep(0,nrow(ii))
-  aa[which(ii$majmin=="minor")] <- (ii$P.BB*ii$Calls)[which(ii$majmin=="minor")]
-  aa[which(ii$majmin=="major")] <- (ii$P.AA*ii$Calls)[which(ii$majmin=="major")]
-  AA[which(ii$majmin=="minor")] <- (ii$P.AA*ii$Calls)[which(ii$majmin=="minor")] 
-  AA[which(ii$majmin=="major")] <- (ii$P.BB*ii$Calls)[which(ii$majmin=="major")]
-  aA <- ii$P.AB*ii$Calls
-  ii[["aa"]] <- aa
-  ii[["aA"]] <- aA
-  ii[["AA"]] <- AA
-  colnames(ii)[1] <- "TOTAL"
-  return(ii[c("aa","aA","AA","TOTAL")])
-}
-
-
-# internal functions for lambdas #
-Y_2 <- function(r1,r2,n1,n2,N,R) { (N*((N*(r1+(2*r2)))-(R*(n1+(2*n2))))^2) / ((R*(N-R))*((N*(n1+(4*n2)))-(n1+(2*n2))^2)) }
-X_2 <- function(r1,r2,n1,n2,N,R) { (2*N*((2*N*(r1+(2*r2)))-(R*(n1+(2*n2))))^2) / ((4*R*(N-R))*((2*N*(n1+(2*n2)))-(n1+(2*n2))^2)) }
-Likelihood_Lj <- function(c,Lnm) { rchisq(c/Lnm,df=1)/Lnm } # likelihood for one marker
-LLikelihood_L <- function(Cj,LNMj) {
-  # total likelihood across all K markers  : http://www.nature.com/ng/journal/v36/n4/full/ng1333.html
-  tot <- 0
-  for (cc in 1:length(Cj)) { 
-    tot <- tot + log(Likelihood_Lj(Cj[cc],LNMj[cc])) 
-  }
-  return(tot) 
-}
 
 
 
@@ -283,71 +266,6 @@ hard.coded.conv <- function() {
 
 
 
-##' log sum function @author Claudia Giambartolomei - internal
-logsum <- function(x) {
-  my.max <- max(x)                              ##take out the maximum value in log form
-  my.res <- my.max + log(sum(exp(x - my.max )))
-  return(my.res)
-}
-
-
-
-## functions from Chris W - adapted
-
-# internal
-# create a factor that can split a group of 'size' entries into categories size 'by'
-# merge last two groups if final group size is less than min.pc of 'by'
-# if fac.out is false, return start/end ranges rather than a grouping factor
-# (Nick)
-make.split <- function(size,by,fac.out=T,min.pc=0.5) {
-  stepz <- round(seq(from=1,to=(size+1),by=by))
-  if((tail(stepz,1)) != (size+1)) { stepz <- c(stepz,(size+1)) }
-  split.to <- length(stepz)-1
-  out1 <- cbind(stepz[1:split.to],(stepz[2:(split.to+1)]-1))
-  repz <- 1+apply(out1,1,diff)
-  out <- rep(1:split.to,repz)
-  lrg <- max(out)
-  if(!length(which(out==lrg))>(by*min.pc)) {
-    out[out==lrg] <- lrg-1
-  }
-  if(!fac.out) {
-    out <- cbind(start(Rle(out)),end(Rle(out)))
-  }
-  return(out)
-}
-
-
-
-# internal
-# snpStats imputation only works if there are correlated SNPs with non-missing values
-# that can be used to interpolate missing SNPs. If any correlated SNPs are missing
-# 'impute.missing' will leave these blank. This function mops up the remainder
-# by randomly inserting values consistent with the minor allele frequency of each SNP
-# (Nick)
-randomize.missing2 <- function(X,verbose=FALSE) {
-  miss1 <- function(x) { 
-    TX <- table(c(round(x),0,1,2))-c(1,1,1) # to force zero counts to be in the table
-    naz <- which(is.na(x))
-    if(length(naz)>0 & length(TX)>0) {
-      x[naz] <- sample(as.numeric(names(TX)),size=length(naz),
-                       replace=T,prob=as.numeric(TX))
-    }
-    return(x)
-  }
-  # randomly generate replacements for missing values using current distribution for each column of X
-  if(is.null(dim(X))) { warning("not a matrix/data.frame") ; return(X) }
-  count.miss <- function(x) { length(which(is.na(x))) }
-  nmiss <- apply(X,2,count.miss)
-  FF <- nrow(X)
-  select <- nmiss>0
-  if(length(which(select))<1) { return(X) }
-  if(verbose) { cat(sum(nmiss),"missing values replaced with random alleles\n") }
-  if(length(which(select))==1) { X[,select] <- miss1(X[,select]); return(X) }
-  X[,select] <- apply(X[,select],2,miss1)
-  return(X)
-}
-
-
 
 # internal
 # Remove trailing letter from non-unique rs-ids
@@ -400,13 +318,8 @@ add.trail <- function(rs.ids,suffix=c("b","c","d","a")) {
   return(rs.ids)
 }
 
-
-# internal, function generate a random MAF, then random SNP
-rsnp <- function(n,A.freq.fun=runif,cr=.95, A.freq=NA) { 
-  if(is.na(A.freq)) {  m <- A.freq.fun(1) } else { m <- A.freq }
-  x <- sample(0:3, n, replace=T, prob=c(1-cr,cr*(m^2),cr*(2*(1-m)*m),cr*((1-m)^2)))
-  return(x) 
-}
+# internal
+rsampid <- function(n,pref="ID0") { paste0(pref,pad.left(1:n,"0")) }
 
 
 # internal
@@ -416,61 +329,6 @@ rsnpid <- function(n) {
   sufz <- each.id(id.len)
   ids <- paste0("rs",sufz)
   return(ids)
-}
-
-# internal
-ldfun <- function(n) { x <- runif(n); r2 <- runif(n); x[x<.6 & r2>.1] <- x[x<.6 & r2>.1]+.4 ; return(x) }
-
-# internal
-rsampid <- function(n,pref="ID0") { paste0(pref,pad.left(1:n,"0")) }
-
-# internal
-snpify.cont <- function(x,call.rate=.95,A.freq.fun=runif) { 
-  if(length(x)<2) { stop("x must be longer than 1 element") }
-  if(length(x)<5) { warning("for good simulation x should be fairly large, e.g, at least 10, better >100") }
-  n <- length(x)
-  if(all(x %in% 0:3)) { return(x) } # these are already snp-coded
-  rr <- rank(x)
-  sim1 <- rsnp(n,A.freq.fun=A.freq.fun,cr=call.rate) # A.freq=NA
-  x[rr] <- sort(sim1)
-  return(x)
-}
-
-# internal
-get.biggest <- function(r2.mat) {
-  mm <- max(r2.mat,na.rm=T)
-  coord <- which(r2.mat==mm,arr.ind=T)
-  if(!is.null(dim(coord))){ coord <- coord[1,] }
-  return(coord)
-}
-
-# internal
-get.top.n <- function(mat,n=10) {
-  cr <- cor(mat,use="pairwise.complete")^2
-  diag(cr) <- 0
-  nn <- NULL
-  while(length(nn)<n) { 
-    coord <- get.biggest(r2.mat=cr)
-    nn <- unique(c(nn,coord))
-    cr[coord[1],coord[2]] <- NA
-    cr[coord[2],coord[1]] <- NA
-    #cr[,coord[1]] <- NA; cr[coord[1],] <- NA
-    #cr[,coord[2]] <- NA; cr[coord[2],] <- NA
-  }
-  nn <- nn[1:n]
-  new.mat <- mat[,nn]
-  return(new.mat)
-}
-
-
-
-# iFunctions
-# internal
-# allows an sapply style function to only work on valid values
-clean.fn <- function(x,fail=NA,fn=function(x) { x }) {
-  if(!is.null(x)) { 
-    x <- x[!is.na(x)]; x <- x[(x!="")]; return(fn(x)) 
-  } else {  return(fail) } 
 }
 
 
@@ -764,21 +622,6 @@ gene.duplicate.report <- function(ga,full.listing=F,colname="gene",silent=FALSE)
     }
   }
   return(culprits)
-}
-
-
-#Internal: Read in a plink formatted pedigree/family file
-# This function will import a PLINK style
-# ped file and return a data.frame object in the same form
-read.ped.file <- function(fn,keepsix=TRUE) {
-  rr1 <- reader(fn,header=TRUE)
-  if(ncol(rr1)<6) { warning("invalid ped/fam file, should have at least 6 columns"); return(NULL) }
-  if(any(colnames(rr1) %in% c("X0","X1","X2"))) { rr1 <- reader(fn,header=FALSE) }
-  colnames(rr1) <- gsub("X.","",colnames(rr1))
-  if(any(colnames(rr1)[1] %in% unique(rr1[,1]))) { rr1 <- reader(fn,header=FALSE) }
-  colnames(rr1)[1:6] <- c("family","sample","father","mother","sex","phenotype")
-  if(keepsix) { rr1 <- rr1[,1:6] }
-  return(rr1)
 }
 
 

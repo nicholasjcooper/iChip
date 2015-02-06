@@ -24,7 +24,7 @@
 #' @references Cortes and Brown, Promise and pitfalls of the Immunochip (2011).
 #'  Arthritis Research and Therapy 2011, 13:101
 #' @seealso \code{\link{conv.36.37}} \code{\link{get.t1d.subset}}
-#'  \code{\link{get.t1d.regions}} \code{\link{get.t1dbase.snps}}
+#'  \code{\link{get.t1d.regions}} \code{\link{get.immunobase.snps}}
 #' @examples
 #' data(iChipRegionsB36)
 #' prv(iChipRegionsB36)
