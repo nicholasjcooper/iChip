@@ -485,7 +485,7 @@ get.immunog.locs <- function(build=NULL,bioC=TRUE,text=FALSE,GRanges=TRUE) {
     outData <- RangedData(ranges=IRanges(start=stz,end=enz,names=nmz),space=chr,
                           reg=reg.dat,universe=build[1])
     outData <- toGenomeOrder2(outData,strict=T)
-    if(text) { outData <- ranges.to.txt(outData) } else {
+    if(text) { outData <- ranged.to.txt(outData) } else {
       if(GRanges) { outData <- as(outData,"GRanges") }
     }
   } else {
@@ -555,7 +555,7 @@ get.centromere.locs <- function(dir=NULL,build=NULL,
                           reg=reg.dat,universe=build[1])
     outData <- toGenomeOrder2(outData,strict=TRUE)
     if(text) { 
-      outData <- ranges.to.txt(outData) 
+      outData <- ranged.to.txt(outData) 
     } else {
       if(GRanges){
         outData <- as(outData,"GRanges")
@@ -622,7 +622,8 @@ get.cyto <- function(build=NULL,dir=NULL,bioC=TRUE,GRanges=TRUE,refresh=FALSE) {
    # must.use.package(c("genoset","IRanges"),bioC=T)
     outData <- RangedData(ranges=IRanges(start=st,end=en,names=fullbands),space=mychr,
                           negpos=tt$negpos,universe=build[1])
-    outData <- toGenomeOrder2(outData,strict=T)
+    prv(outData)
+    outData <- toGenomeOrder2(outData) ##,strict=T)
     if(GRanges) { outData <- as(outData,"GRanges") }
   } else {
     outData <- tt 
@@ -818,7 +819,7 @@ get.exon.annot <- function(dir=NULL,build=NULL,bioC=T, transcripts=FALSE, GRange
         return(as(tS,"RangedData"))
       }
     } else {
-      return(ranges.to.data.frame(tS))
+      return(ranged.to.data.frame(tS))
     }
   }
 }
@@ -1066,7 +1067,7 @@ get.telomere.locs <- function(dir=NULL,kb=10,build=NULL,bioC=TRUE,GRanges=TRUE,
     outData <- RangedData(ranges=IRanges(start=stz,end=enz,names=nmz),space=chrz,
                           reg=reg.dat,universe=build[1])
     outData <- toGenomeOrder2(outData,strict=T)
-    if(text) { outData <- ranges.to.txt(outData) } else { if(GRanges) { outData <- as(outData,"GRanges") } }
+    if(text) { outData <- ranged.to.txt(outData) } else { if(GRanges) { outData <- as(outData,"GRanges") } }
   } else {
     outData <- my.chr.range 
   }
@@ -1376,6 +1377,7 @@ get.genic.subset <- function(X,ref=NULL,build=NULL) {
 #' GRanges object, alongside 'start' (do not use 'pos' if using start+end)
 #' @param row.names character, rownames for the output object, e.g, unique IDs describing the 
 #' ranges
+#' @param ... further arguments to df.to.GRanges, such as 'fill.missing'
 #' @return Returns a GRanges object with the ranges, build and rownames specified. Rownames
 #' will be 1:nrow if the 'row.names' parameter is empty. The strand information will default
 #' to '+' for all entries, and the metadata will be empty (this function is only for creation
@@ -1383,13 +1385,13 @@ get.genic.subset <- function(X,ref=NULL,build=NULL) {
 #' @export
 #' @author Nicholas Cooper \email{nick.cooper@@cimr.cam.ac.uk}
 #' @seealso \code{\link{Chr}}, \code{\link{Pos}}, \code{\link{Pos.gene}}, \code{\link{Band}},
-#'  \code{\link{Band.gene}}, \code{\link{Band.pos}}, \code{\link{Gene.pos}}
+#'  \code{\link{Band.gene}}, \code{\link{Band.pos}}, \code{\link{Gene.pos}}, \code{zlink{df.to.GRanges}}
 #' @examples
 #' g1 <- makeGRanges(chr=c(1,4,"X"),pos=c(132432,434342,232222))
 #' g2 <- makeGRanges(chr=c(22,21,21),start=c(1,1,1),end=c(1000,10000,100000),
 #'                                               row.names=c("1K","10K","100K"))
 #' g1 ; g2
-makeGRanges <- function(chr,pos=NULL,start=NULL,end=NULL,row.names=NULL,build=NULL) {
+makeGRanges <- function(chr,pos=NULL,start=NULL,end=NULL,row.names=NULL,build=NULL,...) {
   if(is.null(build)) { build <- getOption("ucsc") }
   build <- ucsc.sanitizer(build)
   if(is.null(start) & is.null(end) & !is.null(pos)) {
@@ -1417,7 +1419,7 @@ makeGRanges <- function(chr,pos=NULL,start=NULL,end=NULL,row.names=NULL,build=NU
   if(ncol(dF)==3) { 
     colnames(dF) <- c("chr","start","end") } else { colnames(dF) <- c("chr","pos") }
   #return(dF)
-  ranged <- data.frame.to.GRanges(dF,start=colnames(dF)[2],end=tail(colnames(dF),1),build=build) 
+  ranged <- df.to.GRanges(dF,start=colnames(dF)[2],end=tail(colnames(dF),1),build=build,...) 
   if(!any(rownames(ranged) %in% row.names)) {
     if(is.character(row.names)){ if(length(row.names)==nrow(ranged)) { rownames(ranged) <- row.names }}
   }
@@ -1601,6 +1603,8 @@ conv.37.38 <- function(ranges=NULL,chr=NULL,pos=NULL,...,ids=NULL) {
 #' http://crossmap.sourceforge.net/, and you could also customize these or create your own.
 #' So this function can be used for conversion between any in-out build combination, using
 #' this argument, not just 36--37.
+#' @param include.cols logical, whether to include any extra columns (e.g, in addition to positional
+#' information) in the output object.
 #' @param ... additional arguments to makeGRanges(), so in other words, can use 'start' and
 #' 'end' to specify ranges instead of 'pos'.
 #' @return Returns positions converted from build 36 to 37 (or equivalent for alternative chain 
@@ -1632,7 +1636,7 @@ conv.37.38 <- function(ranges=NULL,chr=NULL,pos=NULL,...,ids=NULL) {
 #' rr <- as(gg,"RangedData")
 #' conv.36.37(rr) # note the result is same as GRanges, but in genome order
 #' }
-conv.36.37 <- function(ranges=NULL,chr=NULL,pos=NULL,...,ids=NULL,chain.file=NULL) {
+conv.36.37 <- function(ranges=NULL,chr=NULL,pos=NULL,...,ids=NULL,chain.file=NULL,include.cols=TRUE) {
  # require(rtracklayer); #require(genoset) #require(GenomicRanges); 
   if(!is.character(chain.file)) {
     #chain.file <- humarray::hg18ToHg19.over.chain 
@@ -1648,8 +1652,9 @@ conv.36.37 <- function(ranges=NULL,chr=NULL,pos=NULL,...,ids=NULL,chain.file=NUL
   }
   #toranged <- F
   outType <- is(ranges)[1]
-     
-  if(!is.null(chr) & (!is.null(pos) | all(c("start","end") %in% names(list(...))))) {
+    
+  used.st.en <- all(c("start","end") %in% names(list(...)))
+  if(!is.null(chr) & (!is.null(pos) | used.st.en)) {
     if(is.null(pos) & length(chr)==1) {
       if(length(list(...)$start)>1) {
         warning("when using start/end, 'chr' must have the same length as 'start'") 
@@ -1666,9 +1671,15 @@ conv.36.37 <- function(ranges=NULL,chr=NULL,pos=NULL,...,ids=NULL,chain.file=NUL
   if(is(ranges)[1]=="RangedData") { ranges <- as(ranges, "GRanges") }
   if(is(ranges)[1] %in% c("RangedData","GRanges")) {
     wd <- width(ranges)
-    if(all(wd==1)) { SNPs <- TRUE } else { SNPs <- FALSE }
+    if(length(which(wd==1))/length(wd)>.95) { SNPs <- TRUE } else { SNPs <- FALSE }
     mcols(ranges)[["XMYINDEXX"]] <- rownames(ranges)
-    mcols(ranges)[["XMYCHRXX"]] <- ocr <- chr2(ranges)
+    mcols(ranges)[["XMYCHRXX"]] <- ocr <- chrm(ranges)
+    if(include.cols) { 
+      meta.data <- mcols(ranges)
+      rownames(meta.data) <- rownames(ranges)
+      oo <- (colnames(meta.data) %in% c("XMYINDEXX","XMYCHRXX"))
+      if(length(oo)>0) { meta.data <- meta.data[,-oo] }
+    }
     #prv(orn,ocr)
     opos <- start(ranges)
     ranges <- set.chr.to.char(ranges)
@@ -1691,10 +1702,11 @@ conv.36.37 <- function(ranges=NULL,chr=NULL,pos=NULL,...,ids=NULL,chain.file=NUL
   }
   if(!SNPs ) {
     new.coords.df <- do.call("rbind",lapply(ranged.gr.37,myfun))
-    ranged.gr.37<-ranged.gr
-    ranges(ranged.gr.37)<-with(new.coords.df,IRanges(start=start,end=end))
-    #seqlevels(ranged.gr.37)<-gsub("chr","",seqlevels(ranged.gr.37))
-    seqlevels(ranged.gr.37)<-gsub("chr","",seqlevels(ranged.gr.37))
+    ranged.gr.37 <- ranged.gr
+    if(!used.st.en) { stop("need start and end arguments unless the dataset is all SNPs (width=1)" ) }
+    ranges(ranged.gr.37) <- with(new.coords.df,IRanges(start=start,end=end))
+    #seqlevels(ranged.gr.37) <- gsub("chr","",seqlevels(ranged.gr.37))
+    seqlevels(ranged.gr.37) <- gsub("chr","",seqlevels(ranged.gr.37))
     out <- ranged.gr.37
   } else {
     seqlevels(ranged.gr.37)<-gsub("chr","",seqlevels(ranged.gr.37))
@@ -1722,7 +1734,7 @@ conv.36.37 <- function(ranges=NULL,chr=NULL,pos=NULL,...,ids=NULL,chain.file=NUL
       if(length(failz)>MAXDISPLAY) { cat(", ... and",length(failz)-MAXDISPLAY,"more\n")  } else { cat("\n") }
       ln <- orn[!orn %in% RN]
       #return(ranges)
-      newchr <- gsub("chr","",chr2(ranges[match(ln,ranges$XMYINDEXX),]))
+      newchr <- gsub("chr","",chrm(ranges[match(ln,ranges$XMYINDEXX),]))
       noopos <- start(ranges[match(ln,ranges$XMYINDEXX),])
       hcc <- hard.coded.conv()
       ifNAthen0 <- function(X) { X[is.na(X)] <- 0; return(X) }
@@ -1756,7 +1768,7 @@ conv.36.37 <- function(ranges=NULL,chr=NULL,pos=NULL,...,ids=NULL,chain.file=NUL
   #print(outType)
   #return(out)
   #prv(out)
-  ranged.rd <- toGenomeOrder2(data.frame.to.ranges(out))
+  ranged.rd <- toGenomeOrder2(df.to.ranged(out))
   #print(colnames(ranged.rd))
   ranged.gr.37 <- as(ranged.rd,"GRanges")
   #print(colnames(ranged.gr.37))
@@ -1777,14 +1789,22 @@ conv.36.37 <- function(ranges=NULL,chr=NULL,pos=NULL,...,ids=NULL,chain.file=NUL
       mcols(ranged.gr.37) <- mcols(ranged.gr.37)[,-which(cn37 %in% "ind")] 
     } # else { warning("couldn't find index column, GRanges object not sorted in original order") }
     if(all(rownames(ranged.gr.37) %in% orn)) { ranged.gr.37 <- ranged.gr.37[orn,] }
+    if(include.cols) {
+      meta.data <- meta.data[rownames(ranged.gr.37),]
+      mcols(ranged.gr.37) <- cbind(mcols(ranged.gr.37),meta.data)
+    }
     return(ranged.gr.37)
   } else {
     if(outType=="RangedData") {
       #if("ind" %in% colnames(ranged.gr.37)) { ranged.gr.37 <- ranged.gr.37[,-which(colnames(ranged.gr.37) %in% "ind")] }
+      if(include.cols) {
+        meta.data <- meta.data[rownames(ranged.gr.37),]
+        mcols(ranged.gr.37) <- cbind(mcols(ranged.gr.37),meta.data)
+      }
       return(toGenomeOrder2(as(ranged.gr.37,"RangedData")))
     } else {
       #prv(ranged.gr.37)
-      out <- ranges.to.data.frame(ranged.gr.37,include.cols=FALSE,use.names=TRUE)
+      out <- ranged.to.data.frame(ranged.gr.37,include.cols=include.cols,use.names=TRUE)
       cn37 <- colnames(mcols(ranged.gr.37))
       if("ind" %in% cn37) { 
         mind <- as.numeric(mcols(ranged.gr.37)[["ind"]])
@@ -1934,8 +1954,8 @@ recomWindow <- function(ranges=NULL,chr=NA,start=NA,end=start,window=0.1,bp.ext=
 #' representing each position in the 'ranges' object
 #' @seealso \code{\link{convert.textpos.to.data}}
 #' @examples
-#' ranges.to.txt(rranges())
-ranges.to.txt <- function(ranges) {
+#' ranged.to.txt(rranges())
+ranged.to.txt <- function(ranges) {
   if(!is(ranges)[1] %in% c("RangedData","GRanges")) { stop("Not a GRanges or RangedData object") }
   text.out.a <- paste0("chr",chr2(ranges),":",format(start(ranges),scientific=F,trim=T))
   text.out.b <- paste0("-",format(end(ranges),scientific=F,trim=T))
@@ -2014,7 +2034,7 @@ select.autosomes <- function(ranges,deselect=FALSE) {
 #' original object for the output. Only has an effect when include.cols=FALSE,
 #' otherwise original rownames are always kept.
 #' @export
-#' @seealso \code{\link{data.frame.to.ranges}}, \code{\link{data.frame.to.GRanges}}
+#' @seealso \code{\link{df.to.ranged}}, \code{\link{df.to.GRanges}}
 #' @return A data.frame with columns chr, start and end, and depending on
 #' chosen parameters, the same rownames as the input, and optionally the
 #' same additional columns.
@@ -2022,18 +2042,18 @@ select.autosomes <- function(ranges,deselect=FALSE) {
 #' rd <- rranges(9,GRanges=FALSE, fakeids=TRUE)
 #' rd[["fakecol"]] <- sample(nrow(rd))
 #' rd[["rs.id"]] <- paste0("rs",sample(10000,9))
-#' ranges.to.data.frame(rd)
-#' ranges.to.data.frame(rd,,FALSE)
-#' ranges.to.data.frame(rd,TRUE) # keep all the columns
-#' data.frame.to.GRanges(ranges.to.data.frame(rd,TRUE)) # inverse returns original
-ranges.to.data.frame <- function(ranged,include.cols=FALSE,use.names=TRUE) {
+#' ranged.to.data.frame(rd)
+#' ranged.to.data.frame(rd,,FALSE)
+#' ranged.to.data.frame(rd,TRUE) # keep all the columns
+#' df.to.GRanges(ranged.to.data.frame(rd,TRUE)) # inverse returns original
+ranged.to.data.frame <- function(ranged,include.cols=FALSE,use.names=TRUE) {
   if(!include.cols) {
-    u <- ranges.to.txt(ranged)
+    u <- ranged.to.txt(ranged)
     v <- convert.textpos.to.data(u)
     if(!is.null(rownames(ranged)) & nrow(ranged)==nrow(v) & use.names) { rownames(v) <- rownames(ranged) }
     return(v)
   } else {
-    u <- as(ranged,"data.frame")
+    u <- as.data.frame(ranged)
     cn <- tolower(colnames(u))
     if(is(ranged)[1]=="RangedData") {
       if("names" %in% cn) { 
@@ -2066,10 +2086,10 @@ ranges.to.data.frame <- function(ranged,include.cols=FALSE,use.names=TRUE) {
 #'  and 'end' this will be detected automatically without needing to change
 #'  the default parameters and start will equal end equals pos (ie., SNPs).
 #' @param dat a data.frame with chromosome and position information 
-#' @param ... additional arguments to data.frame.to.ranges(), namely:
+#' @param ... additional arguments to df.to.ranged(), namely:
 #' ids, start, end, width, chr, exclude and build
 #' @export
-#' @seealso \code{\link{ranges.to.data.frame}}, \code{\link{data.frame.to.ranges}}
+#' @seealso \code{\link{ranged.to.data.frame}}, \code{\link{df.to.ranged}}
 #' @return A RangedData or GRanges object. If 'dat' doesn't
 #' use the default column names, specify these using parameters
 #' ids, start, and end or width. Exclude will remove prevent any 
@@ -2081,23 +2101,23 @@ ranges.to.data.frame <- function(ranged,include.cols=FALSE,use.names=TRUE) {
 #' chr <- sample(1:22,10)
 #' start <- end <- sample(1000000,10)
 #' df1 <- cbind(chr,start,end)
-#' data.frame.to.GRanges(df1) # basic conversion
+#' df.to.GRanges(df1) # basic conversion
 #' width <- rep(0,10)
 #' df2 <- cbind(chr,start,width)
-#' data.frame.to.GRanges(df2,end=NULL,width="width") # define ranges with start and width
+#' df.to.GRanges(df2,end=NULL,width="width") # define ranges with start and width
 #' id.col <- paste0("ID",1:10)
 #' rs.id <- paste0("rs",sample(10000,10))
 #' df3 <- cbind(chr,start,end,id.col,rs.id)
-#' data.frame.to.GRanges(df3) # additional columns kept
+#' df.to.GRanges(df3) # additional columns kept
 #' df4 <- cbind(chr,start,end,id.col,rs.id, ranges=1:10)
-#' data.frame.to.GRanges(df4) # 'ranges' column excluded as illegal name
-#' data.frame.to.GRanges(df4, exclude="rs.id") # manually exclude column
+#' df.to.GRanges(df4) # 'ranges' column excluded as illegal name
+#' df.to.GRanges(df4, exclude="rs.id") # manually exclude column
 #' df5 <- cbind(chr,start,end,rs.id)
 #' rownames(df5) <- paste0("ID",1:10)
-#' data.frame.to.GRanges(df5) # rownames are kept
-#' data.frame.to.GRanges(df4,ids="id.col") # use column of 'dat' for rownames
-data.frame.to.GRanges <- function(dat,...) {
-  return(data.frame.to.ranges(dat=dat,...,GRanges=TRUE))
+#' df.to.GRanges(df5) # rownames are kept
+#' df.to.GRanges(df4,ids="id.col") # use column of 'dat' for rownames
+df.to.GRanges <- function(dat,...) {
+  return(df.to.ranged(dat=dat,...,GRanges=TRUE))
 }
 
 
@@ -2141,8 +2161,12 @@ data.frame.to.GRanges <- function(dat,...) {
 #' 'universe' (RangedData) or 'genome' slot (GRanges) of the new object.
 #' @param GRanges logical, whether the resulting object should be GRanges (TRUE),
 #' or RangedData (FALSE)
+#' @param fill.missing logical, GRanges/RangedData objects cannot handle missing
+#' chrs/positions, so if fill missing is selected, will insert values of chr99, and
+#' start=end=1, and if FALSE, will exclude any row with a missing value from the
+#' resulting object.
 #' @export
-#' @seealso \code{\link{ranges.to.data.frame}}, \code{\link{data.frame.to.ranges}}
+#' @seealso \code{\link{ranged.to.data.frame}}, \code{\link{df.to.ranged}}
 #' @return A RangedData or GRanges object. If 'dat' doesn't use the default 
 #' column names 'chr', 'start'/'end' or 'pos', specify these using parameters 
 #' 'ids', 'start', and 'end' or 'width'. Exclude will remove prevent any 
@@ -2154,23 +2178,24 @@ data.frame.to.GRanges <- function(dat,...) {
 #' start <- end <- sample(1000000,10)
 #' df1 <- cbind(CHR=chr,Start=start,enD=end)
 #' print(df1)
-#' data.frame.to.GRanges(df1) # not case sensitive!
+#' df.to.GRanges(df1) # not case sensitive!
 #' width <- rep(0,10)
 #' df2 <- cbind(chr,start,width)
-#' data.frame.to.GRanges(df2,end=NULL,width="width") # define ranges with start and width
+#' df.to.GRanges(df2,end=NULL,width="width") # define ranges with start and width
 #' id.col <- paste0("ID",1:10)
 #' rs.id <- paste0("rs",sample(10000,10))
 #' df3 <- cbind(chr,start,end,id.col,rs.id)
-#' data.frame.to.GRanges(df3) # additional columns kept
+#' df.to.GRanges(df3) # additional columns kept
 #' df4 <- cbind(chr,start,end,id.col,rs.id, ranges=1:10)
-#' data.frame.to.GRanges(df4) # 'ranges' column excluded as illegal name
-#' data.frame.to.GRanges(df4, exclude="rs.id") # manually exclude column
+#' df.to.GRanges(df4) # 'ranges' column excluded as illegal name
+#' df.to.GRanges(df4, exclude="rs.id") # manually exclude column
 #' df5 <- cbind(chr,start,end,rs.id)
 #' rownames(df5) <- paste0("ID",1:10)
-#' data.frame.to.GRanges(df5) # rownames are kept
-#' data.frame.to.GRanges(df4,ids="id.col") # use column of 'dat' for rownames
-data.frame.to.ranges <- function(dat, ids=NULL,start="start",end="end",width=NULL,
-                                 chr="chr",exclude=NULL,build=NULL,GRanges=FALSE) 
+#' df.to.GRanges(df5) # rownames are kept
+#' df.to.GRanges(df4,ids="id.col") # use column of 'dat' for rownames
+df.to.ranged <- function(dat, ids=NULL,start="start",end="end",width=NULL,
+                                 chr="chr",exclude=NULL,build=NULL,GRanges=FALSE,
+                                 fill.missing=TRUE) 
 {
   ## abandon longer names as they clash with function names
   st <- paste(start); en <- paste(end); ch <- paste(chr); wd <- paste(width)
@@ -2222,6 +2247,14 @@ data.frame.to.ranges <- function(dat, ids=NULL,start="start",end="end",width=NUL
   if(length(st)>0) { st1 <- as.numeric(dat[[st]]) } else { st1 <- NULL }
   if(length(en)>0) { en1 <- as.numeric(dat[[en]]) } else { en1 <- NULL }
   if(length(wd)>0) { en1 <- st1+as.numeric(dat[[wd]]) } # { en1 <- st1+dat[[wd]] }
+  misser <- (is.na(ch1) | is.na(en1) | is.na(st1))
+  if(any(misser)) {
+    if(fill.missing) {
+      ch1[is.na(ch1)] <- 99; st1[is.na(st1)] <- 1; en1[is.na(en1)] <- 1
+    } else {
+      ch1 <- ch1[!misser]; st1 <- st1[!misser]; en1 <- en1[!misser]; id <- id[!misser]
+    }
+  }
   #print(length(st1)); print(length(en1)); print(length(id)); print(length(ch1))
   outData <- GRanges(ranges=IRanges(start=st1,end=en1,names=id),seqnames=ch1); genome(outData) <- build[1]
   #outData <- RangedData(ranges=IRanges(start=st1,end=en1,names=id),space=ch1,universe=build[1])
@@ -2268,23 +2301,28 @@ data.frame.to.ranges <- function(dat, ids=NULL,start="start",end="end",width=NUL
 #' whether the object is RangedData or GRanges type.
 #' @param X A GRanges or RangedData object
 #' @param chr Vector, the chromosome(s) (number(s) or name(s)) to select
+#' @param index logical, if FALSE, will assume 'chr' is a string, indicating the
+#' chromosome name, if TRUE, if 'chr' is numeric, will assume it refers to the
+#' chromosome index, which if there are some chromosomes not represented, may
+#' be different to the name. E.g, an object with data for chromosomes 1,2,4,5
+#' would select chromosome 5 with chr=4, if index=TRUE.
 #' @export
 #' @return returns an object of the same type as X, with only the chromosome
 #' subset specified.
 #' @examples
 #' some.ranges <- rranges(100,chr.range=1:10)
-#' chrSel(some.ranges,6)
+#' chrSelect(some.ranges,6)
 #' more.ranges <- rranges(10, chr.range=21:25)
-#' chrSel(more.ranges,1:22) # gives warning
+#' chrSelect(more.ranges,1:22) # gives warning
 #' select.autosomes(more.ranges)
-chrSel <- function(X,chr) {
+chrSelect <- function(X,chr,index=FALSE) {
   typ <- is(X)[1]
   if(!typ %in% c("RangedData","GRanges","ChipInfo")) { stop("not a ChipInfo, GRanges or RangedData object") }
   if(nrow(X)==0) { warning("X has no ranges") ; return(X) }
   if(!(is.character(chr) | is.numeric(chr))) { stop("chr must be character or numeric type") }
   if(is.numeric(chr)) { if(!all(chr %in% 1:99)) { 
     stop("illegal chromosome index, valid range 1-99 [although 1-28 typical for human]") } }
-  if(typ=="RangedData") { return(X[chr])}
+  if(typ=="RangedData") { if(index) { return(X[chr]) } else { return(X[paste(chr)]) } }
   all.chr <- chr2(X)
   if(!all(chr %in% unique(all.chr))) { 
     if(!any(chr %in% unique(all.chr))) { 
@@ -2428,7 +2466,7 @@ rranges <- function(n=10,SNP=FALSE,chr.range=1:26,chr.pref=FALSE,order=TRUE,equa
 chrNums <- function(ranged,warn=FALSE,table.out=FALSE,table.in=NULL) {
   #must.use.package("genoset",bioC=T)
   typ <- is(ranged)[1]
-  if(!typ %in% c("RangedData","GRanges")) { warning("not a GRanges or RangedData object"); return(NULL) }
+  if(!typ %in% c("RangedData","GRanges","ChipInfo")) { warning("not a GRanges, ChipInfo or RangedData object"); return(NULL) }
   lookup <- c("X","Y","XY","MT")
   txt1 <- chrNames2(ranged)
   txt <- gsub("chr","",txt1,fixed=T)
@@ -3280,9 +3318,9 @@ invGRanges <- function(X,inclusive=FALSE,build=NULL,pad.missing.autosomes=TRUE) 
 #' @export
 #' @return a matrix of the same length as 'ranges' with columns chr, start and end, and
 #' rownames will be the same as the original text vector.
-#' @seealso \code{\link{ranges.to.txt}}
+#' @seealso \code{\link{ranged.to.txt}}
 #' @examples
-#' txt <- ranges.to.txt(rranges())
+#' txt <- ranged.to.txt(rranges())
 #' convert.textpos.to.data(txt)
 convert.textpos.to.data <- function(text) {
   do.one <- function(X) {
@@ -3555,7 +3593,7 @@ rs.to.id <- function(rs.ids,multi.list=FALSE) {
 #'  of the Chr() function.  See documentation for these functions for more information. The build
 #'  used will be that in the current ChipInfo object.
 #' @param ids character, a vector of rs-ids or chip-ids representing SNPs in the current ChipInfo
-#'  annotation, or gene ids, or karyotype bands
+#'  annotation, or gene ids, or karyotype bands. Can also be a SnpMatrix object.
 #' @param dir character, only relevant when gene or band ids are entered, in this case 'dir' is the location
 #' to download gene and cytoband information; if left as NULL, depending on the value of 
 #' getOption("save.annot.in.current"), the annotation will either be saved in the working directory to 
@@ -3582,6 +3620,8 @@ Chr <- function(ids,dir=NULL,snps.only=FALSE) {
     outlist <- chr(all.support)[match(ic.ids,rownames(all.support))]
     return(outlist)
   }
+  typ <- is(ids)[1]
+  if(typ %in% c("SnpMatrix","XSnpMatrix","aSnpMatrix","aXSnpMatrix")) { ids <- colnames(ids) }
   query <- rs.to.id(ids)
   if(!snps.only & all(is.na(query))) { 
     ## unless the 'snps.only' function is set, then if it looks like we have not been handed
@@ -3615,7 +3655,7 @@ Chr <- function(ids,dir=NULL,snps.only=FALSE) {
 #'  genes and bands are not a single point, so the result will be a range with start and end, 
 #'  see 'values' below. See documentation for these functions for more information.
 #' @param ids character, a vector of rs-ids or chip-ids representing SNPs in the current ChipInfo 
-#' annotation,or gene ids, or karyotype bands
+#' annotation,or gene ids, or karyotype bands. Can also be a SnpMatrix object.
 #' @param dir character, only relevant when gene or band ids are entered, in this case 'dir' is 
 #' the location to download gene and cytoband information; if left as NULL, depending on the 
 #' value of getOption("save.annot.in.current"), the annotation will either be saved in the 
@@ -3649,6 +3689,8 @@ Pos <- function(ids,dir=NULL,snps.only=FALSE) {
     outlist <- start(all.support)[match(ic.ids,rownames(all.support))]
     return(outlist)
   }
+  typ <- is(ids)[1]
+  if(typ %in% c("SnpMatrix","XSnpMatrix","aSnpMatrix","aXSnpMatrix")) { ids <- colnames(ids) }
   query <- rs.to.id(ids)
   if(!snps.only & all(is.na(query))) { 
     ## unless the 'snps.only' function is set, then if it looks like we have not been handed

@@ -692,6 +692,8 @@ setAs("ChipInfo", "RangedData",
       function(from) { 
         out <- as(as(from,"GRanges"),"RangedData")
         if("strand" %in% colnames(out)) { out <- out[,-which(colnames(out) %in% "strand")] }
+        colnames(out) <- gsub("elementMetadata.","",colnames(out),fixed=TRUE)
+        colnames(out) <- gsub("elementMetadata","",colnames(out),fixed=TRUE)
         return(out)
       }
 )
@@ -702,7 +704,7 @@ setAs("ChipInfo", "RangedData",
 #' @name as
 # @rdname ChipInfo-class
 #' @export
-setAs("ChipInfo", "data.frame", function(from) { ranges.to.data.frame(as(from,"GRanges"),include.cols=TRUE) })
+setAs("ChipInfo", "data.frame", function(from) { ranged.to.data.frame(as(from,"GRanges"),include.cols=TRUE) })
 
 
 #' As("GRanges", "ChipInfo")
@@ -743,10 +745,43 @@ setAs("RangedData", "ChipInfo", function(from) { as(as(from,"GRanges"),"ChipInfo
 #' @export
 setAs("data.frame", "ChipInfo", 
       function(from) { 
-        rr <- data.frame.to.GRanges(from,chr="seqnames") 
+        rr <- df.to.GRanges(from,chr="seqnames") 
         return(as(as(rr,"GRanges"),"ChipInfo"))
       } 
 )
+
+
+
+# improved coersion functions for data.frames to RangedData/GRanges
+
+#' As("data.frame", "RangedData")
+#'
+#' @name as
+#' @export
+setAs("data.frame", "RangedData", function(from) { return(df.to.ranged(from,GRanges=FALSE))  } )
+
+#' As("data.frame", "GRanges")
+#'
+#' @name as
+#' @export
+setAs("data.frame", "GRanges", function(from) { return(df.to.ranged(from,GRanges=TRUE))  } )
+
+#' As("RangedData", "data.frame")
+#'
+#' Note that for automatic conversion of a data.frame to RangedData/GRanges, a column named 'chr' 
+#' or 'seqnames' in the data.frame is expected/required to make the conversion effectively. 
+#' Otherwise use 'ranged.to.data.frame()'
+#' @name as
+#' @export
+setAs("RangedData", "data.frame", function(from) { return(ranged.to.data.frame(from))  } )
+
+#' As("GRanges", "data.frame")
+#'
+#' @name as
+#' @export
+setAs("GRanges", "data.frame", function(from) { return(ranged.to.data.frame(from))  } )
+
+
 
 # No roxygen required i think?
 setValidity("ChipInfo",
@@ -899,43 +934,110 @@ makePrettyMatrixForCompactPrinting2 <- function (x, makeNakedMat.FUN,head.tail=6
 
 
 
-
-#' Get the chromosome vector for ranged objects
+#' Select chromosome subset for ranged objects
 #' 
-#' Returns the vector of chromosomes for a ranged object
+#' Returns the object filtered for specific chromosomes for a ranged object
 #' @param object a ChipInfo, GRanges or RangedData object
+#' @param chr vector, string or numeric of which chromosome(s) to select
 #' @return vector of chromosome values for each range/SNP
-#' @rdname chrm-methods
+#' @rdname chrSel-methods
 #' @export
-setGeneric("chrm", function(object) standardGeneric("chrm"))
+setGeneric("chrSel", function(object,chr) standardGeneric("chrSel"))
+
+
+#' Select chromosome subset for RangedData objects
+#' 
+#' Returns the object filtered for specific chromosomes for a RangedData object
+#' @rdname chrSel-methods
+#' @exportMethod chrSel
+setMethod("chrSel", "RangedData", function(object,chr) {
+  return(humarray::chrSelect(object,chr))
+})
+
+
+#' Select chromosome subset for GRanges objects
+#' 
+#' Returns the object filtered for specific chromosomes for a GRanges object
+#' @rdname chrSel-methods
+#' @exportMethod chrSel
+setMethod("chrSel", "GRanges", function(object,chr) {
+  return(humarray::chrSelect(object,chr))
+})
+
+#' Select chromosome subset for ChipInfo objects
+#' 
+#' Returns the object filtered for specific chromosomes for a GRanges object
+#' @rdname chrSel-methods
+#' @exportMethod chrSel
+setMethod("chrSel", "ChipInfo", function(object,chr) {
+  return(humarray::chrSelect(object,chr))
+})
+
 
 
 #' Chromosome method for RangedData objects
 #' 
 #' Return the list of chromosome values from a RangedData object
+#' @param object RangedData object
+#' @return vector of chromosome values for each range/SNP
 #' @rdname chrm-methods
+#' @export
+setGeneric("chrm",function(object) standardGeneric("chrm"))
+
+#' @rdname chrm-methods
+#' @importMethodsFrom genoset  chr  
 #' @exportMethod chrm
 setMethod("chrm", "RangedData", function(object) {
   return(chr2(object))
 })
 
-
-#' Chromosome method for GRanges objects
-#' 
-#' Return the list of chromosome values from a GRanges object
 #' @rdname chrm-methods
+#' @importMethodsFrom genoset  chr  
+#' @importFrom genoset  chr  
 #' @exportMethod chrm
 setMethod("chrm", "GRanges", function(object) {
   return(genoset::chr(object))
 })
 
-#' Chromosome method for ChipInfo objects
-#' 
-#' Return the list of chromosome values from a GRanges object
 #' @rdname chrm-methods
+#' @importMethodsFrom genoset  chr  
+#' @importFrom genoset  chr  
 #' @exportMethod chrm
 setMethod("chrm", "ChipInfo", function(object) {
   return(genoset::chr(object))
+})
+
+
+
+#' @importMethodsFrom "genoset"  toGenomeOrder  
+#' @exportMethod toGenomeOrder
+setMethod("toGenomeOrder", "RangedData", function(ds) {
+  return(TGORD(ds))
+})
+
+
+
+#' @importMethodsFrom "genoset"   chrIndices  
+#' @exportMethod chrIndices
+setMethod("chrIndices", "RangedData", function(object) {
+  return(chrIndices2(object))
+})
+
+
+
+#' @importMethodsFrom "genoset"   chrInfo 
+#' @exportMethod chrInfo
+setMethod("chrInfo", "RangedData", function(object) {
+  return(chrInfo2(object))
+})
+
+
+
+
+#' @importMethodsFrom "genoset"  chrNames  
+#' @exportMethod chrNames
+setMethod("chrNames", "RangedData", function(object) {
+  return(chrNames2(object))
 })
 
 

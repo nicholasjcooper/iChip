@@ -146,7 +146,7 @@ pt2 <- function(q, df, log.p=FALSE) {  2*pt(-abs(q), df, log.p=log.p) }
 #' of build strings as input
 #' @param show.valid logical, if TRUE, show a list of supported values.
 #' @return build string in the correct 'hgXX' format.
-# # @export
+#' @export
 #' @examples
 #' ucsc.sanitizer(36)
 #' ucsc.sanitizer("build38")
@@ -364,21 +364,31 @@ emd.rmv <- function(X, rmv.genome=TRUE) {
 
 
 
+chrOrder2 <- function (chr.names) {
+  if(!is.character(chr.names)) { warning("expecting character() type for chr.names argument") }
+  simple.names = gsub("^chr", "", chr.names)
+  name.is.numeric = grepl("^[0-9]+$", simple.names, perl = T)
+  numeric.names = chr.names[name.is.numeric][order(as.numeric(simple.names[name.is.numeric]))]
+  non.numeric.names = chr.names[!name.is.numeric][order(chr.names[!name.is.numeric])]
+  all.names = c(numeric.names, non.numeric.names)
+  return(all.names)
+}
+
+
 # internal# iFunctions
 chrNames2 <- function(X) {
-  requireNamespace("GenomicRanges"); requireNamespace("IRanges")
+  #requireNamespace("GenomicRanges"); requireNamespace("IRanges")
   if(nrow(X)==0) { return(character(0)) }
-  X <- toGenomeOrder2(X)
-  XX <- chrIndices2(X)
-  return(rownames(XX))
+  out <- as.character(unique(seqnames(X)))
+  return(out)
 }
 
 
 # internal from genoset
 TGORD <- function (ds, strict = TRUE) {
   if (strict == TRUE) {
-    if (!isTRUE(all.equal(chrOrder(chrNames(ds)), chrNames(ds)))) {
-      ds = ds[chrOrder(chrNames(ds))]
+    if (!isTRUE(all.equal(chrOrder2(chrNames2(ds)), chrNames2(ds)))) {
+      ds = ds[chrOrder2(chrNames2(ds))]
     }
   }
   row.order = order(as.integer(space(ds)), start(ds))
@@ -411,7 +421,7 @@ TGOGR <- function (ds, strict = TRUE) {
 # version of toGenomeOrder() that is guaranteed to work for IRanges or GRanges
 toGenomeOrder2 <- function(X,...) {
   requireNamespace("GenomicRanges"); requireNamespace("IRanges"); requireNamespace("genoset")
-  if(has.method("toGenomeOrder",X, where=environment(toGenomeOrder2))) {
+  if(is(X)[1] %in% c("GRanges","RangedData","ChipInfo")) {
     if(is(X)[1]=="RangedData") {
       return(TGORD(X))
     } else {
@@ -419,7 +429,7 @@ toGenomeOrder2 <- function(X,...) {
     }
   } else {
     typ <- is(X)[1]
-    if(!typ %in% c("GRanges","RangedData","ChipInfo")) { warning("unacceptable type '",typ,"' for toGenomeOrder(), failure likely") }
+    if(!typ %in% c("GRanges","RangedData","ChipInfo")) { warning("unsupported type '",typ,"' for toGenomeOrder(), failure likely") }
     alreadyThere <-("strand" %in% colnames(X))
     out <- TGOGR(as(X,"GRanges"),strict=T) #genoset::
     X <- as(out,"RangedData")
@@ -434,8 +444,8 @@ toGenomeOrder2 <- function(X,...) {
 # version of chrInfo() that is guaranteed to work for IRanges or GRanges
 chrInfo2 <- function(X) {
   requireNamespace("GenomicRanges"); requireNamespace("IRanges")
-  if(has.method("chrInfo",X, where=environment(chrInfo2))) {
-    return(chrInfo(X))
+  if(is(X)[1] %in% c("GRanges","ChipInfo")) {
+    return(genoset::chrInfo(X))
   } else {
     typ <- is(X)[1]
     if(!typ %in% c("GRanges","RangedData","ChipInfo")) { warning("unacceptable type '",typ,"' for chrInfo2(), failure likely") }
@@ -448,8 +458,8 @@ chrInfo2 <- function(X) {
 # version of chrIndices() that is guaranteed to work for IRanges or GRanges
 chrIndices2 <- function(X,...) {
   requireNamespace("GenomicRanges"); requireNamespace("IRanges")
-  if(has.method("chrIndices",X, where=environment(chrIndices2))) {
-    return(chrIndices(X,...))
+  if(is(X)[1] %in% c("GRanges","ChipInfo")) {
+    return(genoset::chrIndices(X,...))
   } else {
     typ <- is(X)[1]
     if(!typ %in% c("GRanges","RangedData","ChipInfo")) { warning("unacceptable type '",typ,"' for chrIndices2(), failure likely") }
