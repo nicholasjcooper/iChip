@@ -1,47 +1,50 @@
 ###NAMESPACE ADDITIONS###
 #' @importFrom BiocInstaller  biocVersion
-#' @importFrom utils capture.output download.file read.table write.table head tail data
 #' @importFrom stats family pnorm pt qnorm rchisq rnorm runif
 #' @importFrom reader cat.path reader shift.rownames
 #' @importFrom grDevices dev.off pdf
 #' @importFrom graphics abline lines points rect text plot
 #' @importFrom methods as callNextMethod is new prototype representation setAs setClass setGeneric setMethod setValidity
-#' @importClassesFrom GenomicRanges GIntervalTree GRanges GenomicRanges Seqinfo GenomicRangesORmissing
-#' @importFrom GenomicRanges "seqinfo" "seqinfo<-" "seqnames"  "seqnames<-" "seqlevels"  "seqlevels<-"
-#' @importFrom GenomicRanges GRanges seqlengths Seqinfo GRangesList
-#' @importMethodsFrom GenomicRanges "genome<-" "names<-" genome length names seqlevels start end
+#' @importClassesFrom GenomicRanges GIntervalTree GRanges GenomicRanges GenomicRangesORmissing
+#' @importFrom GenomicRanges GRanges GRangesList
+#' @importMethodsFrom GenomicRanges "names<-" length names start end 
 #' @importMethodsFrom GenomicRanges width strand mcols  "mcols<-" show findOverlaps subsetByOverlaps
-#' @importMethodsFrom GenomicRanges seqinfo  "seqinfo<-" seqnames  "seqnames<-" seqlevels  "seqlevels<-"
 #' @importMethodsFrom GenomicRanges length names  "names<-" "dimnames<-" "["  "[<-"  "[["  "[[<-"  "$"  "$<-" cbind rbind
-#' @importClassesFrom IRanges DataFrame RangedData Rle Vector Annotated
-#' @importFrom IRanges "%over%" DataFrame IRanges  Rle  RangedData subjectHits queryHits showAsCell
-#' @importMethodsFrom IRanges "colnames<-" "rownames<-" "universe<-" Rle subjectHits queryHits showAsCell
+#' @importMethodsFrom GenomeInfoDb "seqlevels"  "seqlevels<-" "genome<-" "genome"  seqinfo  "seqinfo<-" seqnames  "seqnames<-" 
+#' @importClassesFrom IRanges RangedData 
+#' @importFrom IRanges "%over%" IRanges  RangedData subjectHits queryHits showAsCell 
+#' @importMethodsFrom IRanges "colnames<-" "rownames<-" "universe<-" subjectHits queryHits showAsCell
 #' @importMethodsFrom IRanges as.data.frame as.list as.matrix cbind rbind colnames elementLengths
-#' @importMethodsFrom IRanges end findOverlaps subsetByOverlaps gsub intersect is.unsorted lapply
-#' @importMethodsFrom IRanges levels mean na.exclude nrow ncol order paste as.list head tail aggregate
-#' @importMethodsFrom IRanges ranges rownames runLength runValue sapply space  flank  reduce resize
-#' @importMethodsFrom IRanges start universe unlist Rle width  "start<-"  "width<-"  "end<-" ranges "ranges<-"
-#' @importClassesFrom "GenomicFeatures" TranscriptDb
+#' @importMethodsFrom IRanges end findOverlaps subsetByOverlaps gsub intersect lapply
+#' @importMethodsFrom IRanges mean nrow ncol order as.list aggregate
+#' @importMethodsFrom IRanges ranges rownames runLength space  flank  reduce resize
+#' @importMethodsFrom IRanges start universe unlist width  "start<-"  "width<-"  "end<-" ranges "ranges<-"
 #' @importFrom "GenomicFeatures" makeTranscriptDbFromUCSC  exonsBy  transcriptsBy
 #' @importMethodsFrom "GenomicFeatures"  exonsBy  transcriptsBy  as.list
 #' @importClassesFrom "rtracklayer"  ChainFile
 #' @importMethodsFrom "rtracklayer"  liftOver  import.chain
-#' @importMethodsFrom "genoset"  chr  chrIndices  chrInfo  chrNames  genome  isGenomeOrder  locData  toGenomeOrder  universe
+#' @importMethodsFrom "genoset"  chr  chrIndices  chrInfo  chrNames  genome  isGenomeOrder  locData  toGenomeOrder
 #' @importFrom "genoset"  chr  chrIndices  chrInfo  chrNames  chrOrder  
-#' @importFrom "genoset" "genome"  "isGenomeOrder"  "locData"  "toGenomeOrder"  "universe" 
-#' @importClassesFrom "genoset" RangedDataOrGenomicRanges
+#' @importFrom "genoset" "genome"  "isGenomeOrder"  "locData"  "toGenomeOrder" 
 #' @importFrom "biomaRt"  useMart  useDataset  getBM
 #' @importClassesFrom "biomaRt"  Mart
 #' @importFrom parallel  mclapply
-#' @import Rcpp BiocGenerics NCmisc
+#' @import Rcpp BiocGenerics NCmisc S4Vectors
 ###END NAMESPACE###
 
+#DataFrame
+#seqlevels
+#seqlevels<-
+#genome<-
 
+# doNotimportFrom utils capture.output download.file read.table write.table head tail data  
+# dontimportClassesFrom "genoset" RangedDataOrGenomicRanges
 # importNoClassesFrom("GenomicRanges", GRanges)
 # importNoClassesFrom("IRanges", Rle, RangedData)
 # doNotimportFrom AnnotationDbi head tail ncol as.list colnames get exists sample 
 # doNotimportFrom(BiocGenerics,strand, "strand<-", colnames, cbind, rbind, unlist, order, rownames, ncol, as.vector, paste, as.data.frame)
-
+# doNotimportFrom GenomicRanges "seqlevels"  "seqlevels<-" Seqinfo seqlengths
+# importNoClassesFrom "GenomicFeatures" TranscriptDb
 
 .onAttach <- function(libname, pkgname) {
   packageStartupMessage("humarray version 1.0.0\n")
@@ -253,15 +256,34 @@ hard.coded.conv <- function() {
   pos37I <- c("50900354","50907147","50910499","50908888","194086083","119150813",
               "50353144","67745402","10923673","10923720","10937686","10937717",
               "21704627","59781521","75295444")
-  rsidI <- c("rs12639243","rs62717061","rs4346541","imm_3_50908888",
-             "rs4974514","rs284919","rs7804185","rs3113138",
-             "rs2898255","rs2409687","rs7827367","rs6601557",
+  rsidI <- c("rs12639243","rs62717061","rs4346541","imm_3_50908888","rs4974514","rs284919",
+             "rs7804185","rs3113138","rs2898255","rs2409687","rs7827367","rs6601557",
              "rs17052332","rs1131012","rs929032")
   chrz <- c(chrzI,chrzM)
   pos36 <- c(pos36I,pos36M)
   pos37 <- c(pos37I,pos37M)
   rsid <- c(rsidI,rsidM)
   return(list(chr=chrz,pos36=pos36,pos37=pos37,rs.id=rsid))
+}
+
+substitute.36s <- function(granges=NULL) {
+ pos36 <- matrix(c(c(3,"imm_3_50875337",50875337),
+ c(3,"imm_3_50882163",50882163),
+ c(3,"imm_3_50908888",50908888),
+ c(7,"rs1574660",141711704),
+ c(17,"rs1131012",59781521),
+ c("X","rs16994803",147800037),
+ c("X","rs12013571",148519953)),ncol=3,byrow=T)
+ if(is.null(granges)) { return(pos36) }
+ typ <- is(granges)[1]
+ X <- as(granges,"GRanges")
+ if(!is(X)[1]=="GRanges") { stop("conversion to GRanges failed") }
+ ii <- narm(match(pos36[,2],rownames(X)))
+ start(X)[ii] <- rep(1,length(ii))
+ end(X)[ii] <- as.numeric(pos36[,3])
+ start(X)[ii] <- as.numeric(pos36[,3])
+ X <- as(X,typ)
+ return(X)
 }
 
 
@@ -505,6 +527,15 @@ dev.off()
 cat("wrote plot to",cat.path(getwd(),fn),"\n")
 }
 
+
+# gets limits of a plot space on current device
+plot.get.area <- function() {
+  success <- tryCatch(mine <- par("usr"),error=function(e) { F } )
+  if(all(!success)) { warning("could not get plot limits - no plot open perhaps?"); return(NULL) }
+  xlim=mine[1:2]
+  ylim=mine[3:4]
+  return(list(xlim=xlim,ylim=ylim))
+}
 
 
 #internal function

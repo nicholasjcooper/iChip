@@ -66,11 +66,11 @@ setClass("ChipInfo",
          slots=list(chip="character", 
                     build="character"),
          prototype=prototype(
-              seqnames=IRanges::Rle(factor()),
+              seqnames=Rle(factor()),
               ranges=IRanges::IRanges(),
-              strand=IRanges::Rle(GenomicRanges::strand()),
-              elementMetadata=IRanges::DataFrame(A1=NULL, A2=NULL,  QCcode=integer(), rs.id=NULL),
-              seqinfo=GenomicRanges::Seqinfo(),
+              strand=Rle(GenomicRanges::strand()),
+              elementMetadata=DataFrame(A1=NULL, A2=NULL,  QCcode=integer(), rs.id=NULL, chip.id=NULL),
+              seqinfo=Seqinfo(),
               metadata=list(),
               chip=character(), 
               build=character()
@@ -169,7 +169,7 @@ setMethod("ucsc", "ChipInfo", function(x) x@build)
 #' @param b logical, whether to show 'b' suffixes on rs.ids which
 #' are created in the background to allow duplicate ids to be uniquely
 #' represented for lookup and reference purposes.
-#' @return A1/A2: character vector of IDs (or NAs)
+#' @return rs-ids: character vector of IDs (or NAs)
 #' @rdname rs.id-methods
 #' @export
 setGeneric("rs.id", function(x,b=TRUE) standardGeneric("rs.id") )
@@ -185,6 +185,34 @@ setMethod("rs.id", "ChipInfo", function(x,b=TRUE) {
   } else { return(NULL) } 
 })
 
+
+#' Access chip-ids for ChipInfo
+#' 
+#' Returns the chip-ids for the chip object, e.g, "imm_1_898835", etc
+#' Only if these are annotated internally, or else a vector of NAs
+#' Note that the main purpose of this is because sometimes chip-ids
+#' do not satisfy conditions to be an R column/row name, e.g, start
+#' with a number, illegal characters, etc. So this allows certain
+#' functions to return the actual chip names that would match the 
+#' official manifest. These will largely be the same as the rownames,
+#' but the rownames will always be valid R column names, converted from
+#' the original using clean.snp.ids() [internal function]
+# @name chip-id
+#' @param x a ChipInfo object
+#' @return chip ids: character vector of IDs (or NAs)
+#' @rdname chipId-methods
+#' @export
+setGeneric("chipId", function(x) standardGeneric("chipId") )
+
+#' @rdname chipId-methods
+#' @exportMethod chipId
+setMethod("chipId", "ChipInfo", function(x) { 
+  u <- mcols(x) ;  
+  if("chip.id" %in% colnames(u)) { 
+    U <- u[,"chip.id"] 
+    return(U)
+  } else { return(NULL) } 
+})
 
 #' Access alleles for ChipInfo
 #' 
@@ -258,7 +286,7 @@ setMethod("A2<-", "ChipInfo", function(x,value) {
 
 #internal
 .updateAllele <- function(x,value, allele="A1") {
-  if(length(dim(value))!=1) { stop("value must be a vector") }
+  if(length(Dim(value))!=1) { stop("value must be a vector") }
   if(length(x)==length(value)) {
     if(is.character(value)) {
       mcols(x)[,allele] <- paste(value)
@@ -623,6 +651,12 @@ setMethod("print", "ChipInfo",
 #' @param rs.id 'rs' ids are standardized ids for SNPs, these usually differ from each chips'
 #' own IDs for each snp. If you don't know these, or can't find them, they can be left blank,
 #' but will render the functions 'rs.to.id()' and 'id.to.rs()' useless for this ChipInfo object.
+#' @param chip.id chip ids are the chip-specific ids for SNPs, these usually differ between chips'
+#' even for the same snp. If you don't know these, or can't find them, they can be left blank,
+#' but will render the function 'chip.id()' useless for this ChipInfo object. The main purpose
+#' of this parameter is for when the real chip ids are not valid R row/column name strings, and
+#' by using this column, some functions can return the real chip ids instead of the sanitized 
+#' version
 #' @param A1 the first allele letter code for each SNP, e.g, usually "A","C","G", or "T", but
 #' you can use any scheme you like. Can be left blank.
 #' @param A2, as for A1, but for allele 2.
@@ -633,12 +667,15 @@ setMethod("print", "ChipInfo",
 #' can code fails however you wish.
 #' @export
 ChipInfo <- function(GRanges=NULL, chr=NULL, pos=NULL, ids=NULL, chip="unknown chip", build="",
-                     rs.id=NULL, A1=NULL, A2=NULL, QCcode=NULL) {
+                     rs.id=NULL, chip.id=NULL, A1=NULL, A2=NULL, QCcode=NULL) {
   if(build!="") { build <- ucsc.sanitizer(build) }
   LL <- max(c(length(chr),length(GRanges)),na.rm=T)
   if(length(A1)!=LL | length(A2)!=LL) { A1 <- A2 <- rep(NA,times=LL) }
   if(length(rs.id)!=LL) { rs.id <- rep(NA,times=LL) } else { 
     if(any(duplicated(rs.id))) { rs.id <- add.trail(rs.id) } # appends letters to stop duplicates
+  }
+  if(length(chip.id)!=LL) { chip.id <- rep(NA,times=LL) } else { 
+    if(any(duplicated(narm(chip.id)))) { stop("chip.id shouldn't contain duplicates") } # appends letters to stop duplicates
   }
   if(length(QCcode)!=LL) { QCcode <- rep(0,LL) }
   if(is.null(GRanges)) {
@@ -646,7 +683,7 @@ ChipInfo <- function(GRanges=NULL, chr=NULL, pos=NULL, ids=NULL, chip="unknown c
   } else {
     if(is(GRanges)[1]!="GRanges") { GRanges <- as(GRanges,"GRanges") }
   }
-  df <- DataFrame(A1=A1,A2=A2,QCcode=QCcode,rs.id=rs.id)
+  df <- DataFrame(A1=A1,A2=A2,QCcode=QCcode,rs.id=rs.id,chip.id=chip.id)
   #print(build)
   return(new("ChipInfo", seqnames=GRanges@seqnames, ranges=GRanges@ranges,  strand=GRanges@strand,
             elementMetadata=df, seqinfo=GRanges@seqinfo,
@@ -725,9 +762,11 @@ setAs("GRanges", "ChipInfo",
         if(!is.na(ii)) { a2 <- mcols(from)[,ii] } else { a2 <- NULL }
         ii <- match(toupper("rs.id"), toupper(cN))
         if(!is.na(ii)) { rss <- mcols(from)[,ii] } else { rss <- NULL }
+        ii <- match(toupper("chip.id"), toupper(cN))
+        if(!is.na(ii)) { cid <- mcols(from)[,ii] } else { cid <- NULL }
         ii <- match(toupper("QCcode"), toupper(cN))
         if(!is.na(ii)) { qcc <- mcols(from)[,ii] } else { qcc <- NULL }
-        ChipInfo("ChipInfo",GRanges=from,chip="unknown chip",build=build,rs.id=rss,A1=a1,A2=a2,QCcode=qcc)
+        ChipInfo("ChipInfo",GRanges=from,chip="unknown chip",build=build,rs.id=rss,chip.id=cid,A1=a1,A2=a2,QCcode=qcc)
       }
 )
 
@@ -869,8 +908,10 @@ setMethod("extraColumnSlotNames2", "ANY", function(x) character())
                                               showAsCell)))
   }
   if (nc > 0L) {
-    tmp <- do.call(data.frame, c(lapply(mcols(x), showAsCell), 
-                                 list(check.names = FALSE)))
+    df <- mcols(x)
+    if(tail(colnames(df),1)=="chip.id") { df <- df[,-ncol(df)] }
+    tmp <- do.call(data.frame, c(lapply(df, showAsCell), 
+                                 list(check.names = FALSE)))  ### hide chip.id here!
     ans <- cbind(ans, `|` = rep.int("|", lx), as.matrix(tmp))
     if(all(colnames(ans)[1:2]==c("seqnames","ranges"))) { colnames(ans)[1:2] <- c("chr","pos") }
   }

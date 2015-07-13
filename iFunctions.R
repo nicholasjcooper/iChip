@@ -10,7 +10,6 @@
 #' 28 Diseases currently available
 #' @param disease integer (1-28), or character (abbreviation), or full name of one of the listed
 #' diseases. A full list of options can be obtained by setting show.codes=TRUE.
-#' @param build character, either "hg18" or "hg19". Will also accept build number, 36 or 37.
 #' @param show.codes logical, if set to TRUE, instead of looking up t1dbase, will simply return
 #' a table of available diseases with their index numbers and abbreviations.
 #' @return A character vector of SNP rs-ids
@@ -18,12 +17,12 @@
 #' @author Nicholas Cooper \email{nick.cooper@@cimr.cam.ac.uk}
 #' @references PMID: 20937630
 #' @examples
-#' get.immunobase.snps(disease="CEL",build=36) # get SNP ids for celiac disease in build-36/hg18
+#' get.immunobase.snps(disease="CEL") # get SNP ids for celiac disease
 #' get.immunobase.snps(disease="AS") # get SNP ids for Ankylosing Spondylitis in build-37/hg19
 #' get.immunobase.snps(show.codes=TRUE) # show codes/diseases available to download
 #' get.immunobase.snps(disease=27) # get SNP ids for Alopecia Areata
 #' get.immunobase.snps("Vitiligo")
-get.immunobase.snps <- function(disease="T1D",build=NULL,show.codes=FALSE) {
+get.immunobase.snps <- function(disease="T1D",show.codes=FALSE) {
   disease.codes <- c("Type 1 Diabetes", "Crohns Disease","Rheumatoid Arthritis",
                      "Systemic Scleroderma",  "Ulcerative Colitis","Inflammatory Bowel Disease",  "Multiple Sclerosis",
                      "Bipolar Disorder",  "Diabetes Mellitus",  "Coronary Artery Disease",  "Hypertension",  "Celiac Disease",
@@ -52,8 +51,8 @@ get.immunobase.snps <- function(disease="T1D",build=NULL,show.codes=FALSE) {
       }
     }
   }
-  if(is.null(build)) { build <- getOption("ucsc") }
-  build <- ucsc.sanitizer(build)
+  #if(is.null(build)) { build <- getOption("ucsc") }
+  build <- "hg19" # ucsc.sanitizer(build)
   if(!build %in% c("hg18","hg19")) { stop("only hg18 and hg19 are supported for this function") }
   filenm <- cat.path(dir=getwd(),pref=tolower(abbr[disN]),"hits",suf=build,ext="tab")
   cat("attempting to download",abbr[disN],"hits from t1dbase\n")
@@ -324,14 +323,14 @@ nearest.gene <- function(chr, pos, n=1, side=c("either","left","right"),ids=TRUE
 #' in the same region. This function makes it simple to overlay genes on plots
 #' where the x-axis is chromosomal location.
 #' @param chr chromosome number/name that the plot-range lies on
-#' @param pos position range on the chromosome 'chr' that the plot lies on, in base-pairs
 #' @param scl character, the scale that the x axis uses, ie, "b","kb","mb", or "gb", meaning
 #' base-pairs, kilobases, megabases or gigabase-pairs.
 #' @param y.ofs numeric, y-axis-offset, depending on what units are on your y-axis,
-#' you may need to add an offset so that the gene annotation is drawn at an appropriate
+#' you may prefer to specify an offset so that the gene annotation is drawn at an appropriate
 #' level on the vertical axis, this value should be the centre of annotation
 #' @param width depending on the range of your y-axis, you might want to expand or reduce
-#' the vertical width of the gene annotation (in normal graph units)
+#' the vertical width of the gene annotation (in normal graph units), default
+#' when width=NA is 10 percent of the y-axis size.
 #' @param txt logical, TRUE to include the names of genes on top of their representation
 #' on the plot, or if FALSE, genes are drawn without labels.
 #' @param chr.pos.offset if for some reason zero on the x-axis is not equal to 'zero' on
@@ -375,7 +374,7 @@ nearest.gene <- function(chr, pos, n=1, side=c("either","left","right"),ids=TRUE
 #' plotRanges(rr3,col="blue",scl="mb",xlim=loc,xlab="Chr21 position (Mb)",ylab="")
 #' # NOW add UCSC hg18 GENE annotation to the plot #
 #' \donttest{ plotGeneAnnot(chr=21,pos=c(9.95,10.1),scl="mb",y.ofs=1,build=36) }
-plotGeneAnnot <- function(chr=1, pos=NA, scl=c("b","kb","mb","gb"), y.ofs=0, width=1, txt=T, chr.pos.offset=0,
+plotGeneAnnot <- function(chr=1, scl=c("b","kb","mb","gb"), y.ofs=0, width=NA, txt=T, chr.pos.offset=0,
                             gs=NULL, build=NULL, dir=NULL, box.col="green", txt.col="black", join.col="red", ...)
 {
   if(is.null(dir)) { if(any(getOption("save.annot.in.current")<1)) { dir <- NULL } else { dir <- getwd() } }
@@ -386,13 +385,21 @@ plotGeneAnnot <- function(chr=1, pos=NA, scl=c("b","kb","mb","gb"), y.ofs=0, wid
   if(is(gs)[1]=="GRanges") { gs <- as(gs,"RangedData") }
   if(!"gene" %in% colnames(gs)) { warning("didn't find 'gene' column in annotation") ; return(NULL) }
   Col <- c("green", "darkgreen")
-  if(all(is.na(pos))) { pos <- c(1,Inf) } 
+
   # get set of genes in range of the graph section + remove duplicate genes/exons
+  plot.area <- plot.get.area();
+  if(all(is.null(plot.area))) { pos <- c(1,Inf) } 
+  x.lim <- plot.area$xlim;
+  y.lim <- plot.area$ylim;
+  pos <- x.lim*make.divisor(scl) # overrides pos
+  if(any(is.na(pos))) { pos <- c(1,Inf) } 
   rng.genez <- in.window(gs,chr,pos,full.overlap=F, rmv.dup=T,unit=scl)
   if(nrow(rng.genez)<1) { warning("no genes found in range") ; return(NULL) }
   old.cc <- 1 ; tp <- 2
   # set vertical alignments for annotation
   old.auto <- F
+  if(y.ofs==0) { y.ofs <- min(y.lim) + .1*(max(y.lim)-min(y.lim)) }
+  if(is.na(width)) { width <- .1*(max(y.lim)-min(y.lim)) } 
   y.cent <- y.ofs
   y.bot <- y.ofs-(width/2)
   y.top <- y.ofs+(width/2)
@@ -401,8 +408,8 @@ plotGeneAnnot <- function(chr=1, pos=NA, scl=c("b","kb","mb","gb"), y.ofs=0, wid
   # x position with scaling (e.g, Mb units = 10^6)
   #unit <- tolower(unit[1]) ; mult <- switch(unit,b=0,kb=3,mb=6,gb=9); pos <- pos*10^mult
   x.scl <- make.divisor(scl)
-  cnrlo <- start(rng.genez)/x.scl+chr.pos.offset
-  cnrhi <- end(rng.genez)/x.scl+chr.pos.offset
+  cnrlo <- (start(rng.genez)/x.scl)+chr.pos.offset
+  cnrhi <- (end(rng.genez)/x.scl)+chr.pos.offset
   gnnm <- (rng.genez$gene)
   n.genes <- length(cnrlo)
   txt.cex <- .75; if(n.genes>10) { txt.cex <- .5 } ; if(n.genes>100) { txt.cex <- .35 } # more genes = smaller labels
@@ -622,7 +629,7 @@ get.cyto <- function(build=NULL,dir=NULL,bioC=TRUE,GRanges=TRUE,refresh=FALSE) {
    # must.use.package(c("genoset","IRanges"),bioC=T)
     outData <- RangedData(ranges=IRanges(start=st,end=en,names=fullbands),space=mychr,
                           negpos=tt$negpos,universe=build[1])
-    prv(outData)
+    #prv(outData)
     outData <- toGenomeOrder2(outData) ##,strict=T)
     if(GRanges) { outData <- as(outData,"GRanges") }
   } else {
@@ -1652,7 +1659,7 @@ conv.36.37 <- function(ranges=NULL,chr=NULL,pos=NULL,...,ids=NULL,chain.file=NUL
   }
   #toranged <- F
   outType <- is(ranges)[1]
-    
+  inr <- is.null(ranges)
   used.st.en <- all(c("start","end") %in% names(list(...)))
   if(!is.null(chr) & (!is.null(pos) | used.st.en)) {
     if(is.null(pos) & length(chr)==1) {
@@ -1675,10 +1682,10 @@ conv.36.37 <- function(ranges=NULL,chr=NULL,pos=NULL,...,ids=NULL,chain.file=NUL
     mcols(ranges)[["XMYINDEXX"]] <- rownames(ranges)
     mcols(ranges)[["XMYCHRXX"]] <- ocr <- chrm(ranges)
     if(include.cols) { 
-      meta.data <- mcols(ranges)
+      meta.data <- mcols(ranges); if(is.null(dim(meta.data))) { meta.data <- as.data.frame(meta.data) }
       rownames(meta.data) <- rownames(ranges)
       oo <- (colnames(meta.data) %in% c("XMYINDEXX","XMYCHRXX"))
-      if(length(oo)>0) { meta.data <- meta.data[,-oo] }
+      if(length(oo)>0) { meta.data <- meta.data[,-oo,drop=F] }
     }
     #prv(orn,ocr)
     opos <- start(ranges)
@@ -1703,7 +1710,7 @@ conv.36.37 <- function(ranges=NULL,chr=NULL,pos=NULL,...,ids=NULL,chain.file=NUL
   if(!SNPs ) {
     new.coords.df <- do.call("rbind",lapply(ranged.gr.37,myfun))
     ranged.gr.37 <- ranged.gr
-    if(!used.st.en) { stop("need start and end arguments unless the dataset is all SNPs (width=1)" ) }
+    if(!used.st.en & inr) { stop("need start and end arguments unless the dataset is all SNPs (width=1)" ) }
     ranges(ranged.gr.37) <- with(new.coords.df,IRanges(start=start,end=end))
     #seqlevels(ranged.gr.37) <- gsub("chr","",seqlevels(ranged.gr.37))
     seqlevels(ranged.gr.37) <- gsub("chr","",seqlevels(ranged.gr.37))
@@ -1772,6 +1779,8 @@ conv.36.37 <- function(ranges=NULL,chr=NULL,pos=NULL,...,ids=NULL,chain.file=NUL
   #print(colnames(ranged.rd))
   ranged.gr.37 <- as(ranged.rd,"GRanges")
   #print(colnames(ranged.gr.37))
+  # if immunochip, these positions should be constant (only present in B36 really)
+  if(all(c("imm_3_50875337","imm_3_50882163","imm_3_50908888") %in% rownames(ranged.gr.37))) { ranged.gr.37 <- substitute.36s(ranged.gr.37) }
   if(found.xy) {
     xy.ind <- match(xy.id,rownames(ranged.gr.37))
     lmis <- length(which(is.na(xy.ind)))
@@ -1790,7 +1799,7 @@ conv.36.37 <- function(ranges=NULL,chr=NULL,pos=NULL,...,ids=NULL,chain.file=NUL
     } # else { warning("couldn't find index column, GRanges object not sorted in original order") }
     if(all(rownames(ranged.gr.37) %in% orn)) { ranged.gr.37 <- ranged.gr.37[orn,] }
     if(include.cols) {
-      meta.data <- meta.data[rownames(ranged.gr.37),]
+      meta.data <- meta.data[rownames(ranged.gr.37),,drop=F]
       mcols(ranged.gr.37) <- cbind(mcols(ranged.gr.37),meta.data)
     }
     return(ranged.gr.37)
@@ -1798,7 +1807,7 @@ conv.36.37 <- function(ranges=NULL,chr=NULL,pos=NULL,...,ids=NULL,chain.file=NUL
     if(outType=="RangedData") {
       #if("ind" %in% colnames(ranged.gr.37)) { ranged.gr.37 <- ranged.gr.37[,-which(colnames(ranged.gr.37) %in% "ind")] }
       if(include.cols) {
-        meta.data <- meta.data[rownames(ranged.gr.37),]
+        meta.data <- meta.data[rownames(ranged.gr.37),,drop=F]
         mcols(ranged.gr.37) <- cbind(mcols(ranged.gr.37),meta.data)
       }
       return(toGenomeOrder2(as(ranged.gr.37,"RangedData")))
@@ -2541,9 +2550,10 @@ expand.nsnp <- function(ranged,snp.info=NULL,nsnp=10, add.chr=FALSE) {
   snp.info <- toGenomeOrder2(snp.info,strict=TRUE); rw.cnt <- 1
   all.fl <- matrix(ncol=4+(as.numeric(add.chr)), nrow=0)
   for(cc in chrNums(ranged)) {
-    nxt.nm <- rownames(snp.info[paste(cc)]); pos <- start(snp.info[paste(cc)])
+    si <- chrSel(snp.info,paste(cc))
+    nxt.nm <- rownames(si); pos <- start(si)
     rng <- chrSel(ranged,paste(cc)) # ranged[paste(cc)]
-    st.en.snp <- rangeSnp(ranged=rng,snp.info=snp.info)
+    st.en.snp <- rangeSnp(ranged=rng,snp.info=si)
     fl <- matrix(ncol=4, nrow=nrow(st.en.snp))
     fl[,2] <- start(rng); fl[,3] <- end(rng);
     for(dd in 1:nrow(st.en.snp)) {
@@ -3405,9 +3415,9 @@ compact.gene.list <- function(x,n=3,sep=";",others=FALSE) {
 #' the allele coding in your own dataset.
 #' @param build character, either "hg18", "hg19" or "hg38". Will also accept build numbers,
 #' 36, 37 or 38.
-#' @param refresh logical, TRUE to just load whatever object is already in memory (except
+#' @param refresh logical, FALSE to just load whatever object is already in memory (except
 #' when first using a function in this package, there should be a ChipInfo object loaded),
-#' or FALSE to reload from the original source. For instance you may wish to do this when 
+#' or TRUE to reload from the original source. For instance you may wish to do this when 
 #' you want to use a different chip, different build, or if the annotation has been modifed
 #' via a manual correction).
 #' @param alternate.file character, name of an alternative RData file containing a ChipInfo
@@ -3439,6 +3449,7 @@ chip.support <- function(build=NULL,refresh=FALSE,alternate.file=NULL) {
   refresh <- T ###??????? why a param?
   #old# if(!exists("all.support",envir=globalenv())) { refresh <- T }  # change global environment to namespace of iChip package
   if(refresh) {
+    options(chip.info="") # refresh this?
     use.options <- TRUE
     if(is.character(alternate.file)) {
       if(file.exists(alternate.file)) {
@@ -3508,7 +3519,8 @@ chip.support <- function(build=NULL,refresh=FALSE,alternate.file=NULL) {
 #' 
 #' Most SNPs will have an 'rs-id' from dbSNP/HapMap, and these are often the standard for reporting or
 #' annotation lookup. These can differ from the IDs used on the chip. This functions looks at the current
-#' snp support (ChipInfo object) and returns rs-ids in place of chip IDs.
+#' snp support (ChipInfo object) and returns rs-ids in place of chip IDs. Currently rs-ids are always 
+#' from build37.
 #' @param ids character, meant to be a list of chip ids, but if rs-ids are present they will not be altered.
 #' @return A character vector of SNP rs-ids, where the input was chip ids, rs-ids or a mixture, any text
 #' other than this will result in NA values being returned in the character vector output.
@@ -3535,16 +3547,22 @@ id.to.rs <- function(ids) {
 #' the current snp support (ChipInfo object) and looks up chip IDs based on rs-ids.
 #' @param rs.ids character, meant to be a list of rs-ids, but if chip-ids are present they will not be
 #' altered.
+#' @param manifest logical, if TRUE return the ids as specified by the manifest/official set, or as
+#' stored in the column 'chip.id'. If FALSE return the IDs as stored in the rownames of the ChipInfo
+#' object, which can differ when the chip.id is an illegal format for an R row/column name.
 #' @param multi.list logical, some rs-ids could map to multiple chip ids. It is recommended that if
 #' that is the case then a letter should be appended to duplicate rs-ids to make them unique in the
 #' ChipInfo object, e.g, rs1234, rs1234b, rs1234c, etc. If multi.list is TRUE, then the id list 
 #' will be returned as a list, and any time an rs-id is entered without a letter suffix, all 
 #' possible corresponding chip ids will be listed.
+#' @param force.flat logical, if 'multi.list' is true, then some rs-ids might map to more than one
+#' SNP. If force.flat is TRUE, then multiple SNP listings will be concatenated with a comma. If 
+#' FALSE, then a list will be returned, with multiple entries where applicable.
 #' @return A character vector of SNP chip-ids, where the input was rs-ids, chip-ids or a mixture, 
 #' any text other than this will result in NA values being returned in the character vector output.
 #' Or, if multi-list is true, then returns a list instead, which takes more than 1 value where 
 #' there are multiple chip-ids with the same rs-id; if there are no such rs-id duplicates the
-#' result will still be a list.
+#' result will still be a list. Currently rs-ids are always from build37.
 #' @export
 #' @seealso \code{\link{id.to.rs}}, \code{\link{GENE.to.ENS}}, \code{\link{ENS.to.GENE}}
 #' @author Nicholas Cooper \email{nick.cooper@@cimr.cam.ac.uk}
@@ -3555,17 +3573,31 @@ id.to.rs <- function(ids) {
 #'                                     "rs12131065","rs3790567","rs2270614")
 #' rs.to.id(test.ids, multi.list=TRUE) # list with duplicates
 #' }
-rs.to.id <- function(rs.ids,multi.list=FALSE) {
+rs.to.id <- function(rs.ids,manifest=FALSE,multi.list=TRUE,force.flat=TRUE) {
   rs.ids <- clean.snp.ids(rs.ids)
   all.support <- chip.support()
   if(!exists("all.support")) { stop("ChipInfo data object 'all.support' not found") }  ## load object: all.support [snp support for whole chip]
+  delay.force <- FALSE
+  if(manifest) { if(force.flat) { 
+    force.flat <- FALSE; #warning("force.flat set to FALSE, cannot be TRUE when manifest=TRUE") 
+    multi.list=TRUE; delay.force <- TRUE
+  }}
   if(multi.list) {
     X0 <- rmv.trail(rs.ids)
     X1 <- paste0(X0,"b"); X2 <- paste0(X0,"c"); X3 <- paste0(X0,"d"); X4 <- paste0(X0,"a")
-    X <- cbind(rs.to.id(X0),rs.to.id(X1),rs.to.id(X2),rs.to.id(X3),rs.to.id(X4))
+    X <- cbind(rs.to.id(X0,multi.list=F),rs.to.id(X1,multi.list=F),
+               rs.to.id(X2,multi.list=F),rs.to.id(X3,multi.list=F),rs.to.id(X4,multi.list=F))
     idvec <- apply(X,1,function(x) { unique(narm(x)) })
-    if(!is.list(idvec)) { idvec <- as.list(idvec) }
-      #warning("'multi.list' option was used, but no duplicate rs-ids found, so returning a vector, not a list") }
+    if(!is.list(idvec)) { 
+      if(!force.flat) {
+        idvec <- as.list(idvec) 
+      }
+    } else {
+      if(force.flat) {
+        idvec <- sapply(idvec,paste,collapse=",") 
+      }
+    }
+    #warning("'multi.list' option was used, but no duplicate rs-ids found, so returning a vector, not a list") }
   } else {
     #prv(all.support,rs.ids)
     #print(showMethods(rownames))
@@ -3575,7 +3607,57 @@ rs.to.id <- function(rs.ids,multi.list=FALSE) {
     #prv(idvec,idvec2)
     idvec[is.na(idvec)] <- idvec2[is.na(idvec)]
   }
-  return(idvec)
+  if(manifest) {
+    if(!is.null(mcols(all.support)[,"chip.id"])) {
+      mano <- function(X) { mcols(all.support)[,"chip.id"][match(X,rownames(all.support))] }
+      if(is(idvec)[1]=="list") {
+        idvec <- lapply(idvec,mano)
+        if(delay.force) {
+          idvec <- sapply(idvec,paste,collapse=",") # force.flat if this option was selected
+        }
+      } else {
+        idvec <- mano(idvec)
+      }
+      return(idvec)
+    } else {
+      warning("chip.id was NULL, no 'manifest' Ids found, returning rownames"); return(idvec)
+    }
+  } else {
+    return(idvec)
+  }
+}
+
+
+
+#' Convert from chip/rs-ids to manifest chip ID labels
+#' 
+#' Some SNP-ids aren't legal R row/column names. In order to match datafiles and store annotation
+#' as objects, this package converts SNP-names to sanitized versions if necessary, that are
+#' legal row/column names. This function converts from such 'legal' versions of the IDs back
+#' to the proper names, as per the chip manifest document (or whatever is stored in the chip.id field
+#' of the chip.support() object, accessible using chipId()).
+#' @param ids character, either a list of rs-ids or chip-ids. chip ids are preferable as they
+#' are unique, and rs.ids are not. Using this function is not recommended for rs.id lists that
+#' might have entries that map to multiple chip ids, because entries other than the first will be 
+#' ignored. For such cases, use 'rs.to.id(manifest=TRUE,multi.list=TRUE,...)'.
+#' @return A character vector of SNP chip-ids matching the manifest format.
+#' @export
+#' @seealso \code{\link{id.to.rs}}, \code{\link{GENE.to.ENS}}, \code{\link{ENS.to.GENE}}
+#' @author Nicholas Cooper \email{nick.cooper@@cimr.cam.ac.uk}
+#' @examples
+#'   test.ids <- c("imm_1_898835","rs61733845","rs115005664","rs114582555",
+#'       "chr1_20131940","chr1_20133829","rs150992667","rs138231315","rs111577708","rs187104718")
+#'   manifest(c("chr1_20131940","ccc_1_67429655_A_G"))
+#'   manifest(test.ids)  # even when some are rs-id, still works
+#'   data.frame(rs.id=test.ids,legal.id=rs.to.id(test.ids),manifest.id=manifest(test.ids))
+manifest <- function(ids) {
+  mano <- function(X) { rs.to.id(X,manifest=T,force.flat=FALSE,multi.list=FALSE) }
+  if(is(ids)[1]=="list") {
+    ids <- lapply(ids,mano)
+  } else {
+    ids <- mano(ids)
+  }
+  return(ids)
 }
 
 
