@@ -2219,6 +2219,7 @@ df.to.ranged <- function(dat, ids=NULL,start="start",end="end",width=NULL,
   key.nms <- c(ids,st,en,ch,wd)
   tries <- 0
   #print(key.nms); print(colnames(dat))
+  if(st=="position" & en=="end") { en <- st } # if only 1 entered
   while(!all(key.nms %in% colnames(dat))) { 
     colnames(dat) <- tolower(colnames(dat)); key.nms <- tolower(key.nms)
     st <- tolower(st); en <- tolower(en); ch <- tolower(ch); wd <- tolower(wd)
