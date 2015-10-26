@@ -1936,6 +1936,10 @@ recomWindow <- function(ranges=NULL,chr=NA,start=NA,end=start,window=0.1,bp.ext=
   if(info) { cat("n hapmap snps in window =",nrow(kk),"\n") }
   from <- min(kk[,1])
   to <- max(kk[,1])
+  lft <- (start - from + bp.ext)
+  rgt <- (to - end + bp.ext)
+  if(lft<0) { lft <- abs(lft); from <- from-(2*(lft)) }
+  if(rgt <0) { rgt <- abs(rgt); to <- to+(2*(rgt)) }
   ##
   if(info) {
     cat("new window size is\nleft: ",(start-from+bp.ext)/1000,"kb\tright: ",
@@ -2219,7 +2223,7 @@ df.to.ranged <- function(dat, ids=NULL,start="start",end="end",width=NULL,
   key.nms <- c(ids,st,en,ch,wd)
   tries <- 0
   #print(key.nms); print(colnames(dat))
-  if(st=="position" & en=="end") { en <- st } # if only 1 entered
+  if(st=="position" & is.null(en)) { en <- st } # if only 1 entered
   while(!all(key.nms %in% colnames(dat))) { 
     colnames(dat) <- tolower(colnames(dat)); key.nms <- tolower(key.nms)
     st <- tolower(st); en <- tolower(en); ch <- tolower(ch); wd <- tolower(wd)
@@ -2952,22 +2956,22 @@ plotRanges <- function(ranged,labels=NULL,do.labs=T,skip.plot.new=F,lty="solid",
   }
   if(all(width(ranged)<=1)) { theyAreSnps <- TRUE } else { theyAreSnps <- FALSE }
   scl <- make.divisor(scl)
-  xl <- range(c(start(ranged),end(ranged)))
+  xl <- range(c(start(ranged),end(ranged)),na.rm=T)
   xl <- xl + ((diff(xl)*0.1)*c(-1,1))
   xl <- xl/scl
   nr <- nrow(ranged); if(is.null(nr)) { nr <- length(ranged) }
   if(is.null(alt.y)) {
     yl <- c(0,(nr+2))
   } else {
-    yl <- range(yy)
+    yl <- range(yy,na.rm=T)
   }
   if(is.numeric(ylim) & length(ylim)==2) {
-    ylim <- range(ylim)
+    ylim <- range(ylim,na.rm=T)
     ydif <- diff(ylim)
     yl <- ylim
   }
   if(is.numeric(xlim) & length(xlim)==2) {
-    xlim <- range(xlim)
+    xlim <- range(xlim,na.rm=T)
     xdif <- diff(xlim)
     xl <- xlim
   }
@@ -3403,8 +3407,9 @@ compact.gene.list <- function(x,n=3,sep=";",others=FALSE) {
 #' 
 #' This function returns the current 'ChipInfo' annotation object, containing chromosome,
 #' id, position, strand, 'rs' id, allele 1, allele 2 for each SNP of a microarray chip,
-#' in either hg18 or hg19 (build 36/37) coordinates.
-#' This package makes extension use of this class of annotation object for the working
+#' in either hg18 or hg19 (build 36/37) coordinates. Can also be used to update the 
+#' current object to a new object.
+#' This package makes extensive use of this class of annotation object for the working
 #' microarray chip, e.g, default is ImmunoChip, but Metabochip is also built-in,
 #' and you can also load your own annotation if using a different chip. The class
 #' of the object used is 'ChipInfo' which is a GRanges object, modified to always
@@ -3422,7 +3427,11 @@ compact.gene.list <- function(x,n=3,sep=";",others=FALSE) {
 #' you want to use a different chip, different build, or if the annotation has been modifed
 #' via a manual correction).
 #' @param alternate.file character, name of an alternative RData file containing a ChipInfo
-#' object to use instead of the object found in getOption("chip.info").
+#' object to use instead of the object found in getOption("chip.info"). This will replace
+#' the current ChipInfo object.
+#' @param warn.build logical, whether to warn if the 'build' argument does not match
+#' the current value of getOption("ucsc"). The default is to display this warning,
+#' but if you set this argument to FALSE this can be suppressed.
 #' @return returns the current ChipInfo object [S4]. This may be slow first time, but
 #' subsequent lookups should be much faster. Builds 36/38 are not stored explicitly so
 #' will take a little while to convert the first time, but subsequent lookups should be
@@ -3439,18 +3448,22 @@ compact.gene.list <- function(x,n=3,sep=";",others=FALSE) {
 #' @examples
 #' chip.support() # shows the current ChipInfo object (default is 'ImmunoChip' build 37)
 #' #/donttest{
-#' chip.support(build=36)
+#' chip.support(build=36) # gives warning as hg19 version is currently loaded
+#' chip.support(build=36,refresh=TRUE)
 #' getOption("chip.info") # shows the object is now saved in the tmp directory for subsequent calls
-#' chip.support(build=38)
+#' chip.support(build=38,refresh=TRUE)
 #' #}
-chip.support <- function(build=NULL,refresh=FALSE,alternate.file=NULL) {
-  if(is.null(build)) { build <- getOption("ucsc") }
+chip.support <- function(build=NULL,refresh=FALSE,alternate.file=NULL,warn.build=TRUE) {
+  update.build <- T #refresh
+  if(is.null(build)) { build <- getOption("ucsc") } else {  update.build <- TRUE  }
   build <- ucsc.sanitizer(build)
   ## NEED TO ADD SUPPORT HERE TO USE CORRECT OUT OF 36/37
-  refresh <- T ###??????? why a param?
+  if(getOption("chip.info")=="") { refresh <- TRUE }
+#  refresh <- T ###??????? why a param?
   #old# if(!exists("all.support",envir=globalenv())) { refresh <- T }  # change global environment to namespace of iChip package
   if(refresh) {
-    options(chip.info="") # refresh this?
+#    options(chip.info="") # refresh this?
+    if(getOption("chip.info")=="ImmunoChip_37_builtIn" | update.build) {  options(chip.info="") } # refresh so erase current
     use.options <- TRUE
     if(is.character(alternate.file)) {
       if(file.exists(alternate.file)) {
@@ -3472,19 +3485,30 @@ chip.support <- function(build=NULL,refresh=FALSE,alternate.file=NULL) {
                  "for chip.support() function, please use hg18/19/38",
                   "or use option(chip.info=<PATH>) to specify a custom ChipInfo file")
       } else {
-        if(!build=="hg19") { conv <- TRUE}
+        if(!build=="hg19") {
+          conv <- TRUE
+        } else {
+          options(chip.info="ImmunoChip_37_builtIn")
+        }
       }
       #/home/ncooper/github/iChip/data/ImmunoChipB37.rda
       #file <- system.file("extdata", fname, package="humarray")
     } else {
       all.support <- reader(file); conv <- FALSE # custom file supplied, don't convert
+      if(!is(all.support)[1]=="ChipInfo") {
+        stop("alternate.file file contained object not of class ChipInfo")
+      }  else {
+        options(chip.info=file)
+        message("Updated current ChipInfo object to: ",getOption("chip.info"))
+      }
     }
+#   if(ucsc(all.support)!=build) { conv <- TRUE } # needs converting
     if(is(all.support)[1]=="list") {
       if(length(all.support)>1) { typz <- sapply(lapply(all.support,is),"[",1) } # in case multiple objects in file
     } else {
-      typz <- is(all.support)[1] 
+      typz <- is(all.support)[1]
     }
-    if(all(typz=="ChipInfo")) { 
+    if(all(typz=="ChipInfo")) {
       if((build %in% c("hg18","hg38")) & conv) {
         if(build=="hg18") { all.support <- convTo36(all.support) } else { all.support <- convTo38(all.support) }
         tfn <- cat.path(tempdir(),"ImmunoChip_ChipInfo",suf=substr(build,3,4),ext="rda")
@@ -3496,12 +3520,31 @@ chip.support <- function(build=NULL,refresh=FALSE,alternate.file=NULL) {
       stop("object (all.support) in the file",file,
            "should have type ChipInfo, or else object all.support in the global environment has been modified")
     }
+  } else {
+    file <- getOption("chip.info");
+    if(file=="ImmunoChip_37_builtIn") {
+      all.support <- humarray::ImmunoChipB37
+    } else {
+      if(file.exists(file)) { 
+        all.support <- reader(file) 
+      } else { 
+        stop("getOption('chip.info') file did not exist")
+      }
+      if(!is(all.support)[1]=="ChipInfo") { stop("chip.info file contained object not of ChipInfo class") }
+    }
+    if(ucsc(all.support)!=build) {
+      all.support <- chip.support(build=build,refresh=TRUE,alternate.file=alternate.file,warn.build=warn.build)
+      if(ucsc(all.support)!=getOption("ucsc") & warn.build) {
+        warning("'build' did not match the current default reference genome. Use options(ucsc=",build,") if you wish to change the default reference genome. otherwise use 'warn.build=FALSE' to hide this warning")
+      }
+    }
   }
   #old#if(!exists("all.support",envir=globalenv())) { stop("ChipInfo data object 'all.support' not found") }  
-  #old#all.support <- get("all.support",envir=globalenv())  # change global environment to namespace of iChip package
+  #old#all.support <- get("all.support",envir=globalenv())  
+  # change global environment to namespace of iChip package
   if(is(all.support)[1]=="list") {
     nnn <- (names(all.support))
-    if(length(nnn)>1) { 
+    if(length(nnn)>1) {
       # multiple objects in file, probably different builds
       any37 <- c(grep("37",nnn),grep("hg19",nnn))
       any36 <- c(grep("36",nnn),grep("hg18",nnn))
@@ -3512,6 +3555,8 @@ chip.support <- function(build=NULL,refresh=FALSE,alternate.file=NULL) {
   }
   return(all.support)
 }
+
+
 
 
 
@@ -4435,7 +4480,7 @@ nearest.snp <- function(chr, pos, n=1, side=c("either","left","right"),ids=TRUE,
   if(length(pos)>1) { warning("pos should be length 1, using only first entry"); pos <- pos[1] }
   if(is.null(build)) { build <- getOption("ucsc") }
   build <- ucsc.sanitizer(build)
-  all.support <- chip.support(build=build)
+  all.support <- chip.support(build=build,warn.build=FALSE)
   if(!exists("all.support")) { all.support <- chip.support() }  ## load object: all.support [snp support for whole chip]
   side <- tolower(side[1]); 
   if(!side %in% c("either","left","right")) {
