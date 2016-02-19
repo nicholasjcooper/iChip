@@ -16,7 +16,7 @@
 #' @importMethodsFrom IRanges "colnames<-" "rownames<-" "universe<-" subjectHits queryHits showAsCell
 #' @importMethodsFrom IRanges as.data.frame as.list as.matrix cbind rbind colnames elementLengths
 #' @importMethodsFrom IRanges end findOverlaps subsetByOverlaps gsub intersect lapply
-#' @importMethodsFrom IRanges mean nrow ncol order as.list aggregate
+#' @importMethodsFrom IRanges mean nrow ncol order as.list
 #' @importMethodsFrom IRanges ranges rownames runLength space  flank  reduce resize
 #' @importMethodsFrom IRanges start universe unlist width  "start<-"  "width<-"  "end<-" ranges "ranges<-"
 #' @importFrom "GenomicFeatures" makeTranscriptDbFromUCSC  exonsBy  transcriptsBy
