@@ -81,13 +81,12 @@ get.immunobase.snps <- function(disease="T1D",snps.only=TRUE,show.codes=FALSE) {
     if(snps.only) {
       return(unique(rsids))
     } else {
-      return(read.delim(filenm,comment="#"))
+      return(read.delim(filenm,comment.char="#"))
     } 
   } else {
     stop("couldn't reach t1dbase website at: ",urL)
   }
 }
-
 
 
 
@@ -2346,7 +2345,7 @@ chrSelect <- function(X,chr,index=FALSE) {
   if(!(is.character(chr) | is.numeric(chr))) { stop("chr must be character or numeric type") }
   if(is.numeric(chr)) { if(!all(chr %in% 1:99)) { 
     stop("illegal chromosome index, valid range 1-99 [although 1-28 typical for human]") } }
-  if(!paste(chr) %in% paste(unique(chrm(X)))) { stop("X did not have a chromosome labelled: ",chr) }
+  if(!any(paste(chr) %in% paste(unique(chrm(X))))) { stop("X did not have any chromosome from the list: ",paste(chr,collapse=",")) }
   if(typ=="RangedData") { if(index) { return(X[chr]) } else { return(X[paste(chr)]) } }
   all.chr <- chr2(X)
   if(!all(chr %in% unique(all.chr))) { 
@@ -3347,7 +3346,6 @@ invGRanges <- function(X,inclusive=FALSE,build=NULL,pad.missing.autosomes=TRUE) 
 #' @author Nicholas Cooper \email{nick.cooper@@cimr.cam.ac.uk}
 #' @references Freedman M.L., et al. Assessing the impact of population stratification
 #'  on genetic association studies. Nat. Genet. 2004;36:388-393.
-#' @seealso \code{\link{lambdas}}
 #' @examples
 #' # create some p-values with clear 'inflation' (divergence from uniform[0,1])
 #' p.vec <- c(runif(3000)/200,runif(7000)) 
@@ -3453,6 +3451,9 @@ compact.gene.list <- function(x,n=3,sep=";",others=FALSE) {
 #'  same for all rows, a scalar' value can be entered
 #' for each.
 #' @param N2 Only required if method="sample.size". Same as N1 above but pertaining to analysis 2
+#' @param Z1 Only use if method="sample.size" or "z.score". The column name in X with the 
+#' z.scores in the first analysis.
+#' @param Z2 Same as Z1 above but pertaining to analysis 2
 #' @param method character, can be either 'beta', 'z.score' or 'sample.size', and upper/lower
 #' case does not matter. 'Beta' is the default and will calculate meta-analysis weights using
 #' the inverse variance method (based on standard errors), and will calculate the p-values
@@ -3505,7 +3506,7 @@ meta.me <- function(X,OR1="OR_CC",OR2="OR_Fam",SE1="SE_CC",SE2="SE_Fam",Z1=NA,Z2
         }
     }
   }
-OR.CC <- X[,OR1]
+  OR.CC <- X[,OR1]
   beta.CC  <- log(X[,OR1])
   se.CC <- X[,SE1]
   OR.family <- X[,OR2]
