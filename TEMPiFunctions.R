@@ -1,7 +1,7 @@
 if(Sys.info()[["user"]]=="ncooper")
 {
   source("~/github/iChip/firstscriptFunctions.R") # only needed for internal analyses
-  source("~/github/plumbCNV/geneticsFunctions.R")
+  source("~/github/plumbCNV/generalCNVFunctions.R")
 }
 
 require(snpStats)

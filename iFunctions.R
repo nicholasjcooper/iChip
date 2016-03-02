@@ -100,6 +100,8 @@ get.immunobase.snps <- function(disease="T1D",snps.only=TRUE,show.codes=FALSE) {
 #' @param bio logical, whether to return biological process GO terms
 #' @param cel logical, whether to return cellular component GO terms
 #' @param mol logical, whether to return molecular function GO terms
+#' @param host.txt character, the argument to pass to biomaRt::useMart(). Default is 
+#' 'may2009.archive.ensembl.org', but more recently the recommended link is 'www.ensembl.org'
 #' @return data.frame containing the gene name in the first column, chromosome in the
 #' second column, and the GO terms in the third column, where one gene has multiple
 #' GO terms, this will produce multiple rows, so there will usually be more rows
@@ -109,11 +111,12 @@ get.immunobase.snps <- function(disease="T1D",snps.only=TRUE,show.codes=FALSE) {
 #' @examples
 #' get.GO.for.genes(c("CTLA4","PTPN2","PTPN22")) # biological terms (default)
 #' get.GO.for.genes(c("CTLA4","PTPN2","PTPN22"),cel=TRUE) # add cellular GO terms
-get.GO.for.genes <- function(gene.list,bio=T,cel=F,mol=F) {
+get.GO.for.genes <- function(gene.list,bio=T,cel=F,mol=F,host.txt="may2009.archive.ensembl.org") {
  # must.use.package(c("biomaRt","genoset","gage"),T)
-  ens <- biomaRt::useMart("ENSEMBL_MART_ENSEMBL",
+  mart.txt <- "ENSEMBL_MART_ENSEMBL"
+  ens <- biomaRt::useMart(mart.txt,
                  dataset="hsapiens_gene_ensembl",
-                 host="may2009.archive.ensembl.org",
+                 host= host.txt,
                  path="/biomart/martservice",
                  archive=FALSE)
   ens <- biomaRt::useDataset("hsapiens_gene_ensembl",mart=ens)
@@ -871,6 +874,9 @@ get.exon.annot <- function(dir=NULL,build=NULL,bioC=T, transcripts=FALSE, GRange
 #' is modified or corrupted this will make a new one without having to manually delete it
 #' @param GRanges logical, if TRUE and bioC is also TRUE, then returned object will be GRanges, otherwise
 #' it will be RangedData
+#' @param host.txt character, the argument to pass to biomaRt::useMart(). Default for build 36 is 
+#' 'may2009.archive.ensembl.org', and for build 37, "feb2014.archive.ensembl.org" but for recent builds
+#'  the recommended link is 'www.ensembl.org'
 #' @export
 #' @return Returns a data.frame, GRanges or RangedData object, depending on input parameters. Contained
 #' will be HGNC gene labels, chromosome and start and end positions, other information depends on 
@@ -882,12 +888,13 @@ get.exon.annot <- function(dir=NULL,build=NULL,bioC=T, transcripts=FALSE, GRange
 #' }
 get.gene.annot <- function(dir=NULL,build=NULL,bioC=TRUE,duplicate.report=FALSE,
                            one.to.one=FALSE,remap.extra=FALSE,discard.extra=TRUE,only.named=FALSE,
-                           ens.id=FALSE,refresh=FALSE,GRanges=TRUE) {
+                           ens.id=FALSE,refresh=FALSE,GRanges=TRUE, host.txt="") {
   # faster than exon, but only contains whole gene ranges, not transcripts
   # allows report on duplicates as some might be confused as to why some genes
   # have more than one row in the listing (split across ranges usually)
   # run with dir as NULL to refresh changes in COX
   #must.use.package(c("biomaRt","genoset","gage"),T)
+  mart.txt <- "ENSEMBL_MART_ENSEMBL"
   verbose <- TRUE # hard coded at this stage!!
   if(is.null(build)) { build <- getOption("ucsc") }
   build <- ucsc.sanitizer(build)
@@ -910,21 +917,24 @@ get.gene.annot <- function(dir=NULL,build=NULL,bioC=TRUE,duplicate.report=FALSE,
   if(ens.id & bioC) { warning("ens.id=TRUE only has an effect when bioC=FALSE") }
   if(from.scr) {
     if(build=="hg18") {
-      ens <- biomaRt::useMart("ENSEMBL_MART_ENSEMBL",
+      if(all(host.txt=="")) { host.txt <- "may2009.archive.ensembl.org" }
+      ens <- biomaRt::useMart(mart.txt,
                               dataset="hsapiens_gene_ensembl",
-                              host="may2009.archive.ensembl.org",
+                              host= host.txt,
                               path="/biomart/martservice",
                               archive=FALSE)
     } else {
       if(build=="hg19") {
-        ens <- biomaRt::useMart("ENSEMBL_MART_ENSEMBL",
+        if(all(host.txt=="")) { host.txt <- "feb2014.archive.ensembl.org" }
+        ens <- biomaRt::useMart(mart.txt,
                                 dataset="hsapiens_gene_ensembl",
-                                host="feb2014.archive.ensembl.org",
+                                host= host.txt,
                                 path="/biomart/martservice",
                                 archive=FALSE)
       } else {
         # whatever the current mart is
-        ens <- biomaRt::useMart("ensembl")
+        if(all(host.txt=="")) { host.txt <- "www.ensembl.org" }
+        ens <- biomaRt::useMart(mart.txt,host=host.txt)
       }
     }
     ens <- biomaRt::useDataset("hsapiens_gene_ensembl",mart=ens)
@@ -1093,21 +1103,23 @@ get.telomere.locs <- function(dir=NULL,kb=10,build=NULL,bioC=TRUE,GRanges=TRUE,
 #'  build 36/37), or any future builds (hg20, etc) stored in the same location on the build website.
 #'  Default is to return lengths for 22 autosomes, but can also retrieve X,Y 
 #'  and Mitochondrial DNA lengths by 'autosomes=FALSE' or n=1:25. Even if not connected to 
-#'  the internet can retrieve hard coded lengths for hg18/hg19.
-#'  @param dir directory to retrieve/download the annotation from/to (defaults to current getwd())
+#'  the internet can retrieve hard coded lengths for hg18 or hg19.
+#'
+#' @param dir directory to retrieve/download the annotation from/to (defaults to current getwd())
 #'  if dir is NULL then will automatically delete the annotation text file from the local directory
 #'   after downloading
-#'  @param build string, currently 'hg17','hg18' or 'hg19' to specify which annotation version to use. 
+#' @param build string, currently 'hg17','hg18' or 'hg19' to specify which annotation version to use. 
 #'  Default is getOption("ucsc"). Will also accept integers 17,18,19,35,36,37 as alternative arguments.
-#'  @param autosomes logical, if TRUE, only load the lengths for the 22 autosomes, else load X,Y,[MT] as well
-#'  @param len.fn optional file name to keep the lengths in
-#'  @param mito logical, whether to include the length of the mitochondrial DNA (will not include unless autosomes is also FALSE)
-#'  @param names logical, whether to name the chromosomes in the resulting vector
-#'  @param delete.after logical, if TRUE then delete the text file that these lengths were downloaded to. 
-#'  @param verbose logical, if TRUE display extra information on progress of chromsome retrieval
+#' @param autosomes logical, if TRUE, only load the lengths for the 22 autosomes, else load X,Y,[MT] as well
+#' @param len.fn optional file name to keep the lengths in
+#' @param mito logical, whether to include the length of the mitochondrial DNA (will not include unless
+#'  autosomes is also FALSE)
+#' @param names logical, whether to name the chromosomes in the resulting vector
+#' @param delete.after logical, if TRUE then delete the text file that these lengths were downloaded to. 
+#' @param verbose logical, if TRUE display extra information on progress of chromsome retrieval
 #'  If FALSE, then the file will be kept, meaning future lookups will be faster, and available offline.
-#'  @export
-#'  @examples
+#' @export
+#' @examples
 #'  setwd(tempdir())
 #'  get.chr.lens(delete.after=TRUE) # delete.after simply deletes the downloaded txt file after reading
 #'  get.chr.lens(build=35,autosomes=TRUE,delete.after=TRUE) # only for autosomes
@@ -1704,7 +1716,8 @@ conv.36.37 <- function(ranges=NULL,chr=NULL,pos=NULL,...,ids=NULL,chain.file=NUL
     stop("input specified resulted in an invalid GRanges/RangedData 'ranged' object, type ",is(ranges)[1]) 
   } 
   # change CHR-XY to CHR-X prior to liftOver, then change back #
-  xy.ind <- grep("XY",seqnames(ranged.gr))
+#  xy.ind <- grep("XY",seqnames(ranged.gr))
+  xy.ind <- grep("XY",as.character(seqnames(ranged.gr)))
   if(length(xy.ind)>0) {
     found.xy <- TRUE
     xy.id <- rownames(ranged.gr)[xy.ind]
