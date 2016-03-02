@@ -6,10 +6,11 @@
 
 #' Download GWAS hits from t1dbase.org
 #' 
-#' Retrieve human disease top GWAS hits from t1dbase in either build hg18 or hg19 coords (b36/37).
+#' Retrieve human disease top GWAS hits from t1dbase in build hg19 coords (37).
 #' 28 Diseases currently available
 #' @param disease integer (1-28), or character (abbreviation), or full name of one of the listed
 #' diseases. A full list of options can be obtained by setting show.codes=TRUE.
+#' @param snps.only logical, default is just to return a list of rs-ids. Setting FALSE gives a table
 #' @param show.codes logical, if set to TRUE, instead of looking up t1dbase, will simply return
 #' a table of available diseases with their index numbers and abbreviations.
 #' @return A character vector of SNP rs-ids
@@ -22,7 +23,7 @@
 #' get.immunobase.snps(show.codes=TRUE) # show codes/diseases available to download
 #' get.immunobase.snps(disease=27) # get SNP ids for Alopecia Areata
 #' get.immunobase.snps("Vitiligo")
-get.immunobase.snps <- function(disease="T1D",show.codes=FALSE) {
+get.immunobase.snps <- function(disease="T1D",snps.only=TRUE,show.codes=FALSE) {
   disease.codes <- c("Type 1 Diabetes", "Crohns Disease","Rheumatoid Arthritis",
                      "Systemic Scleroderma",  "Ulcerative Colitis","Inflammatory Bowel Disease",  "Multiple Sclerosis",
                      "Bipolar Disorder",  "Diabetes Mellitus",  "Coronary Artery Disease",  "Hypertension",  "Celiac Disease",
@@ -77,12 +78,15 @@ get.immunobase.snps <- function(disease="T1D",show.codes=FALSE) {
     } else {
       cat("download successful for",disease.codes[disN],"\n")
     }
-    return(unique(rsids))
+    if(snps.only) {
+      return(unique(rsids))
+    } else {
+      return(read.delim(filenm,comment.char="#"))
+    } 
   } else {
     stop("couldn't reach t1dbase website at: ",urL)
   }
 }
-
 
 
 
@@ -1286,8 +1290,9 @@ get.t1d.regions <- function(dense.reg=NULL,build=NULL,invert=FALSE) {
 #' be used.
 #' @param T1D.only logical, standard is to return type 1 diabetes (T1D) regions subset, but
 #' if this parameter is set to FALSE, will return the subset for all 12 autoimmune diseases
-#' mapped by the immunochip consortium.
-#' @param invert logical, set to TRUE if you wish to get the set of NON-T1D regions.
+#' mapped by the ImmunoChip consortium. (Cortes and Brown, 2010).
+#' @param invert logical, set to TRUE if you wish to get the set of NON-T1D regions, or
+#' non-immune dense regions when T1D.only=FALSE.
 #' @return a GRanges object with the specified type 1 diabetes/autoimmune (or inverse) ranges
 #' @export
 #' @examples
@@ -1296,8 +1301,10 @@ get.t1d.regions <- function(dense.reg=NULL,build=NULL,invert=FALSE) {
 #' # t1d <- get.t1d.subset(all.reg) # T1D regions
 #' # non.autoimmune <- get.t1d.subset(T1D.only=FALSE,build=36,invert=TRUE) # non-autoimmune regions
 #' }
-get.t1d.subset <- function(X,T1D.only=TRUE,build=36,ichip.regions=NULL,T1D.regions=NULL,invert=FALSE) {
+get.t1d.subset <- function(X,T1D.only=TRUE,build=NULL,ichip.regions=NULL,T1D.regions=NULL,invert=FALSE) {
   #source("~/github/iChip/iFunctions.R")
+  if(is.null(build)) { build <- getOption("ucsc") }
+  build <- ucsc.sanitizer(build)
   if(is.null(ichip.regions)) {
     #ichip.regions <- reader("~/github/iChip/iChipFineMappingRegionsB36.RData")
     ichip.regions <- humarray::iChipRegionsB36
@@ -1311,6 +1318,7 @@ get.t1d.subset <- function(X,T1D.only=TRUE,build=36,ichip.regions=NULL,T1D.regio
     #filt.sd <- find.overlaps(X,ref=T1D.regions,thresh=0.000000000000001,ranges.out=TRUE)
   } else {
 #    filt.sd <- find.overlaps(X,ref=ichip.regions,thresh=0.000000000000001,ranges.out=TRUE)
+    if(invert) { ichip.regions <- invGRanges(ichip.regions,build=build) }
     filt.sd <- suppressWarnings(subsetByOverlaps(set.chr.to.numeric(as(X,"GRanges")),set.chr.to.numeric(as(ichip.regions,"GRanges"))))
   }
   return(filt.sd)
@@ -1839,7 +1847,8 @@ conv.36.37 <- function(ranges=NULL,chr=NULL,pos=NULL,...,ids=NULL,chain.file=NUL
 #' recombination distances for genome locations, in centimorgans. For a given position
 #' (or vector), a window can be returned of a given extension on either side of the position,
 #' for instance, 1 centimorgan to the left, and to the right of a SNP, giving a 2 centimorgan
-#' range as a result.
+#' range as a result. Warning - this function only uses build hg18/36, so please convert to
+#' build 36 coordinates before using this function.
 #' @param ranges optional GRanges or RangedData object describing positions for which we want to
 #' generate windows, removing the need to enter chr, start and end
 #' @param chr character, an optional vector of chromosomes to combine with 'start' and 'end'
@@ -1936,6 +1945,10 @@ recomWindow <- function(ranges=NULL,chr=NA,start=NA,end=start,window=0.1,bp.ext=
   if(info) { cat("n hapmap snps in window =",nrow(kk),"\n") }
   from <- min(kk[,1])
   to <- max(kk[,1])
+  lft <- (start - from + bp.ext)
+  rgt <- (to - end + bp.ext)
+  if(lft<0) { lft <- abs(lft); from <- from-(2*(lft)) }
+  if(rgt <0) { rgt <- abs(rgt); to <- to+(2*(rgt)) }
   ##
   if(info) {
     cat("new window size is\nleft: ",(start-from+bp.ext)/1000,"kb\tright: ",
@@ -2219,7 +2232,7 @@ df.to.ranged <- function(dat, ids=NULL,start="start",end="end",width=NULL,
   key.nms <- c(ids,st,en,ch,wd)
   tries <- 0
   #print(key.nms); print(colnames(dat))
-  if(st=="position" & en=="end") { en <- st } # if only 1 entered
+  if(st=="position" & is.null(en)) { en <- st } # if only 1 entered
   while(!all(key.nms %in% colnames(dat))) { 
     colnames(dat) <- tolower(colnames(dat)); key.nms <- tolower(key.nms)
     st <- tolower(st); en <- tolower(en); ch <- tolower(ch); wd <- tolower(wd)
@@ -2332,6 +2345,7 @@ chrSelect <- function(X,chr,index=FALSE) {
   if(!(is.character(chr) | is.numeric(chr))) { stop("chr must be character or numeric type") }
   if(is.numeric(chr)) { if(!all(chr %in% 1:99)) { 
     stop("illegal chromosome index, valid range 1-99 [although 1-28 typical for human]") } }
+  if(!any(paste(chr) %in% paste(unique(chrm(X))))) { stop("X did not have any chromosome from the list: ",paste(chr,collapse=",")) }
   if(typ=="RangedData") { if(index) { return(X[chr]) } else { return(X[paste(chr)]) } }
   all.chr <- chr2(X)
   if(!all(chr %in% unique(all.chr))) { 
@@ -2952,22 +2966,22 @@ plotRanges <- function(ranged,labels=NULL,do.labs=T,skip.plot.new=F,lty="solid",
   }
   if(all(width(ranged)<=1)) { theyAreSnps <- TRUE } else { theyAreSnps <- FALSE }
   scl <- make.divisor(scl)
-  xl <- range(c(start(ranged),end(ranged)))
+  xl <- range(c(start(ranged),end(ranged)),na.rm=T)
   xl <- xl + ((diff(xl)*0.1)*c(-1,1))
   xl <- xl/scl
   nr <- nrow(ranged); if(is.null(nr)) { nr <- length(ranged) }
   if(is.null(alt.y)) {
     yl <- c(0,(nr+2))
   } else {
-    yl <- range(yy)
+    yl <- range(yy,na.rm=T)
   }
   if(is.numeric(ylim) & length(ylim)==2) {
-    ylim <- range(ylim)
+    ylim <- range(ylim,na.rm=T)
     ydif <- diff(ylim)
     yl <- ylim
   }
   if(is.numeric(xlim) & length(xlim)==2) {
-    xlim <- range(xlim)
+    xlim <- range(xlim,na.rm=T)
     xdif <- diff(xlim)
     xl <- xlim
   }
@@ -3319,6 +3333,37 @@ invGRanges <- function(X,inclusive=FALSE,build=NULL,pad.missing.autosomes=TRUE) 
 ######################
 
 
+#' Normalize Lambda inflation factors to specific case-control count
+#' 
+#' Lambda inflation statistics are influenced by the size of the generating datasets. To facilitate
+#' comparison to other studies, this function calculates then converts a given lambda from 
+#' n cases and m controls, to be equivalent to 1000 cases and 1000 controls.
+#' @param p.values numeric, a vector of analysis p.values, generated from n cases and m controls (although order switching n/m makes no difference to this function)
+#' @param n integer, original number of cases that p.values were derived from
+#' @param m integer, original number of controls that p.values were derived from
+#' @return A normalized Lambda coefficient
+#' @export
+#' @author Nicholas Cooper \email{nick.cooper@@cimr.cam.ac.uk}
+#' @references Freedman M.L., et al. Assessing the impact of population stratification
+#'  on genetic association studies. Nat. Genet. 2004;36:388-393.
+#' @examples
+#' # create some p-values with clear 'inflation' (divergence from uniform[0,1])
+#' p.vec <- c(runif(3000)/200,runif(7000)) 
+#' # let's imagine these p values come from 3000 cases and 5000 controls
+#' L1000_a <- lambda_1000(p.vec,3000,5000)
+#' # alternatively, imagine the sample sizes are 10 times larger
+#' L1000_b <- lambda_1000(p.vec,30000,50000)
+#' plot(sort(p.vec),type="l") 
+#' L1000_a; L1000_b
+lambda_1000 <- function(p.values,n=1000,m=1000) {
+  if(!is.numeric(p.values)) { stop("p.values must be numeric") }
+  if(!is.numeric(n)) { stop("n must be numeric") } else { n <- abs(round(n)) }
+  if(!is.numeric(m)) { stop("m must be numeric") } else { m <- abs(round(m)) }
+  Lnm <- median(p.to.Z(narm(p.values))^2,na.rm=T)/.454
+  return(1 + ((Lnm-1)*(((1/n)+(1/m))/((1/1000)+(1/1000)))) )
+}
+
+
 
 #' Convert a chr:pos1-pos2 vector to a matrix
 #' 
@@ -3388,6 +3433,136 @@ compact.gene.list <- function(x,n=3,sep=";",others=FALSE) {
 }
 
 
+#' Meta-analysis using odds ratio and standard error from 2 datasets
+#' 
+#' This function calculates meta analysis odds ratios, standard errors and p-values
+#' using results from a table containing odds ratio and standard error data for analyses
+#' of 2 different datasets (typically logistic regression, but other analyses can be
+#' incorporated if an odds-ratio and SE can be derived, for instance one analysis might
+#' be a case control logistic regression GWAS and the other a family TDT analysis).
+#' @param X A data.frame with column names which should be entered in the parameters:
+#' OR1, OR2, SE1, SE2, and optionally N1, N2. 
+#' @param OR1 The column name of X containing odds ratios from the first analysis
+#' @param OR2 Same as OR1 above but pertaining to the second analysis
+#' @param SE1 The column name of X containing standard errors from the first analysis
+#' @param SE2 Same as SE1 above but pertaining to the second analysis
+#' @param N1 Only required if method="sample.size". Either the column name in X with the 
+#' number of samples in the first analysis, of a vector of the same, or if N's is the
+#'  same for all rows, a scalar' value can be entered
+#' for each.
+#' @param N2 Only required if method="sample.size". Same as N1 above but pertaining to analysis 2
+#' @param Z1 Only use if method="sample.size" or "z.score". The column name in X with the 
+#' z.scores in the first analysis.
+#' @param Z2 Same as Z1 above but pertaining to analysis 2
+#' @param method character, can be either 'beta', 'z.score' or 'sample.size', and upper/lower
+#' case does not matter. 'Beta' is the default and will calculate meta-analysis weights using
+#' the inverse variance method (based on standard errors), and will calculate the p-values
+#' based on the weighted beta coefficients of the two analyses. 'Z.score' also uses inverse variance
+#' but calculates p-values based on the weighted Z scores of the two analyses. 'Sample.size' uses
+#' the sqrt of the sample sizes to weight the meta analysis and uses Z scores to calculate p values
+#' like 'Z.score' does.#' 
+#' @return The object returned should have the same number of rows and rownames as the data.frame
+#'  X but columns are the meta analysis stastistics, namely:
+#'   OR.meta, beta.meta, se.meta, z.meta, p.meta, which will contain the meta
+#' analysis odds-ratio, beta-coefficient, standard error, z-score, and p-values respectively
+#' for each row of X.
+#' @export
+#' @examples
+#' X <- data.frame(OR_CC=c(1.8,1.15),OR_Fam=c(1.33,0.95),SE_CC=c(0.02,0.12),SE_Fam=c(0.07,0.5))
+#' rownames(X) <- c("rs689","rs23444")
+#' X
+#' meta.me(X)
+#' X <- data.frame(OR_CC=c(1.8,1.15),OR_CC2=c(1.33,0.95),
+#'  SE_CC=c(0.02,0.12),SE_CC2=c(0.02,0.05),
+#'  n1=c(5988,5844),n2=c(1907,1774))
+#' # even with roughly the same number of samples the standard error will determine the influence of
+#' # each analysis on the overall odds ratio, note here that the second SE for dataset goes
+#' # from 0.5 to 0.05 and as a result the estimate of the odds ratio goes from 1.137 to 0.977,
+#' # i.e, from very close to OR1, changing to very close to OR2.
+#' meta.me(X,OR2="OR_CC2",SE2="SE_CC2") 
+#' # sample size and z-score methods give similar (but distinct) results
+#' meta.me(X,OR2="OR_CC2",SE2="SE_CC2",N1="n1",N2="n2",method="sample.size") 
+#' meta.me(X,OR2="OR_CC2",SE2="SE_CC2",N1="n1",N2="n2",method="z.score")  # N's will be ignored
+meta.me <- function(X,OR1="OR_CC",OR2="OR_Fam",SE1="SE_CC",SE2="SE_Fam",Z1=NA,Z2=NA,
+                    N1=NA,N2=NA,method=c("beta","z.score","sample.size")) {
+  #N1=18856,N2=7638
+  validz <- c("beta","z.score","sample.size")
+  method <- tolower(method[1])
+  if(!method %in% validz) { method <- validz[1]; warning("invalid method entered, using 'beta' method") }
+  if(!is(X)[1]=="data.frame") { stop("X must be a data.frame") }
+  cnx <- colnames(X)
+  if(is.null(rownames(X))) { rownames(X) <- paste(1:nrow(X)) }
+  if(!all(c(OR1,OR2,SE1,SE2) %in% cnx)) { stop("X must contain column names specified by OR1,OR2,SE1,SE2") }
+  ok <- FALSE
+  if(method=="sample.size") {
+    if(is.numeric(N1) & is.numeric(N2)) { if(length(N1)!=1 | length(N2)!=1) {
+      stop("N1, N2 should either be scalar integers, or column names containing N's") } else {
+        N.coln <- FALSE
+      } }
+    if(is.character(N1) & is.character(N2)) {
+      if(!all(c(OR1,OR2,SE1,SE2) %in% cnx)) {
+        stop("N1,N2 must contain either be scalar integers or column names with N's") } else {
+          N.coln <- TRUE
+        }
+    }
+  }
+  OR.CC <- X[,OR1]
+  beta.CC  <- log(X[,OR1])
+  se.CC <- X[,SE1]
+  OR.family <- X[,OR2]
+  beta.family  <- log(X[,OR2])
+  se.family <- X[,SE2]
+  if(!is.na(Z1) & method!="beta") {
+    if(Z1 %in% colnames(X)) {
+      z.CC <- X[,Z1]
+    } else { warnings("Z1 column not found, ignoring") }
+  } else {
+    z.CC <- beta.CC/se.CC
+  }
+  if(!is.na(Z2) & method!="beta") {
+    if(Z2 %in% colnames(X)) {
+      z.family <- X[,Z2]
+    } else { warnings("Z2 column not found, ignoring") }
+  } else {
+    z.family <- beta.family/se.family
+  }
+  inv.CC <- 1 / (se.CC^2)
+  inv.family <- 1 / (se.family^2)
+  var.meta <- 1 / (inv.CC+inv.family)
+  weight.CC <- inv.CC * var.meta
+  weight.family <- inv.family * var.meta
+  se.meta <- round(sqrt(var.meta), digits=3)
+  if(method=="sample.size") {
+    if(N.coln) {
+      famN <- X[,N2]
+      ccN <- X[,N1]
+    } else {
+      famN <- N2 # 3819*2  #3509*2   #  3819*2   #  10796
+      ccN <- N1 # 6683+12173 # including CBR, or for UVA analyses use instead: 9416+6670
+    }
+    WeightFam = sqrt(famN)/(sqrt(famN)+sqrt(ccN))
+    WeightCC <- 1-WeightFam
+    # beta calculated the same way for sample.size method using sample size weights
+    beta.meta <- round((WeightCC * beta.CC) + (WeightFam * beta.family),digits=3) # beta based
+    z.meta <- round((WeightCC * z.CC) + (WeightFam * z.family),digits=6) # n-based, z-based
+  } else {
+ # beta calculated the same way for z.score method and beta method using inverse variance
+    beta.meta <- round((weight.CC * beta.CC) + (weight.family * beta.family),digits=3) # beta based
+    if(method=="z.score") {
+      z.meta <- round((weight.CC * z.CC) + (weight.family * z.family),digits=6) # z-based
+    } else {
+      # default (beta) method
+      z.meta <- beta.meta/se.meta
+    }
+  }
+  OR.meta <- exp(beta.meta)
+  p.meta <- 2*pnorm(-abs(z.meta))
+  out <- (cbind(OR.meta,beta.meta,se.meta,z.meta,p.meta))
+  colnames(out) <- c("OR.meta","beta.meta","se.meta","z.meta","p.meta")
+  rownames(out) <- rownames(X)
+  return(out)
+}
+
 
 
 ################## end simple ##########################
@@ -3403,8 +3578,9 @@ compact.gene.list <- function(x,n=3,sep=";",others=FALSE) {
 #' 
 #' This function returns the current 'ChipInfo' annotation object, containing chromosome,
 #' id, position, strand, 'rs' id, allele 1, allele 2 for each SNP of a microarray chip,
-#' in either hg18 or hg19 (build 36/37) coordinates.
-#' This package makes extension use of this class of annotation object for the working
+#' in either hg18 or hg19 (build 36/37) coordinates. Can also be used to update the 
+#' current object to a new object.
+#' This package makes extensive use of this class of annotation object for the working
 #' microarray chip, e.g, default is ImmunoChip, but Metabochip is also built-in,
 #' and you can also load your own annotation if using a different chip. The class
 #' of the object used is 'ChipInfo' which is a GRanges object, modified to always
@@ -3422,7 +3598,11 @@ compact.gene.list <- function(x,n=3,sep=";",others=FALSE) {
 #' you want to use a different chip, different build, or if the annotation has been modifed
 #' via a manual correction).
 #' @param alternate.file character, name of an alternative RData file containing a ChipInfo
-#' object to use instead of the object found in getOption("chip.info").
+#' object to use instead of the object found in getOption("chip.info"). This will replace
+#' the current ChipInfo object.
+#' @param warn.build logical, whether to warn if the 'build' argument does not match
+#' the current value of getOption("ucsc"). The default is to display this warning,
+#' but if you set this argument to FALSE this can be suppressed.
 #' @return returns the current ChipInfo object [S4]. This may be slow first time, but
 #' subsequent lookups should be much faster. Builds 36/38 are not stored explicitly so
 #' will take a little while to convert the first time, but subsequent lookups should be
@@ -3439,18 +3619,22 @@ compact.gene.list <- function(x,n=3,sep=";",others=FALSE) {
 #' @examples
 #' chip.support() # shows the current ChipInfo object (default is 'ImmunoChip' build 37)
 #' #/donttest{
-#' chip.support(build=36)
+#' chip.support(build=36) # gives warning as hg19 version is currently loaded
+#' chip.support(build=36,refresh=TRUE)
 #' getOption("chip.info") # shows the object is now saved in the tmp directory for subsequent calls
-#' chip.support(build=38)
+#' chip.support(build=38,refresh=TRUE)
 #' #}
-chip.support <- function(build=NULL,refresh=FALSE,alternate.file=NULL) {
-  if(is.null(build)) { build <- getOption("ucsc") }
+chip.support <- function(build=NULL,refresh=FALSE,alternate.file=NULL,warn.build=TRUE) {
+  update.build <- T #refresh
+  if(is.null(build)) { build <- getOption("ucsc") } else {  update.build <- TRUE  }
   build <- ucsc.sanitizer(build)
   ## NEED TO ADD SUPPORT HERE TO USE CORRECT OUT OF 36/37
-  refresh <- T ###??????? why a param?
+  if(getOption("chip.info")=="") { refresh <- TRUE }
+#  refresh <- T ###??????? why a param?
   #old# if(!exists("all.support",envir=globalenv())) { refresh <- T }  # change global environment to namespace of iChip package
   if(refresh) {
-    options(chip.info="") # refresh this?
+#    options(chip.info="") # refresh this?
+    if(getOption("chip.info")=="ImmunoChip_37_builtIn" | update.build) {  options(chip.info="") } # refresh so erase current
     use.options <- TRUE
     if(is.character(alternate.file)) {
       if(file.exists(alternate.file)) {
@@ -3472,19 +3656,30 @@ chip.support <- function(build=NULL,refresh=FALSE,alternate.file=NULL) {
                  "for chip.support() function, please use hg18/19/38",
                   "or use option(chip.info=<PATH>) to specify a custom ChipInfo file")
       } else {
-        if(!build=="hg19") { conv <- TRUE}
+        if(!build=="hg19") {
+          conv <- TRUE
+        } else {
+          options(chip.info="ImmunoChip_37_builtIn")
+        }
       }
       #/home/ncooper/github/iChip/data/ImmunoChipB37.rda
       #file <- system.file("extdata", fname, package="humarray")
     } else {
       all.support <- reader(file); conv <- FALSE # custom file supplied, don't convert
+      if(!is(all.support)[1]=="ChipInfo") {
+        stop("alternate.file file contained object not of class ChipInfo")
+      }  else {
+        options(chip.info=file)
+        message("Updated current ChipInfo object to: ",getOption("chip.info"))
+      }
     }
+#   if(ucsc(all.support)!=build) { conv <- TRUE } # needs converting
     if(is(all.support)[1]=="list") {
       if(length(all.support)>1) { typz <- sapply(lapply(all.support,is),"[",1) } # in case multiple objects in file
     } else {
-      typz <- is(all.support)[1] 
+      typz <- is(all.support)[1]
     }
-    if(all(typz=="ChipInfo")) { 
+    if(all(typz=="ChipInfo")) {
       if((build %in% c("hg18","hg38")) & conv) {
         if(build=="hg18") { all.support <- convTo36(all.support) } else { all.support <- convTo38(all.support) }
         tfn <- cat.path(tempdir(),"ImmunoChip_ChipInfo",suf=substr(build,3,4),ext="rda")
@@ -3496,12 +3691,31 @@ chip.support <- function(build=NULL,refresh=FALSE,alternate.file=NULL) {
       stop("object (all.support) in the file",file,
            "should have type ChipInfo, or else object all.support in the global environment has been modified")
     }
+  } else {
+    file <- getOption("chip.info");
+    if(file=="ImmunoChip_37_builtIn") {
+      all.support <- humarray::ImmunoChipB37
+    } else {
+      if(file.exists(file)) { 
+        all.support <- reader(file) 
+      } else { 
+        stop("getOption('chip.info') file did not exist")
+      }
+      if(!is(all.support)[1]=="ChipInfo") { stop("chip.info file contained object not of ChipInfo class") }
+    }
+    if(ucsc(all.support)!=build) {
+      all.support <- chip.support(build=build,refresh=TRUE,alternate.file=alternate.file,warn.build=warn.build)
+      if(ucsc(all.support)!=getOption("ucsc") & warn.build) {
+        warning("'build' did not match the current default reference genome. Use options(ucsc=",build,") if you wish to change the default reference genome. otherwise use 'warn.build=FALSE' to hide this warning")
+      }
+    }
   }
   #old#if(!exists("all.support",envir=globalenv())) { stop("ChipInfo data object 'all.support' not found") }  
-  #old#all.support <- get("all.support",envir=globalenv())  # change global environment to namespace of iChip package
+  #old#all.support <- get("all.support",envir=globalenv())  
+  # change global environment to namespace of iChip package
   if(is(all.support)[1]=="list") {
     nnn <- (names(all.support))
-    if(length(nnn)>1) { 
+    if(length(nnn)>1) {
       # multiple objects in file, probably different builds
       any37 <- c(grep("37",nnn),grep("hg19",nnn))
       any36 <- c(grep("36",nnn),grep("hg18",nnn))
@@ -3512,6 +3726,8 @@ chip.support <- function(build=NULL,refresh=FALSE,alternate.file=NULL) {
   }
   return(all.support)
 }
+
+
 
 
 
@@ -4435,7 +4651,7 @@ nearest.snp <- function(chr, pos, n=1, side=c("either","left","right"),ids=TRUE,
   if(length(pos)>1) { warning("pos should be length 1, using only first entry"); pos <- pos[1] }
   if(is.null(build)) { build <- getOption("ucsc") }
   build <- ucsc.sanitizer(build)
-  all.support <- chip.support(build=build)
+  all.support <- chip.support(build=build,warn.build=FALSE)
   if(!exists("all.support")) { all.support <- chip.support() }  ## load object: all.support [snp support for whole chip]
   side <- tolower(side[1]); 
   if(!side %in% c("either","left","right")) {
