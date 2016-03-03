@@ -79,6 +79,17 @@ setClass("ChipInfo",
 
 
 
+#' rownames method for GRanges objects
+#' 
+#' rownames: Returns the row names.
+# @name rownames
+#' @param x a GRanges object
+#' @return rownames: Character vector of row names (e.g, SNP IDs).
+#' @rdname GRanges-methods
+#' @exportMethod rownames
+setMethod("rownames", "GRanges", function(x) names(x@ranges))
+setMethod("rownames<-", "GRanges", function(x,value) { names(x@ranges) <- value; return(x) })
+
 
 
 # seqnames="Rle",

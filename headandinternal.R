@@ -5,31 +5,34 @@
 #' @importFrom grDevices dev.off pdf
 #' @importFrom graphics abline lines points rect text plot
 #' @importFrom methods as callNextMethod is new prototype representation setAs setClass setGeneric setMethod setValidity
-#' @importClassesFrom GenomicRanges GIntervalTree GRanges GenomicRanges GenomicRangesORmissing
+#' @importClassesFrom GenomicRanges GNCList GRanges GenomicRanges GenomicRangesORmissing
 #' @importFrom GenomicRanges GRanges GRangesList
 #' @importMethodsFrom GenomicRanges "names<-" length names start end 
 #' @importMethodsFrom GenomicRanges width strand mcols  "mcols<-" show findOverlaps subsetByOverlaps
 #' @importMethodsFrom GenomicRanges length names  "names<-" "dimnames<-" "["  "[<-"  "[["  "[[<-"  "$"  "$<-" cbind rbind
 #' @importMethodsFrom GenomeInfoDb "seqlevels"  "seqlevels<-" "genome<-" "genome"  seqinfo  "seqinfo<-" seqnames  "seqnames<-" 
 #' @importClassesFrom IRanges RangedData 
-#' @importFrom IRanges "%over%" IRanges  RangedData subjectHits queryHits showAsCell 
-#' @importMethodsFrom IRanges "colnames<-" "rownames<-" "universe<-" subjectHits queryHits showAsCell
+#' @importFrom IRanges "%over%" IRanges  RangedData  showAsCell 
+#' @importMethodsFrom IRanges "colnames<-" "rownames<-" "universe<-" showAsCell
 #' @importMethodsFrom IRanges as.data.frame as.list as.matrix cbind rbind colnames elementLengths
 #' @importMethodsFrom IRanges end findOverlaps subsetByOverlaps gsub intersect lapply
-#' @importMethodsFrom IRanges mean nrow ncol order as.list
+#' @importMethodsFrom IRanges mean nrow ncol order as.list subjectHits queryHits 
 #' @importMethodsFrom IRanges ranges rownames runLength space  flank  reduce resize
 #' @importMethodsFrom IRanges start universe unlist width  "start<-"  "width<-"  "end<-" ranges "ranges<-"
-#' @importFrom "GenomicFeatures" makeTranscriptDbFromUCSC  exonsBy  transcriptsBy
+#' @importFrom "GenomicFeatures" makeTxDbFromUCSC  exonsBy  transcriptsBy
 #' @importMethodsFrom "GenomicFeatures"  exonsBy  transcriptsBy  as.list
 #' @importClassesFrom "rtracklayer"  ChainFile
 #' @importMethodsFrom "rtracklayer"  liftOver  import.chain
-#' @importMethodsFrom "genoset"  chr  chrIndices  chrInfo  chrNames  genome  isGenomeOrder  locData  toGenomeOrder
-#' @importFrom "genoset"  chr  chrIndices  chrInfo  chrNames  chrOrder  
-#' @importFrom "genoset" "genome"  "isGenomeOrder"  "locData"  "toGenomeOrder" 
+#' @importMethodsFrom "genoset"  genome "genome<-"
+#' @importFrom "genoset"  chr  chrIndices  chrInfo  chrNames  chrOrder   "chrNames<-"
+#' @importFrom "genoset"  "isGenomeOrder"  "locData"  "toGenomeOrder"  "locData<-"
 #' @importFrom "biomaRt"  useMart  useDataset  getBM
 #' @importClassesFrom "biomaRt"  Mart
 #' @importFrom parallel  mclapply
 #' @import Rcpp BiocGenerics NCmisc S4Vectors
+#' @importFrom utils capture.output download.file read.table write.table read.delim
+#' @importFrom stats median 
+#' @importFrom graphics par
 ###END NAMESPACE###
 
 #DataFrame

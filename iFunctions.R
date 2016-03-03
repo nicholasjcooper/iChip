@@ -776,11 +776,11 @@ get.exon.annot <- function(dir=NULL,build=NULL,bioC=T, transcripts=FALSE, GRange
       }
     }
   }
-  must.use.package("GenomicFeatures",T)
+ # must.use.package("GenomicFeatures",T)
   if(from.scr) {
-    must.use.package("gage",T)
+    #must.use.package("gage",T) this is where egSymb came from, but is now not needed
     # get transcripts from build table 'knownGene'
-    success <- tryCatch(txdb <- suppressWarnings(makeTranscriptDbFromUCSC(genome=build,
+    success <- tryCatch(txdb <- suppressWarnings(makeTxDbFromUCSC(genome=build,
                                                          tablename="knownGene"))  ,error=function(e) { F } )
     if(is.logical(success)) { 
       if(!success) {
@@ -809,7 +809,7 @@ get.exon.annot <- function(dir=NULL,build=NULL,bioC=T, transcripts=FALSE, GRange
     if(all(colnames(tS)==c("element","seqnames","start","end","width","strand","tx_id","tx_name"))) {
       colnames(tS) <- c("gene","chr","start","end","width","strand","txid","txname")
     } else {
-      cat(" unexpected colnames found using makeTranscriptDbFrombuild()\n")
+      cat(" unexpected colnames found using makeTxDbFrombuild()\n")
       if(bioC) { cat(" therefore returning data.frame instead of RangedData object\n") ;
                  bioC <- F }
     }
@@ -1691,6 +1691,7 @@ conv.36.37 <- function(ranges=NULL,chr=NULL,pos=NULL,...,ids=NULL,chain.file=NUL
     ranges <- makeGRanges(chr=chr,pos=pos,row.names=ids,...)
     orn <- ids
   } else {
+  	prv(ranges)
     if(is.null(rownames(ranges))) { rownames(ranges) <- paste0("rng",1:nrow(ranges)) }    
     orn <- rownames(ranges)
   }
@@ -2910,7 +2911,8 @@ in.window <- function(ranged,chr,pos,full.overlap=F, unit=c("b","kb","mb","gb"),
 #' require(GenomicRanges)
 #' rr <- in.window(rranges(5000),chr=6,pos=c(28,32),unit="mb") # make some random MHC ranges
 #' rownames(rr) <- paste0("range",1:length(rr))
-#' # plotRanges vertically #
+#' # plotRanges vertically 
+#' #print(rr)
 #' plotRanges(rr,v.lines=TRUE)
 #' # make some labels and plot as horizontal lines #
 #' rr2 <- rr[1:5,]; mcols(rr2)[["GENE"]] <- c("CTLA9","HLA-Z","BS-1","FAKr","teST")
