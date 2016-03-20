@@ -1691,7 +1691,7 @@ conv.36.37 <- function(ranges=NULL,chr=NULL,pos=NULL,...,ids=NULL,chain.file=NUL
     ranges <- makeGRanges(chr=chr,pos=pos,row.names=ids,...)
     orn <- ids
   } else {
-  	prv(ranges)
+  	#prv(ranges)
     if(is.null(rownames(ranges))) { rownames(ranges) <- paste0("rng",1:nrow(ranges)) }    
     orn <- rownames(ranges)
   }
