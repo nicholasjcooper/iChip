@@ -443,11 +443,11 @@ setMethod("[[", "ChipInfo", function(x,i,j,...) {
   if (is.numeric(i) && !is.na(i) && (i < 1L || i > length(cn)))
     stop("subscript out of bounds")
   # do the selection #
-  if(i %in% paste(chr(x))) {
-    out <- x[chr(x)==i,]
+  if(i %in% paste(chrm(x))) {
+    out <- x[chrm(x)==i,]
   } else {
     if(is.numeric(i)) {
-      out <- x[match(chr(x),chrNames(x))==i,]
+      out <- x[match(chrm(x),chrNames(x))==i,]
     } else {
       stop("unknown index")
     }
@@ -1037,60 +1037,113 @@ setMethod("chrSel", "ChipInfo", function(object,chr) {
 setGeneric("chrm",function(object) standardGeneric("chrm"))
 
 #' @rdname chrm-methods
-#' @importMethodsFrom genoset  chr  
 #' @exportMethod chrm
 setMethod("chrm", "RangedData", function(object) {
   return(chr2(object))
 })
 
 #' @rdname chrm-methods
-#' @importMethodsFrom genoset  chr  
-#' @importFrom genoset  chr  
 #' @exportMethod chrm
 setMethod("chrm", "GRanges", function(object) {
-  return(genoset::chr(object))
+  return(chr2(object))
 })
 
 #' @rdname chrm-methods
-#' @importMethodsFrom genoset  chr  
-#' @importFrom genoset  chr  
 #' @exportMethod chrm
 setMethod("chrm", "ChipInfo", function(object) {
-  return(genoset::chr(object))
+  return(chr2(object))
 })
 
 
 
-#' @importMethodsFrom "genoset"  toGenomeOrder  
-#' @exportMethod toGenomeOrder
-setMethod("toGenomeOrder", "RangedData", function(ds) {
-  return(TGORD(ds))
-})
+# #' Genome order method for RangedData objects
+# #' 
+# #' Return the list of chromosome values from a RangedData object
+# #' @param strict for compatibility with genoset toGenomeOrder, recommend setting TRUE
+# #' @param object RangedData object
+# #' @return vector of chromosome values for each range/SNP
+# #' @rdname toGenomeOrder2-methods
+# #' @export
+# setGeneric("toGenomeOrder2",function(object,strict) standardGeneric("toGenomeOrder2"))
+
+# # importMethodsFrom "genoset"  toGenomeOrder  
+# #' @rdname toGenomeOrder2-methods
+# #' @exportMethod toGenomeOrder2
+# setMethod("toGenomeOrder2", "RangedData", function(object,strict) {
+  # return(TGORD(object))
+# })
+# #' @rdname toGenomeOrder2-methods
+# #' @exportMethod toGenomeOrder2
+# setMethod("toGenomeOrder2", "GRanges", function(object,strict) {
+  # return(TGOGR(object))
+# })
 
 
+# #' Chromosome indices method for ranged objects
+# #' 
+# #' Return the list of chromosome start and end indexes from a RangedData object
+# #' @param object RangedData or GRanges object
+# #' @return matrix of indexes, colnames  first, last, offset
+# #' @rdname chrIndices-methods
+# #' @export
+# setGeneric("chrIndices",function(object) standardGeneric("chrIndices"))
 
-#' @importMethodsFrom "genoset"   chrIndices  
+# #' @rdname chrIndices-methods
 #' @exportMethod chrIndices
 setMethod("chrIndices", "RangedData", function(object) {
   return(chrIndices2(object))
 })
 
+# #' @rdname chrIndices-methods
+# #' @exportMethod chrIndices
+# setMethod("chrIndices", "GRanges", function(object) {
+  # return(chrIndices2(object))
+# })
 
 
-#' @importMethodsFrom "genoset"   chrInfo 
+# #' Chromosome info method for ranged objects
+# #' 
+# #' Return the list of chromosome start and end ranges from a RangedData object
+# #' @param object RangedData or GRanges object
+# #' @return matrix of ranges, colnames start, stop, offset
+# #' @rdname chrInfo-methods
+# #' @export
+# setGeneric("chrInfo",function(object) standardGeneric("chrInfo"))
+
+# #' @rdname chrInfo-methods
 #' @exportMethod chrInfo
 setMethod("chrInfo", "RangedData", function(object) {
   return(chrInfo2(object))
 })
 
+# #' @rdname chrInfo-methods
+# #' @exportMethod chrInfo
+# setMethod("chrInfo", "GRanges", function(object) {
+  # return(chrInfo2(object))
+# })
 
 
+# #' Chromosome names method for ranged objects
+# #' 
+# #' Return the list of chromosome labels from a RangedData object
+# #' @param object RangedData or GRanges object
+# #' @return vector of names
+# #' @rdname chrNames-methods
+# #' @export
+# setGeneric("chrNames",function(object) standardGeneric("chrNames"))
 
-#' @importMethodsFrom "genoset"  chrNames  
+
+# #' @rdname chrNames-methods
 #' @exportMethod chrNames
 setMethod("chrNames", "RangedData", function(object) {
   return(chrNames2(object))
 })
+
+# #' @rdname chrNames-methods
+# #' @exportMethod chrNames
+# setMethod("chrNames", "GRanges", function(object) {
+  # return(chrNames2(object))
+# })
 
 
 #' Plot method for GRanges objects

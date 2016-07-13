@@ -689,7 +689,8 @@ get.cyto <- function(build=NULL,dir=NULL,bioC=TRUE,GRanges=TRUE,refresh=FALSE) {
 #' }
 get.recombination.map <- function(dir=NULL,verbose=TRUE,refresh=FALSE, compress=FALSE) {
   n.chr <- 22
-  hap.dir <- "http://hapmap.ncbi.nlm.nih.gov/downloads/recombination/latest/rates/"
+#  hap.dir <- "http://hapmap.ncbi.nlm.nih.gov/downloads/recombination/latest/rates/"  # deprecated
+  hap.dir <- "ftp://ftp.ncbi.nlm.nih.gov/hapmap/recombination/latest/rates/"
   temp.dir <- "recombinationratesGF13fDR1er119"
   local.file <- "rrates_genetic_map_chr_1_22_b36.RData"
   if(!file.exists(temp.dir)) { dir.create(temp.dir) } 
@@ -2333,7 +2334,7 @@ df.to.ranged <- function(dat, ids=NULL,start="start",end="end",width=NULL,
 #' One of the main differences between RangedData and GRanges is the way
 #' of selecting the subset for a chromosome. RangedData just uses [n] where
 #' 'n' is the chromosome name or number. Whereas GRanges, does not have a
-#' method like this, so need to select using [chr(X)==chr.num,]
+#' method like this, so need to select using [chrm(X)==chr.num,]
 #' This wrapper allows selection of a chromosome or chromosomes regardless of
 #' whether the object is RangedData or GRanges type.
 #' @param X A GRanges or RangedData object
@@ -3931,7 +3932,7 @@ Chr <- function(ids,dir=NULL,snps.only=FALSE) {
     ic.ids <- clean.snp.ids(ids)
     all.support <- chip.support()
     if(!exists("all.support")) { stop("ChipInfo data object 'all.support' not found")  }  ## load object: all.support [snp support for whole chip]
-    outlist <- chr(all.support)[match(ic.ids,rownames(all.support))]
+    outlist <- chrm(all.support)[match(ic.ids,rownames(all.support))]
     return(outlist)
   }
   typ <- is(ids)[1]
@@ -4620,7 +4621,7 @@ snps.in.range <- function(chr, start=NA, end=start, ids=TRUE) {
   all.support <- chip.support()
   #if(!exists("work.dir")) { if(is.null(dir)) { work.dir <- getwd() } else { work.dir <- dir } }
  # if(!exists("all.support")) { all.support <- chip.support() }  ## load object: all.support [snp support for whole chip]
-  all.chr <- chr(all.support)
+  all.chr <- chrm(all.support)
   all.pos <- start(all.support)[all.chr %in% chr]
   if(length(all.pos)<1) { warning("no positions found for 'chr' specified"); return(NULL) }
   validz <- which(all.pos>=the.range[1] & all.pos<=the.range[2])
@@ -4672,7 +4673,7 @@ nearest.snp <- function(chr, pos, n=1, side=c("either","left","right"),ids=TRUE,
   if(!side %in% c("either","left","right")) {
     side <- "either"; warning("invalid side argument, defaulting to 'either'") }
   if(!is.null(limit)) { if(!is.numeric(limit)) { limit <- NULL; warning("invalid limit argument, defaulting to NULL") } }
-  all.chr <- chr(all.support)
+  all.chr <- chrm(all.support)
   all.pos <- start(all.support)[all.chr %in% chr]
   if(length(all.pos)<1) { warning("no positions found for 'chr' specified"); return(NULL) }
   difz <- pos-all.pos
@@ -4811,7 +4812,7 @@ get.nearby.snp.lists <- function(snpid.list,cM=0.1,bp.ext=0,excl.snps=NULL,name.
   pozz <- start(all.support)
   n.snps <- vector("list",length(st.window))
   for(cc in 1:length(st.window)) {
-    n.snps[[cc]] <- which(chr(all.support)==next.chr &
+    n.snps[[cc]] <- which(chrm(all.support)==next.chr &
                             pozz>=st.window[cc] & 
                             pozz<=en.window[cc] &
                             (!rownames(all.support) %in% excl.snps) &
