@@ -4,8 +4,11 @@
 ##################################
 
 
+
+
 #' Download GWAS hits from t1dbase.org
 #' 
+#' Deprecated as this data is no longer available online
 #' Retrieve human disease top GWAS hits from t1dbase in build hg19 coords (37).
 #' 28 Diseases currently available
 #' @param disease integer (1-28), or character (abbreviation), or full name of one of the listed
@@ -18,11 +21,13 @@
 #' @author Nicholas Cooper \email{nick.cooper@@cimr.cam.ac.uk}
 #' @references PMID: 20937630
 #' @examples
+#' get.immunobase.snps(show.codes=TRUE) # show codes/diseases available to download
+#' \donttest{
 #' get.immunobase.snps(disease="CEL") # get SNP ids for celiac disease
 #' get.immunobase.snps(disease="AS") # get SNP ids for Ankylosing Spondylitis in build-37/hg19
-#' get.immunobase.snps(show.codes=TRUE) # show codes/diseases available to download
 #' get.immunobase.snps(disease=27) # get SNP ids for Alopecia Areata
 #' get.immunobase.snps("Vitiligo")
+#' }
 get.immunobase.snps <- function(disease="T1D",snps.only=TRUE,show.codes=FALSE) {
   disease.codes <- c("Type 1 Diabetes", "Crohns Disease","Rheumatoid Arthritis",
                      "Systemic Scleroderma",  "Ulcerative Colitis","Inflammatory Bowel Disease",  "Multiple Sclerosis",
@@ -52,6 +57,10 @@ get.immunobase.snps <- function(disease="T1D",snps.only=TRUE,show.codes=FALSE) {
       }
     }
   }
+ 	
+   # unfortunately must add this as immunobase will no longer allow autodownload
+  immunobase.has.changed("error")
+  
   #if(is.null(build)) { build <- getOption("ucsc") }
   build <- "hg19" # ucsc.sanitizer(build)
   if(!build %in% c("hg18","hg19")) { stop("only hg18 and hg19 are supported for this function") }
@@ -1223,6 +1232,7 @@ get.chr.lens <- function(dir=NULL,build=NULL,autosomes=FALSE,len.fn="humanChrLen
 
 #' Obtain a listing of known T1D associated genomic regions
 #'
+#' Deprecated as this data is no longer available online
 #' This function uses a full list of ichip dense regions combined with a list of t1d
 #' SNPs to get the t1d regions. For type 1 diabetes researchers.
 #' @param dense.reg GRanges or RangedData object, only use if you need to provide for a

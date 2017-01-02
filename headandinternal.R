@@ -32,7 +32,7 @@
 #' @importFrom utils capture.output download.file read.table write.table read.delim
 #' @importFrom graphics par
 #' @importFrom "genoset"  chrIndices  chrInfo  chrNames   "chrNames<-"
-
+#' @importFrom methods slot "slot<-"
 ###END NAMESPACE###
 
 #DataFrame
@@ -57,7 +57,7 @@
 # importNoClassesFrom "GenomicFeatures" TranscriptDb
 
 .onAttach <- function(libname, pkgname) {
-  packageStartupMessage("humarray version 1.0.0\n")
+  packageStartupMessage("humarray version 1.1\n")
 }
 
 .onLoad <- function(libname, pkgname) {
@@ -78,6 +78,22 @@
 ########################
 ## internal functions ##
 ########################
+
+# immunobase doesn't allow regions to be downloaded automatically anymore :(
+immunobase.has.changed <- function(type=c("message","text","warning","error"),ret.val=NULL) {
+	  msg <- "Unfortunately this table can no longer be downloaded programmatically. Please obtain manually from: https://www.immunobase.org/disease/T1D/"
+	  type <- type[1]
+	  if(type=="error") {
+	  	stop(msg)
+	  } else if(type=="warning") {
+	  	warnings(msg)
+	  } else if(type=="text") {
+	  	print(msg)
+	  } else {
+	  	message(msg)
+	  }
+	return(ret.val)
+}
 
 finitize <- function(X) {
   if(is.data.frame(X)) { X <- as.matrix(X) }
