@@ -165,7 +165,7 @@ order.chr <- function(chrs) {
 }
 
 #internal
-sort.chr <- function(chr) { chr[order.chr(chr)] }
+sort_chr <- function(chr) { chr[order.chr(chr)] }
 
 
 #internal

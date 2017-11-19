@@ -1,39 +1,39 @@
 ###NAMESPACE ADDITIONS###
-# import(Rcpp, NCmisc)
-# importFrom(BiocInstaller, biocVersion)
-# importFrom(stats, family, pnorm, pt, qnorm, rchisq, rnorm, runif, median, cor, sd)
-# importFrom(reader, cat.path, reader, shift.rownames )
-# importFrom(grDevices, dev.off, pdf)
-# importFrom(graphics, abline, lines, points, rect, text, plot)
-# importFrom(methods, as, callNextMethod, is, new, prototype, representation, setAs, setClass, setGeneric, setMethod, setValidity)
-# importClassesFrom(GenomicRanges, GNCList, GRanges, GenomicRanges)
-# importFrom(GenomicRanges, GRanges, GRangesList)
-# importMethodsFrom(GenomicRanges, "names<-", length, names, start, end)
-# importMethodsFrom(GenomicRanges, width, strand, show, findOverlaps)
-# importMethodsFrom("GenomicRanges", "length", "names", "names<-", "[", "[<-", "[[<-", "$", "$<-")
-# importMethodsFrom(GenomeInfoDb, "seqlevels", "seqlevels<-", "genome<-", "genome", seqinfo, "seqinfo<-", seqnames, "seqnames<-", "seqlengths")
-# importClassesFrom(IRanges, RangedData)
-# importFrom(IRanges, "%over%", IRanges, RangedData, showAsCell, PartitioningByEnd)
-# importMethodsFrom(IRanges, "colnames<-", "rownames<-", "universe<-", showAsCell)
-# importMethodsFrom(IRanges, as.data.frame, as.list, as.matrix, cbind, rbind, colnames)
-# importMethodsFrom(IRanges, end, findOverlaps, subsetByOverlaps, gsub, intersect, lapply)
-# importMethodsFrom(IRanges, mean, nrow, ncol, order, as.list)
-# importMethodsFrom(IRanges, ranges, rownames, runLength, space, flank, reduce, resize)
-# importMethodsFrom(IRanges, start, universe, unlist, width, "start<-", "width<-", "end<-", ranges, "ranges<-")
-# importFrom("GenomicFeatures", makeTxDbFromUCSC, exonsBy, transcriptsBy)
-# importMethodsFrom("GenomicFeatures", exonsBy, transcriptsBy, as.list)
-# importClassesFrom("rtracklayer", ChainFile)
-# importMethodsFrom("rtracklayer", liftOver, import.chain)
-# importFrom("biomaRt", useMart, useDataset, getBM)
-# importClassesFrom(S4Vectors, DataFrame, Rle, Hits)
-# importFrom(S4Vectors, subjectHits, queryHits, mcols, "mcols<-", head, tail, DataFrame, Rle, runValue)
-# importClassesFrom("biomaRt", Mart)
-# importFrom(parallel, mclapply)
-# importFrom(utils, capture.output, download.file, read.table, write.table, read.delim)
-# importFrom(graphics, par)
-# importFrom("genoset", chrIndices, chrInfo, chrNames, "chrNames<-")
-# importFrom(methods, slot, "slot<-")
-# importFrom(BiocGenerics, relist)
+#' @import Rcpp NCmisc 
+#' @importFrom BiocInstaller biocVersion
+#' @importFrom stats family pnorm pt qnorm rchisq rnorm runif median cor sd
+#' @importFrom reader cat.path reader shift.rownames
+#' @importFrom grDevices dev.off pdf
+#' @importFrom graphics abline lines points rect text plot
+#' @importFrom methods as callNextMethod is new prototype representation setAs setClass setGeneric setMethod setValidity
+#' @importClassesFrom GenomicRanges GNCList GRanges GenomicRanges GenomicRanges_OR_missing
+#' @importFrom GenomicRanges GRanges GRangesList
+#' @importMethodsFrom GenomicRanges "names<-" length names start end 
+#' @importMethodsFrom GenomicRanges width strand  show findOverlaps
+#' @importMethodsFrom GenomicRanges length names  "names<-"  "["  "[<-"   "[[<-"  "$"  "$<-"
+#' @importMethodsFrom GenomeInfoDb "seqlevels"  "seqlevels<-" "genome<-" "genome"  seqinfo  "seqinfo<-" seqnames  "seqnames<-" "seqlengths"
+#' @importClassesFrom IRanges RangedData 
+#' @importFrom IRanges "%over%" IRanges  RangedData  showAsCell PartitioningByEnd
+#' @importMethodsFrom IRanges "colnames<-" "rownames<-" "universe<-" showAsCell
+#' @importMethodsFrom IRanges as.data.frame as.list as.matrix cbind rbind colnames
+#' @importMethodsFrom IRanges end findOverlaps subsetByOverlaps gsub intersect lapply
+#' @importMethodsFrom IRanges mean nrow ncol order as.list 
+#' @importMethodsFrom IRanges ranges rownames runLength space  flank  reduce resize
+#' @importMethodsFrom IRanges start universe unlist width  "start<-"  "width<-"  "end<-" ranges "ranges<-"
+#' @importFrom "GenomicFeatures" makeTxDbFromUCSC  exonsBy  transcriptsBy
+#' @importMethodsFrom "GenomicFeatures"  exonsBy  transcriptsBy  as.list
+#' @importClassesFrom "rtracklayer"  ChainFile
+#' @importMethodsFrom "rtracklayer"  liftOver  import.chain
+#' @importFrom "biomaRt"  useMart  useDataset  getBM
+#' @importClassesFrom S4Vectors DataFrame Rle Hits
+#' @importFrom S4Vectors subjectHits queryHits mcols "mcols<-" head tail DataFrame Rle runValue 
+#' @importClassesFrom "biomaRt"  Mart
+#' @importFrom parallel  mclapply
+#' @importFrom utils capture.output download.file read.table write.table read.delim
+#' @importFrom graphics par
+#' @importFrom "genoset"  chrIndices  chrInfo  chrNames   "chrNames<-"
+#' @importFrom methods slot "slot<-"
+#' @importFrom BiocGenerics relist
 ###END NAMESPACE###
 
 #DataFrame
@@ -43,7 +43,6 @@
 # BiocGenerics 
 
 # , genoset (>= 1.16.2)   # took from DESCRIPTION file
-# importClassesFrom(GenomicRanges, GNCList, GRanges, GenomicRanges, GenomicRanges_OR_missing)
 # importFrom "genoset"  chr  chrIndices  chrInfo  chrNames  chrOrder   "chrNames<-"
 # importFrom "genoset"  "isGenomeOrder"  "locData"   "locData<-"
 # importMethodsFrom GenomicRanges length names  "names<-" "dimnames<-" "["  "[<-"  "[["  "[[<-"  "$"  "$<-" cbind rbind  "mcols<-" mcols subsetByOverlaps
@@ -252,7 +251,7 @@ order.chr <- function(chrs) {
 }
 
 #internal
-sort_chr <- function(chr) { chr[order.chr(chr)] }
+sort.chr <- function(chr) { chr[order.chr(chr)] }
 
 
 #internal
@@ -618,7 +617,7 @@ cat("wrote plot to",cat.path(getwd(),fn),"\n")
 
 
 # gets limits of a plot space on current device
-plot_get_area <- function() {
+plot.get.area <- function() {
   success <- tryCatch(mine <- par("usr"),error=function(e) { F } )
   if(all(!success)) { warning("could not get plot limits - no plot open perhaps?"); return(NULL) }
   xlim=mine[1:2]

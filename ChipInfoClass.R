@@ -88,6 +88,9 @@ setClass("ChipInfo",
 #' @rdname GRanges-methods
 #' @exportMethod rownames
 setMethod("rownames", "GRanges", function(x) names(x@ranges))
+#' @rdname GRanges-methods
+#' @exportMethod "rownames<-"
+#' @param value a character string
 setMethod("rownames<-", "GRanges", function(x,value) { names(x@ranges) <- value; return(x) })
 
 
@@ -899,7 +902,14 @@ extraColumnSlots2 <- function(x) {
 #internal
 setGeneric("extraColumnSlotNames2",
            function(x) standardGeneric("extraColumnSlotNames2"))
-
+           
+#' Get extra column slot names
+#' 
+#' Return the list of chromosome start and end indexes from a RangedData object
+#' @param x any object
+#' @return internal function
+#' @rdname extraColumnSlotNames2-methods
+#' @exportMethod extraColumnSlotNames2
 setMethod("extraColumnSlotNames2", "ANY", function(x) character())
 
 
@@ -1079,15 +1089,14 @@ setMethod("chrm", "ChipInfo", function(object) {
 # })
 
 
-# #' Chromosome indices method for ranged objects
-# #' 
-# #' Return the list of chromosome start and end indexes from a RangedData object
-# #' @param object RangedData or GRanges object
-# #' @return matrix of indexes, colnames  first, last, offset
-# #' @rdname chrIndices-methods
+#' Chromosome indices method for ranged objects
+#' 
+#' Return the list of chromosome start and end indexes from a RangedData object
+#' @param object RangedData or GRanges object
+#' @return matrix of indexes, colnames  first, last, offset
+#' @rdname chrIndices-methods
 # #' @export
 # setGeneric("chrIndices",function(object) standardGeneric("chrIndices"))
-
 # #' @rdname chrIndices-methods
 #' @exportMethod chrIndices
 setMethod("chrIndices", "RangedData", function(object) {
@@ -1101,15 +1110,14 @@ setMethod("chrIndices", "RangedData", function(object) {
 # })
 
 
-# #' Chromosome info method for ranged objects
-# #' 
-# #' Return the list of chromosome start and end ranges from a RangedData object
-# #' @param object RangedData or GRanges object
-# #' @return matrix of ranges, colnames start, stop, offset
-# #' @rdname chrInfo-methods
+#' Chromosome info method for ranged objects
+#' 
+#' Return the list of chromosome start and end ranges from a RangedData object
+#' @param object RangedData or GRanges object
+#' @return matrix of ranges, colnames start, stop, offset
+#' @rdname chrInfo-methods
 # #' @export
 # setGeneric("chrInfo",function(object) standardGeneric("chrInfo"))
-
 # #' @rdname chrInfo-methods
 #' @exportMethod chrInfo
 setMethod("chrInfo", "RangedData", function(object) {
@@ -1123,16 +1131,14 @@ setMethod("chrInfo", "RangedData", function(object) {
 # })
 
 
-# #' Chromosome names method for ranged objects
-# #' 
-# #' Return the list of chromosome labels from a RangedData object
-# #' @param object RangedData or GRanges object
-# #' @return vector of names
-# #' @rdname chrNames-methods
+#' Chromosome names method for ranged objects
+#' 
+#' Return the list of chromosome labels from a RangedData object
+#' @param object RangedData or GRanges object
+#' @return vector of names
+#' @rdname chrNames-methods
 # #' @export
 # setGeneric("chrNames",function(object) standardGeneric("chrNames"))
-
-
 # #' @rdname chrNames-methods
 #' @exportMethod chrNames
 setMethod("chrNames", "RangedData", function(object) {

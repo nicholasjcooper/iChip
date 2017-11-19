@@ -23,10 +23,11 @@
 #' @examples
 #' get.immunobase.snps(show.codes=TRUE) # show codes/diseases available to download
 #' \donttest{
-#' get.immunobase.snps(disease="CEL") # get SNP ids for celiac disease
-#' get.immunobase.snps(disease="AS") # get SNP ids for Ankylosing Spondylitis in build-37/hg19
-#' get.immunobase.snps(disease=27) # get SNP ids for Alopecia Areata
-#' get.immunobase.snps("Vitiligo")
+#' # Deprecated as this data is no longer available online
+#' # get.immunobase.snps(disease="CEL") # get SNP ids for celiac disease
+#' # get.immunobase.snps(disease="AS") # get SNP ids for Ankylosing Spondylitis in build-37/hg19
+#' # get.immunobase.snps(disease=27) # get SNP ids for Alopecia Areata
+#' # get.immunobase.snps("Vitiligo")
 #' }
 get.immunobase.snps <- function(disease="T1D",snps.only=TRUE,show.codes=FALSE) {
   disease.codes <- c("Type 1 Diabetes", "Crohns Disease","Rheumatoid Arthritis",
@@ -403,7 +404,7 @@ plotGeneAnnot <- function(chr=1, scl=c("b","kb","mb","gb"), y.ofs=0, width=NA, t
   Col <- c("green", "darkgreen")
 
   # get set of genes in range of the graph section + remove duplicate genes/exons
-  plot.area <- plot.get.area();
+  plot.area <- plot_get_area();
   if(all(is.null(plot.area))) { pos <- c(1,Inf) } 
   x.lim <- plot.area$xlim;
   y.lim <- plot.area$ylim;
@@ -506,7 +507,7 @@ get.immunog.locs <- function(build=NULL,bioC=TRUE,text=FALSE,GRanges=TRUE) {
   if(bioC | text) {
     #must.use.package(c("genoset","IRanges"),bioC=T)
     outData <- RangedData(ranges=IRanges(start=stz,end=enz,names=nmz),space=chr,
-                          reg=reg.dat,universe=build[1])
+                          reg=reg.dat)  #,universe=build[1])
     outData <- toGenomeOrder2(outData,strict=T)
     if(text) { outData <- ranged.to.txt(outData) } else {
       if(GRanges) { outData <- as(outData,"GRanges") }
@@ -575,7 +576,7 @@ get.centromere.locs <- function(dir=NULL,build=NULL,
   if(bioC | text) {
     #must.use.package(c("genoset","IRanges"),bioC=TRUE)
     outData <- RangedData(ranges=IRanges(start=stz,end=enz,names=nmz),space=gsub("chr","",chrn),
-                          reg=reg.dat,universe=build[1])
+                          reg=reg.dat) #,universe=build[1])
     outData <- toGenomeOrder2(outData,strict=TRUE)
     if(text) { 
       outData <- ranged.to.txt(outData) 
@@ -644,7 +645,7 @@ get.cyto <- function(build=NULL,dir=NULL,bioC=TRUE,GRanges=TRUE,refresh=FALSE) {
     en <- as.numeric(tt$end)
    # must.use.package(c("genoset","IRanges"),bioC=T)
     outData <- RangedData(ranges=IRanges(start=st,end=en,names=fullbands),space=mychr,
-                          negpos=tt$negpos,universe=build[1])
+                          negpos=tt$negpos) #,universe=build[1])
     #prv(outData)
     outData <- toGenomeOrder2(outData) ##,strict=T)
     if(GRanges) { outData <- as(outData,"GRanges") }
@@ -826,7 +827,7 @@ get.exon.annot <- function(dir=NULL,build=NULL,bioC=T, transcripts=FALSE, GRange
     if(bioC) {
       tS <- RangedData(ranges=IRanges(start=tS$start,end=tS$end),
                        space=tS$chr,gene=tS$gene, strand=tS$strand,
-                       txid=tS$txid, txname=tS$txname,universe=build)
+                       txid=tS$txid, txname=tS$txname) #,universe=build)
       tS <- toGenomeOrder2(tS,strict=T)
       if(GRanges) { tS <- as(tS,"GRanges") }
     }
@@ -992,7 +993,7 @@ get.gene.annot <- function(dir=NULL,build=NULL,bioC=TRUE,duplicate.report=FALSE,
 #    for (jj in 1:22) { ii <- ga[ga$chr==jj,"end"]>get.chr.lens()[jj]; if(any(ii)) { bad1s <- c(bad1s,which(ga$chr==jj)[ii]) } }
 #    if(length(bad1s)>0) { dat <- dat[-bad1s,] ; warning(length(bad1s)," gene positions exceeded chromosome length") }
     outData <- RangedData(ranges=IRanges(start=dat$start_position,end=dat$end_position),
-                          space=dat$chromosome_name,gene=dat$hgnc_symbol, band=dat$band, universe=build)
+                          space=dat$chromosome_name,gene=dat$hgnc_symbol, band=dat$band) #, universe=build)
     outData <- toGenomeOrder2(outData,strict=T)
     if(duplicate.report | one.to.one) {
       genez <- outData$gene
@@ -1096,7 +1097,7 @@ get.telomere.locs <- function(dir=NULL,kb=10,build=NULL,bioC=TRUE,GRanges=TRUE,
   if(bioC | text) {
     #must.use.package(c("genoset","IRanges"),bioC=T)
     outData <- RangedData(ranges=IRanges(start=stz,end=enz,names=nmz),space=chrz,
-                          reg=reg.dat,universe=build[1])
+                          reg=reg.dat) #,universe=build[1])
     outData <- toGenomeOrder2(outData,strict=T)
     if(text) { outData <- ranged.to.txt(outData) } else { if(GRanges) { outData <- as(outData,"GRanges") } }
   } else {
@@ -2205,7 +2206,7 @@ df.to.GRanges <- function(dat,...) {
 #' @param exclude character string, and column names from the data.frame to 
 #' NOT include in the resulting S4 object.
 #' @param build the ucsc build for the result object which will apply to the
-#' 'universe' (RangedData) or 'genome' slot (GRanges) of the new object.
+#' 'universe' (RangedData, deprecating) or 'genome' slot (GRanges) of the new object.
 #' @param GRanges logical, whether the resulting object should be GRanges (TRUE),
 #' or RangedData (FALSE)
 #' @param fill.missing logical, GRanges/RangedData objects cannot handle missing
@@ -4400,7 +4401,7 @@ Gene.pos <- function(chr=NA,pos=NA,start=NA,end=NA,ranges=NULL,build=NULL,dir=NU
     }
     #if(any(tolower(substr(chr,1,3))!="chr")) { chr <- gsub("chr",chr,sep="") }
     #chr <- gsub("chrchr","chr",chr)
-    testData <- RangedData(ranges=IRanges(start=Pos[,1],end=Pos[,2]),space=chr,index=1:length(chr),universe=build[1])
+    testData <- RangedData(ranges=IRanges(start=Pos[,1],end=Pos[,2]),space=chr,index=1:length(chr)) #,universe=build[1])
     testData <- toGenomeOrder2(testData,strict=T)
   } else {
     testData <- ranges # set.chr.to.char(ranges)
@@ -4510,7 +4511,7 @@ Band.pos <- function(chr=NA,pos=NA,start=NA,end=NA,ranges=NULL,build=NULL,dir=NU
     }
     #if(any(tolower(substr(chr,1,3))!="chr")) { chr <- gsub("chr",chr,sep="") }
     #chr <- gsub("chrchr","chr",chr)
-    testData <- RangedData(ranges=IRanges(start=Pos[,1],end=Pos[,2]),space=chr,index=1:length(chr),universe=build[1])
+    testData <- RangedData(ranges=IRanges(start=Pos[,1],end=Pos[,2]),space=chr,index=1:length(chr)) #,universe=build[1])
     testData <- toGenomeOrder2(testData,strict=T)
   } else {
     if(typ=="GRanges") { ranges <- as(ranges,"RangedData") }
